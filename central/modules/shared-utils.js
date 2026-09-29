@@ -387,8 +387,10 @@
       staticData: KPI_DATA_STATIC_26_27,
     },
   };
-  const KPI_SY_DEFAULT = '25-26';
-  const KPI_SY_STORAGE_KEY = 'njtc_kpi_sy';
+  // SY 26-27 is the current year — everyone starts there. (v2 key: earlier
+  // saved choices from when 25-26 was the default are intentionally reset.)
+  const KPI_SY_DEFAULT = '26-27';
+  const KPI_SY_STORAGE_KEY = 'njtc_kpi_sy_v2';
   let _kpiSY = (function() {
     try { const v = localStorage.getItem(KPI_SY_STORAGE_KEY); if (v && KPI_SY_CONFIG[v]) return v; } catch(e) {}
     return KPI_SY_DEFAULT;
@@ -4500,6 +4502,60 @@
     }).catch(() => {});
   }
 
+  // ── Multi-year series (SY24-25 → SY25-26 → SY26-27) for year-over-year
+  // review, independent of which SY the toggle is on. Each year is scored on
+  // its End of Year status when any EOY status exists, else Mid-Year.
+  function _kpiRowsFor(sy) {
+    if (sy === _kpiSY && _kpiFromSheet && KPI_DATA && KPI_DATA.length) return KPI_DATA;
+    const st = _kpiSYStore[sy];
+    if (st && st.data && st.data.length) return st.data;
+    const c = NJTC_CACHE.get(KPI_SY_CONFIG[sy].cacheKey);
+    return (c && c.data && c.data.length) ? c.data : null;
+  }
+  function kpiYearSeries() {
+    const series = [{
+      key: '24-25', label: 'SY 2024–2025', short: 'SY 24-25', live: false, basis: 'Final status',
+      rows: KPI_DATA_24_25.map(k => ({ goal: k.goal, target: k.target, status: k.status || '' })),
+    }];
+    ['25-26', '26-27'].forEach(sy => {
+      const cfg  = KPI_SY_CONFIG[sy];
+      const live = _kpiRowsFor(sy);
+      const rows = live || cfg.staticData;
+      const hasEOY = rows.some(k => k.endStatus && k.endStatus.trim());
+      const hasAny = rows.some(k => (k.midStatus || k.endStatus || '').trim());
+      series.push({
+        key: sy, label: cfg.label, short: cfg.short, live: !!live,
+        basis: hasEOY ? 'End of Year' : hasAny ? 'Mid-Year' : 'No status yet',
+        rows: rows.map(k => ({ goal: k.goal, target: k.target, owner: k.owner || '',
+          status: (hasEOY ? (k.endStatus || k.midStatus) : k.midStatus) || '' })),
+      });
+    });
+    return series;
+  }
+  // Fetch a non-active SY's Summary tab once (e.g. SY 25-26 final statuses
+  // while viewing SY 26-27). Resolves true when live rows are available.
+  const _kpiYearLoads = {};
+  function ensureKpiYearLoaded(sy) {
+    if (!KPI_SY_CONFIG[sy]) return Promise.resolve(false);
+    if (_kpiRowsFor(sy)) return Promise.resolve(true);
+    if (_kpiYearLoads[sy]) return _kpiYearLoads[sy];
+    const cfg = KPI_SY_CONFIG[sy];
+    _kpiYearLoads[sy] = fetch(cfg.csvUrl, { signal: AbortSignal.timeout(8000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(csv => {
+        const parsed = csv ? parseSheetCSV(csv) : null;
+        if (parsed && parsed.length) {
+          NJTC_CACHE.set(cfg.cacheKey, parsed);
+          if (!_kpiSYStore[sy]) _kpiSYStore[sy] = { data: parsed, fetched: new Date() };
+          return true;
+        }
+        return false;
+      })
+      .catch(() => false)
+      .then(ok => { if (!ok) delete _kpiYearLoads[sy]; return ok; });
+    return _kpiYearLoads[sy];
+  }
+
   // Prior-year comparison source for the YoY snapshot in exports/presentations.
   // SY25-26 view → frozen SY24-25 record. SY26-27 view → SY25-26 live data
   // (in-memory or cached), scored on its end-of-year status (mid if blank).
@@ -7534,6 +7590,8 @@
   window.KPI_SY_CONFIG        = KPI_SY_CONFIG;
   window.kpiSYConfig          = kpiSYConfig;
   window.kpiPriorYear         = kpiPriorYear;
+  window.kpiYearSeries        = kpiYearSeries;
+  window.ensureKpiYearLoaded  = ensureKpiYearLoaded;
   window.setKpiSY             = setKpiSY;
   window.syncKpiSYUI          = _syncKpiSYUI;
   _syncKpiSYUI();  // reflect the saved SY choice on the toggle + panel labels at load

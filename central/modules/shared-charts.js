@@ -71,6 +71,22 @@
     if(!el) return;
     populateKPIMetricDropdown();
     el.innerHTML = renderKPIAnalytics();
+    // Year-over-year review needs SY 25-26's live statuses even while the
+    // toggle is on SY 26-27 — fetch once in the background, then re-render.
+    if (typeof window.ensureKpiYearLoaded === 'function' && window.NJTC_KPI_SY !== '25-26') {
+      const series = typeof window.kpiYearSeries === 'function' ? window.kpiYearSeries() : [];
+      const y25 = series.find(y => y.key === '25-26');
+      if (y25 && !y25.live) {
+        window.ensureKpiYearLoaded('25-26').then(ok => {
+          const panel = document.getElementById('panel-kpi-analytics');
+          if (!ok || !panel || !panel.classList.contains('active')) return;
+          if (_kpiAnalyticsTab === 'yoy' || !document.getElementById('kpiaTab-overview')) {
+            if (!document.getElementById('kpiaTab-overview')) el.innerHTML = renderKPIAnalytics();
+            else setKPIAnalyticsTab('yoy');
+          }
+        });
+      }
+    }
   }
 
   // Exposed so other modules (e.g. growth-tree.js) can read the exact same
@@ -164,6 +180,166 @@
     return parts.join(' · ');
   }
 
+
+  // ════════════════════════════════════════════════════════════════
+  //  YEAR-OVER-YEAR REVIEW  (SY24-25 → SY25-26 → SY26-27)
+  //  Same KPI_PT weighting for every year. Goal areas are matched on a
+  //  normalized name; individual targets are matched by wording similarity
+  //  so recurring commitments (e.g. partner satisfaction, staff retention)
+  //  can be followed year to year and repeat misses surfaced.
+  // ════════════════════════════════════════════════════════════════
+  const _GOAL_ALIAS = { 'improve cash position and modeling': 'maintain cash position' };
+  function _goalKey(g){
+    const k = String(g||'').toLowerCase().replace(/\bthe\b/g,' ').replace(/\s+/g,' ').trim();
+    return _GOAL_ALIAS[k] || _GOAL_ALIAS[String(g||'').toLowerCase().trim()] || k;
+  }
+  const _STOP = new Set('the and for with that this from into each year annually annual least total by of in on to at a an or be are is all our per new sy school end'.split(' '));
+  function _tokens(t){
+    return new Set(String(t||'').toLowerCase().replace(/[^a-z0-9% ]+/g,' ').split(/\s+/)
+      .filter(w => w.length >= 3 && !_STOP.has(w) && !/^\d+$/.test(w)));
+  }
+  function _sim(a, b){
+    let inter = 0; a.forEach(w => { if (b.has(w)) inter++; });
+    const uni = a.size + b.size - inter;
+    return uni ? inter / uni : 0;
+  }
+  function _bestMatch(row, pool){
+    const ta = _tokens(row.target), gk = _goalKey(row.goal);
+    let best = null, bestS = 0;
+    pool.forEach(p => {
+      const sc = _sim(ta, p._tok);
+      const need = _goalKey(p.goal) === gk ? 0.34 : 0.55;
+      if (sc >= need && sc > bestS) { best = p; bestS = sc; }
+    });
+    return best;
+  }
+  function _yearScore(rows){
+    let pts = 0, n = 0;
+    const counts = { Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0 };
+    const goals = {};
+    rows.forEach(r => {
+      const s = r.status || '';
+      if (!s) return;
+      pts += kpiPts(s); n++;
+      if (counts[s] !== undefined) counts[s]++;
+      const gk = _goalKey(r.goal);
+      if (!goals[gk]) goals[gk] = { name: r.goal, pts: 0, n: 0 };
+      goals[gk].pts += kpiPts(s); goals[gk].n++;
+    });
+    Object.values(goals).forEach(g => { g.score = g.n ? g.pts / g.n * 100 : null; });
+    return { score: n ? pts / n * 100 : null, n, total: rows.length, counts, goals };
+  }
+  const _stChip = s => {
+    if (!s) return '<span style="color:var(--muted)">—</span>';
+    const map = { 'Met':['#166534','#dcfce7'], 'Partially Met':['#9a3412','#ffedd5'], 'In Progress':['#1e40af','#dbeafe'],
+                  'Coming Down the Pipeline':['#6b21a8','#f3e8ff'], 'Has Not Met':['#991b1b','#fee2e2'] };
+    const c = map[s] || ['#475569','#f1f5f9'];
+    return `<span style="background:${c[1]};color:${c[0]};padding:.12rem .45rem;border-radius:6px;font-size:.7rem;font-weight:700;white-space:nowrap">${s.replace('Coming Down the Pipeline','Pipeline')}</span>`;
+  };
+
+  function renderKPIYearReview(){
+    const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const series = (typeof window.kpiYearSeries === 'function') ? window.kpiYearSeries() : [];
+    const y24 = series.find(y => y.key === '24-25'), y25 = series.find(y => y.key === '25-26'), y26 = series.find(y => y.key === '26-27');
+    if (!y24 || !y25 || !y26) return '';
+    const s24 = _yearScore(y24.rows), s25 = _yearScore(y25.rows), s26 = _yearScore(y26.rows);
+    const fmt = v => v == null ? '—' : v.toFixed(0) + '%';
+    const delta = (a, b) => (a == null || b == null) ? '' :
+      `<span style="font-size:.72rem;font-weight:700;color:${b-a>=0?'#166534':'#991b1b'}">${b-a>=0?'▲':'▼'} ${Math.abs(b-a).toFixed(1)} pts</span>`;
+    let html = '';
+
+    // ── 1. How SY 25-26 ended ─────────────────────────────────────
+    const r25 = s25.score != null ? riskBucket(s25.score) : null;
+    html += `<div style="background:linear-gradient(135deg,${r25?r25.bg:'#f8fafc'},white);border:2px solid ${r25?r25.color+'22':'#e2e8f0'};border-radius:16px;padding:1.25rem 1.5rem;margin-bottom:1.25rem">
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.35rem">📁 How we ended ${esc(y25.label)} · ${esc(y25.basis)}${y25.live ? '' : ' · built-in snapshot (live sheet not reachable)'}</div>
+      <div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">
+        <div style="font-size:2.25rem;font-weight:800;color:${r25?r25.color:'var(--navy)'};font-family:'DM Serif Display',serif;line-height:1">${fmt(s25.score)}</div>
+        <div style="flex:1;min-width:220px;font-size:.85rem;color:var(--text-2);line-height:1.55">
+          ${r25 ? `<strong style="color:${r25.color}">${r25.icon} ${r25.label}</strong> · ` : ''}${s25.counts['Met']} met · ${s25.counts['Partially Met']} partially met · ${s25.counts['Has Not Met']} not met · ${s25.counts['In Progress']} in progress · ${s25.counts['Coming Down the Pipeline']} pipeline — out of ${s25.total} targets.
+          <br>Versus ${esc(y24.label)} (${fmt(s24.score)}): ${delta(s24.score, s25.score)}
+        </div>
+      </div>
+    </div>`;
+
+    // ── 2. Score trend ────────────────────────────────────────────
+    const trend = [[y24,s24],[y25,s25],[y26,s26]];
+    html += `<div class="kpia-card" style="margin-bottom:1.25rem">
+      <div class="kpia-card-header" style="margin-bottom:.75rem"><div class="kpia-card-title">📈 Weighted Goal Score by Year</div>
+      <div class="kpia-card-meta">Met 1.0 · Partial 0.5 · In Progress 0.25 · Pipeline 0.10 · Not Met 0</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem">
+      ${trend.map(([y,sc],i) => {
+        const rb = sc.score != null ? riskBucket(sc.score) : null;
+        return `<div style="border:1px solid var(--border);border-radius:12px;padding:.875rem 1rem;background:${rb?rb.bg:'#f8fafc'}">
+          <div style="font-size:.72rem;font-weight:700;color:var(--muted)">${esc(y.label)}</div>
+          <div style="font-size:1.6rem;font-weight:800;color:${rb?rb.color:'#94a3b8'}">${fmt(sc.score)}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${esc(y.basis)} · ${sc.n}/${sc.total} scored</div>
+          ${i>0 ? `<div style="margin-top:.25rem">${delta(trend[i-1][1].score, sc.score)}</div>` : ''}
+        </div>`;
+      }).join('')}
+      </div></div>`;
+
+    // ── 3. Goal areas across years ────────────────────────────────
+    const gkeys = [];
+    [s26, s25, s24].forEach(sc => Object.keys(sc.goals).forEach(k => { if (gkeys.indexOf(k) < 0) gkeys.push(k); }));
+    y26.rows.forEach(r => { const k = _goalKey(r.goal); if (gkeys.indexOf(k) < 0) gkeys.unshift(k); });
+    const gName = k => (s26.goals[k]||s25.goals[k]||s24.goals[k]||{}).name || (y26.rows.find(r=>_goalKey(r.goal)===k)||{}).goal || k;
+    const gCell = (sc, k) => { const g = sc.goals[k]; if (!g || g.score == null) return '<td style="text-align:center;color:var(--muted)">—</td>';
+      const rb = riskBucket(g.score); return `<td style="text-align:center"><span style="color:${rb.color};font-weight:700">${g.score.toFixed(0)}%</span></td>`; };
+    html += `<div class="kpia-card" style="margin-bottom:1.25rem;overflow-x:auto">
+      <div class="kpia-card-header" style="margin-bottom:.75rem"><div class="kpia-card-title">🧭 Goal Areas — Year over Year</div>
+      <div class="kpia-card-meta">Goal-area weighted score each year</div></div>
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead><tr style="text-align:left;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">
+          <th style="padding:.4rem">Goal Area</th><th style="text-align:center">SY 24-25</th><th style="text-align:center">SY 25-26</th><th style="text-align:center">Change</th><th style="text-align:center">SY 26-27</th></tr></thead>
+        <tbody>${gkeys.map(k => {
+          const a = s24.goals[k] ? s24.goals[k].score : null, b = s25.goals[k] ? s25.goals[k].score : null;
+          return `<tr style="border-top:1px solid var(--border)"><td style="padding:.45rem .4rem;font-weight:600;color:var(--navy)">${esc(gName(k))}</td>${gCell(s24,k)}${gCell(s25,k)}<td style="text-align:center">${delta(a,b)||'<span style="color:var(--muted)">—</span>'}</td>${gCell(s26,k)}</tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+
+    // ── 4. Carry-forward from SY 25-26 ────────────────────────────
+    const open25 = y25.rows.filter(r => r.status && r.status !== 'Met');
+    html += `<div class="kpia-card" style="margin-bottom:1.25rem">
+      <div class="kpia-card-header" style="margin-bottom:.5rem"><div class="kpia-card-title">📌 Not fully met in ${esc(y25.label)} (${open25.length})</div>
+      <div class="kpia-card-meta">${esc(y25.basis)} status</div></div>
+      ${open25.length ? `<ul style="margin:0;padding-left:1.1rem;font-size:.8rem;line-height:1.7">${open25.map(r => `<li>${_stChip(r.status)} ${esc(r.target)} <span style="color:var(--muted);font-size:.72rem">— ${esc(r.goal)}</span></li>`).join('')}</ul>`
+        : '<div style="font-size:.8rem;color:var(--muted)">Every scored target was met.</div>'}
+    </div>`;
+
+    // ── 5. Recurring targets — track SY 26-27 commitments back in time ──
+    const pool25 = y25.rows.map(r => Object.assign({}, r, { _tok: _tokens(r.target) }));
+    const pool24 = y24.rows.map(r => Object.assign({}, r, { _tok: _tokens(r.target) }));
+    const chains = y26.rows.map(r => {
+      const m25 = _bestMatch(r, pool25);
+      const m24 = _bestMatch(m25 || r, pool24) || (m25 ? _bestMatch(r, pool24) : null);
+      const miss = s => s && s !== 'Met';
+      const flag = (m24 && m25 && miss(m24.status) && miss(m25.status)) ? ['🔁 Repeat miss','#991b1b','#fee2e2']
+                 : (m25 && miss(m25.status)) ? ['⚠️ Missed last year','#9a3412','#ffedd5']
+                 : (m25 && m25.status === 'Met' && m24 && m24.status === 'Met') ? ['✅ Met 2 yrs','#166534','#dcfce7']
+                 : (m25 && m25.status === 'Met') ? ['✅ Met last year','#166534','#dcfce7']
+                 : (!m25 && !m24) ? ['🆕 New target','#1e40af','#dbeafe'] : ['—','#475569','#f1f5f9'];
+      return { r, m24, m25, flag, rank: { '🔁 Repeat miss':0, '⚠️ Missed last year':1 }[flag[0]] ?? 2 };
+    }).sort((a,b) => a.rank - b.rank);
+    const repeat = chains.filter(c => c.rank === 0).length, lastYr = chains.filter(c => c.rank === 1).length;
+    html += `<div class="kpia-card" style="margin-bottom:1.25rem;overflow-x:auto">
+      <div class="kpia-card-header" style="margin-bottom:.5rem"><div class="kpia-card-title">🔁 SY 26-27 Targets — Track Record</div>
+      <div class="kpia-card-meta">${repeat} repeat miss${repeat===1?'':'es'} · ${lastYr} missed last year — matched to prior years by target wording</div></div>
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="text-align:left;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em">
+          <th style="padding:.4rem">SY 26-27 Target</th><th>SY 24-25</th><th>SY 25-26</th><th>Signal</th></tr></thead>
+        <tbody>${chains.map(c => `<tr style="border-top:1px solid var(--border);vertical-align:top">
+          <td style="padding:.45rem .4rem"><div style="font-weight:600;color:var(--navy)">${esc(c.r.target)}</div><div style="font-size:.7rem;color:var(--muted)">${esc(c.r.goal)}</div></td>
+          <td style="padding:.45rem .3rem" title="${esc(c.m24 ? c.m24.target : '')}">${c.m24 ? _stChip(c.m24.status) : '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="padding:.45rem .3rem" title="${esc(c.m25 ? c.m25.target : '')}">${c.m25 ? _stChip(c.m25.status) : '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="padding:.45rem .3rem"><span style="background:${c.flag[2]};color:${c.flag[1]};padding:.12rem .45rem;border-radius:6px;font-size:.7rem;font-weight:700;white-space:nowrap">${c.flag[0]}</span></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div style="font-size:.68rem;color:var(--muted);margin-top:.5rem">Hover a prior-year status to see the matched target wording. Prior years are scored on ${esc(y24.basis.toLowerCase())} (SY 24-25) and ${esc(y25.basis.toLowerCase())} (SY 25-26).</div>
+    </div>`;
+    return html;
+  }
+  window.renderKPIYearReview = renderKPIYearReview;
+
   function renderKPIAwaitingStatus(d){
     const sy = _kSY();
     const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -195,7 +371,11 @@
         </ul>
       </div>`;
     }).join('');
-    return html;
+    // Until SY 26-27 statuses arrive, open with how SY 25-26 ended + trends
+    return `<div style="font-size:.95rem;font-weight:800;color:var(--navy);margin:0 0 .75rem">Where we're starting from</div>`
+      + renderKPIYearReview()
+      + `<div style="font-size:.95rem;font-weight:800;color:var(--navy);margin:1.5rem 0 .75rem">${esc(sy.label)} targets</div>`
+      + html;
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -276,6 +456,7 @@
       <button class="kpia-tab"        id="kpiaTab-pipeline"   onclick="setKPIAnalyticsTab('pipeline')">🟣 Coming Up</button>
       <button class="kpia-tab"        id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab('scorecard')">🏆 Full Scorecard</button>
       <button class="kpia-tab"        id="kpiaTab-quarterly"  onclick="setKPIAnalyticsTab('quarterly')">📅 Quarterly${_qBadge}</button>
+      <button class="kpia-tab"        id="kpiaTab-yoy"        onclick="setKPIAnalyticsTab('yoy')">📈 Year over Year</button>
     </div>`;
 
     html += `<div id="kpiaTabContent">${renderKPIAnalyticsTab('overview')}</div>`;
@@ -300,6 +481,8 @@
     if(!d.total) return '';
     const { counts, score, risk, goals, total, totalPts, maxPts, hasEOY } = d;
     const getS = k => (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
+
+    if(tab === 'yoy') return renderKPIYearReview();
 
     // ── GROWTH TREE — delegated to growth-tree.js ─────────────────
     if(tab === 'tree'){
@@ -1562,7 +1745,9 @@
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
-        cycle:      ((r[C.cycle]||'').trim() || (r[C.termQuarter]||'').trim()),
+        // Blank Cycle falls back to Termination Quarter only when it names a
+        // cycle (e.g. "Summer 2026") — a bare "Q4" must not become a cycle group.
+        cycle:      ((r[C.cycle]||'').trim() || (/^Q[1-4]\b/i.test((r[C.termQuarter]||'').trim()) ? '' : (r[C.termQuarter]||'').trim())),
         name:       `${(r[C.first]||'').trim()} ${(r[C.last]||'').trim()}`.trim(),
         email:      (r[C.email]      || '').trim().toLowerCase(),
         termDate:   (r[C.termDate]   || '').trim(),
