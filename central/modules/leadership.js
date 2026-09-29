@@ -85,8 +85,13 @@
     // Summer 2026: "Active Onsite Staff" here means active per Pearl (>=1 completed
     // session), sourced from _syaStats.staffActive — distinct from SY 26-27's tracker
     // headcount and from SY 25-26's HR Master List path below, both unchanged.
+    // SY 26-27: placeholder until HR 2026-27 is wired — tutors who have attended
+    // >=1 Pearl session this SY, excluding same-year separations.
+    const _pearlActiveNow = (execPeriod === 'sy2627' && poStats && poStats.activeInstructorsCurrent != null)
+      ? poStats.activeInstructorsCurrent : null;
     const tutors = _isLive
-      ? (execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null
+      ? (_pearlActiveNow != null ? _pearlActiveNow
+        : execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null
           ? _syaStats.staffActive
           : (_syaStats ? _syaStats.staff : null))
       : (hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null));
@@ -257,10 +262,10 @@
       <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-hero">
-        <div class="ecd-kpi ck-navy" title="${_isLive ? 'Active Onsite Staff: SY Analytics tracker count for this period.' : 'Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet.'}" style="position:relative">
+        <div class="ecd-kpi ck-navy" title="${_pearlActiveNow != null ? 'Active Onsite Staff (placeholder until HR 2026-27 roster): tutors who attended at least 1 Pearl session this SY, excluding staff separated this year.' : _isLive ? 'Active Onsite Staff: SY Analytics tracker count for this period.' : 'Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet.'}" style="position:relative">
           <div class="ecd-kpi-lbl">Active Onsite Staff</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">${execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null ? 'Pearl · Attended ≥1 session' : (_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List')}</div>
+          <div class="ecd-kpi-foot">${_pearlActiveNow != null ? 'Pearl · Attended ≥1 session · until HR' : execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null ? 'Pearl · Attended ≥1 session' : (_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List')}</div>
           ${!_isLive ? `<button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v2';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>` : ''}
         </div>
         <div class="ecd-kpi ck-gold" title="Districts: ${_isLive ? 'Unique districts from SY Analytics tracker for this period.' : 'Count of unique partner districts derived from Pearl Operations attendance records.'}">

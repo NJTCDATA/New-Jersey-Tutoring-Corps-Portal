@@ -8720,6 +8720,14 @@
             // session (used for Summer's "Active Staff" figure — distinct from the
             // rostered activeTutors count above).
             stats.activeInstructors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
+            // Current active instructors: attended >=1 session AND not separated this
+            // year (Onsite tracker Terminations). Placeholder for the SY 26-27 "Active
+            // Onsite Staff" card until the HR 2026-27 roster is wired.
+            try {
+              var _nTN = function(x){ return (x||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' '); };
+              var _sep = _separatedStaffMap(_nTN);
+              stats.activeInstructorsCurrent = Object.keys(_personMap).filter(function(k){ var q=_personMap[k]; return q && q.role==='Instructor' && q.attended > 0 && !_sep[_nTN(q.name)]; }).length;
+            } catch(eSep) { stats.activeInstructorsCurrent = stats.activeInstructors; }
           }
           // Rostered scholars: unique student IDs from Pearl Attendance tab (_attRows).
           // Uses the same source as getRaceData() — captures all enrolled scholars whether
