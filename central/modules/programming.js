@@ -9154,6 +9154,18 @@
         });
       },
 
+      // Week-by-week aggregates for the loaded period (Program Pulse YoY). Uses
+      // the shared NJTC_PULSE_WEEKLY implementation — the same code that built
+      // the archived prior-year file — with this module's classifyRecord.
+      getWeeklySeries: function() {
+        if (!window.NJTC_PULSE_WEEKLY || !_attRows || !_attRows.length) return null;
+        return {
+          period: _activePeriod,
+          anchor: new Date(SY_START.getTime()),
+          weeks: window.NJTC_PULSE_WEEKLY.compute(_attRows, { classify: classifyRecord, anchor: SY_START, upTo: new Date(), idx: ATT }),
+        };
+      },
+
       // getProgramSummaryData() — comprehensive data package for Program Pulse summary
       // Powers the Program Data Summary overlay in Programming + Data departments.
       // Reads from in-memory data only — no additional API calls, no timeouts possible.

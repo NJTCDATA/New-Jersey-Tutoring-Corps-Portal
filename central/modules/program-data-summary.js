@@ -483,6 +483,155 @@ function renderTrends(d) {
   return html;
 }
 
+
+// ── TAB: Year over Year (calendar-aligned weekly comparison) ───────────────
+// Current SY: live Pearl rows via po.getWeeklySeries(). Prior SY: frozen,
+// aggregate-only archive (central/data/pulse-weekly-<season>.json) built by
+// scripts/build-pulse-archive.js with the same NJTC_PULSE_WEEKLY code.
+var _PRIOR_ARCHIVE = { sy2627: { season: '2025-26', label: 'SY 25-26', anchor: new Date(2025, 7, 25), url: 'data/pulse-weekly-2025-26.json?v=2' } };
+var _priorCache = {};   // season -> { status: 'loading'|'ok'|'error', data }
+
+function _loadPrior(cfg) {
+  var c = _priorCache[cfg.season];
+  if (c) return c;
+  c = _priorCache[cfg.season] = { status: 'loading', data: null };
+  fetch(cfg.url).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){ c.status = 'ok'; c.data = j; })
+    .catch(function(e){ c.status = 'error'; c.err = e.message; })
+    .then(function(){ if (_activeTab === 'yoy') renderActiveTab(); });
+  return c;
+}
+
+function _fmtMD(d) { return d ? (d.getMonth() + 1) + '/' + d.getDate() : ''; }
+function _fmtPct(v) { return v == null ? '—' : v + '%'; }
+function _delta(cur, prior, invert) {
+  if (cur == null || prior == null) return '<span style="color:var(--muted)">—</span>';
+  var d = Math.round((cur - prior) * 10) / 10;
+  var good = invert ? d < 0 : d > 0;
+  var col = Math.abs(d) < 1 ? '#64748b' : (good ? '#059669' : '#dc2626');
+  return '<span style="color:' + col + ';font-weight:700">' + (d > 0 ? '+' : '') + d + (invert ? '' : ' pts') + '</span>';
+}
+
+function renderYoY() {
+  var po = window.po;
+  var period = po && po.getActivePeriod ? po.getActivePeriod() : 'sy2627';
+  var cfg = _PRIOR_ARCHIVE[period];
+  if (!cfg) {
+    return buildBanner('📆', 'Year-over-year comparison is available for SY 26-27',
+      'Switch Pearl Operations to <strong>SY 26-27</strong> to compare this year week-by-week with the same weeks of SY 25-26.', 'amber');
+  }
+  if (!window.NJTC_PULSE_WEEKLY || !po.getWeeklySeries) return '<div class="pds-loading">Year-over-year module is loading…</div>';
+  var cur = po.getWeeklySeries();
+  if (!cur || !cur.weeks.length) return '<div class="pds-empty"><div class="pds-empty-icon">📆</div>No SY 26-27 sessions recorded yet.</div>';
+  var pc = _loadPrior(cfg);
+  if (pc.status === 'loading') return '<div class="pds-loading">⏳ Loading ' + cfg.label + ' archive…</div>';
+  if (pc.status === 'error') return buildBanner('⚠️', cfg.label + ' archive unavailable', 'Could not load the prior-year archive (' + escHtmlPds(pc.err || '') + '). Refresh to try again.', 'red');
+
+  var PW = window.NJTC_PULSE_WEEKLY;
+  var cmp = PW.compare(cur.weeks, pc.data.weeks, { curAnchor: cur.anchor, priorAnchor: cfg.anchor });
+  var N = cmp.throughWeek, C = cmp.cur, P = cmp.prior;
+  var today = new Date(), lastMon = PW.mondayOf(cur.anchor, N);
+  var inProgress = today < new Date(lastMon.getFullYear(), lastMon.getMonth(), lastMon.getDate() + 7);
+  var spanTxt = 'Weeks 1–' + N + ' (' + _fmtMD(cur.anchor) + '–' + _fmtMD(today < PW.mondayOf(cur.anchor, N + 1) ? today : PW.mondayOf(cur.anchor, N + 1)) + ')';
+
+  var html;
+  if (!cmp.comparableWeeks) {
+    var firstFull = pc.data.weeks.filter(function(w){ return (w.stuAtt + w.stuAbs + w.stuSI) >= 100; })[0];
+    var partial = cmp.rows.filter(function(r){ return r.priorRecords; }).map(function(r){
+      return 'week of ' + _fmtMD(r.priorMonday) + '/' + String(r.priorMonday.getFullYear()).slice(2) + ': ' + r.priorRecords + ' scholar records' + (r.priorSchools ? ' at ' + r.priorSchools + ' school' + (r.priorSchools === 1 ? '' : 's') : '');
+    });
+    html = buildBanner('📆', 'No like-for-like weeks to compare yet',
+      spanTxt + ': ' + cfg.label + ' had not reached full volume at this point in the calendar' + (partial.length ? ' (' + partial.join('; ') + ')' : '') + '. ' +
+      (firstFull ? 'Last year\'s first full week was the week of ' + _fmtMD(PW.mondayOf(cfg.anchor, firstFull.week)) + '/' + String(PW.mondayOf(cfg.anchor, firstFull.week).getFullYear()).slice(2) + '. ' : '') +
+      'Headline comparisons start automatically once both years have comparable weeks. The planning view below already shows what last year\'s upcoming weeks looked like.', 'amber');
+  } else {
+  var dS = (C.scholarRate != null && P.scholarRate != null) ? Math.round((C.scholarRate - P.scholarRate) * 10) / 10 : null;
+  var tone = dS == null ? 'amber' : dS >= 1 ? 'green' : dS <= -3 ? 'red' : 'amber';
+  var head = dS == null ? 'Not enough overlap to compare yet'
+           : dS >= 1 ? 'Ahead of last year at this point'
+           : dS <= -3 ? 'Behind last year at this point'
+           : 'Tracking close to last year';
+  html = buildBanner('📆', head,
+    cmp.comparableWeeks + ' comparable week' + (cmp.comparableWeeks === 1 ? '' : 's') + ' in ' + spanTxt + ': scholar attendance <strong>' + _fmtPct(C.scholarRate) + '</strong> vs <strong>' + _fmtPct(P.scholarRate) +
+    '</strong> in the same calendar weeks of ' + cfg.label + '. Weeks are matched by calendar (same week last year) so testing windows, holidays and school events line up; weeks where either year ran at partial volume are shown but not compared.', tone);
+
+  html += buildStatGrid([
+    { val: _fmtPct(C.scholarRate), label: 'Scholar Att. · ' + cfg.label + ' ' + _fmtPct(P.scholarRate), color: '#059669' },
+    { val: _fmtPct(C.tutorRate), label: 'Tutor Att. · ' + cfg.label + ' ' + _fmtPct(P.tutorRate), color: '#0891b2' },
+    { val: C.siPer100 == null ? '—' : C.siPer100, label: 'Interruptions / 100 scholar records · ' + cfg.label + ' ' + (P.siPer100 == null ? '—' : P.siPer100), color: '#ea580c',
+      tooltip: 'Service interruptions per 100 scholar attendance records — normalised so program size differences between years do not distort the comparison.' },
+  ]);
+  }
+
+  // Week-by-week table
+  html += '<div class="pds-card"><div class="pds-card-title">Week by Week · this year vs same week last year</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:620px">' +
+    '<thead><tr style="text-align:left;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">' +
+    '<th style="padding:.35rem .5rem">Week</th><th>Scholar</th><th>' + cfg.label + '</th><th>Δ</th><th>Tutor</th><th>' + cfg.label + '</th><th>Interruptions</th><th>' + cfg.label + '</th></tr></thead><tbody>';
+  cmp.rows.forEach(function(r) {
+    var c = r.cur || {}, p = r.prior || {};
+    var live = inProgress && r.week === N;
+    html += '<tr style="border-top:1px solid var(--border)">' +
+      '<td style="padding:.35rem .5rem;font-weight:600;white-space:nowrap">W' + r.week + ' · ' + _fmtMD(r.curMonday) + (live ? ' <span style="color:#d97706;font-weight:600">(in progress)</span>' : '') +
+        '<div style="font-weight:400;color:var(--muted);font-size:.7rem">vs week of ' + _fmtMD(r.priorMonday) + '/' + String(r.priorMonday.getFullYear()).slice(2) + '</div></td>' +
+      '<td>' + _fmtPct(c.scholarRate) + '</td><td style="color:var(--muted)">' + (r.prior ? _fmtPct(p.scholarRate) : 'no sessions') + '</td>' +
+      '<td>' + (r.comparable ? _delta(c.scholarRate, p.scholarRate) : '<span style="color:var(--muted);font-size:.7rem" title="Not compared: ' + escHtmlPds(r.notComparableWhy) + '">n/c · ' + escHtmlPds(r.notComparableWhy) + '</span>') + '</td>' +
+      '<td>' + _fmtPct(c.tutorRate) + '</td><td style="color:var(--muted)">' + (r.prior ? _fmtPct(p.tutorRate) : '—') + '</td>' +
+      '<td>' + (r.cur ? c.si : '—') + '</td><td style="color:var(--muted)">' + (r.prior ? p.si : '—') + '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  // Recurring vs new
+  var groups = [
+    { k: 'new',       t: '🆕 New this year — plan a response',          col: '#dc2626' },
+    { k: 'growing',   t: '📈 Recurring but growing vs last year',       col: '#ea580c' },
+    { k: 'recurring', t: '🔁 Recurring — seen at this point last year', col: '#2563eb' },
+    { k: 'easing',    t: '📉 Recurring and easing',                     col: '#059669' },
+  ];
+  var kindLbl = { si: 'Service interruption', miss: 'Scholar absence' };
+  html += '<div class="pds-card"><div class="pds-card-title">Recurring trend or new this year?</div>' +
+    '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem">Rates are per 100 scholar attendance records for the same calendar weeks, so a bigger or smaller program does not skew the comparison.</div>';
+  var anyPat = false;
+  groups.forEach(function(g) {
+    var items = cmp.patterns.filter(function(x){ return x.status === g.k; });
+    if (!items.length) return;
+    anyPat = true;
+    html += '<div style="font-weight:700;font-size:.8rem;color:' + g.col + ';margin:.75rem 0 .35rem">' + g.t + '</div>';
+    items.slice(0, 8).forEach(function(x) {
+      html += '<div style="display:flex;gap:.75rem;align-items:baseline;padding:.3rem 0;border-top:1px dashed var(--border);font-size:.8rem;flex-wrap:wrap">' +
+        '<div style="flex:1 1 220px;min-width:0"><strong>' + escHtmlPds(x.reason) + '</strong> <span style="color:var(--muted);font-size:.7rem">' + kindLbl[x.kind] + '</span></div>' +
+        '<div style="white-space:nowrap">' + x.cur + ' this year <span style="color:var(--muted)">(' + x.curPer100 + '/100)</span></div>' +
+        '<div style="white-space:nowrap;color:var(--muted)">' + cfg.label + ': ' + x.prior + ' (' + x.priorPer100 + '/100)</div></div>';
+    });
+  });
+  var notYet = cmp.patterns.filter(function(x){ return x.status === 'not-yet'; });
+  if (notYet.length) {
+    anyPat = true;
+    html += '<div style="font-size:.75rem;color:var(--muted);margin-top:.75rem">Seen by this point last year but not yet this year: ' +
+      notYet.slice(0, 6).map(function(x){ return escHtmlPds(x.reason) + ' (' + x.prior + ')'; }).join(' · ') + '</div>';
+  }
+  if (!anyPat) html += '<div style="font-size:.8rem;color:var(--muted)">' + (cmp.comparableWeeks ? 'Not enough missed-session records yet to separate recurring patterns from new ones.' : 'Available once both years have a comparable week (see above).') + '</div>';
+  html += '</div>';
+
+  // Planning horizon
+  if (cmp.aheadRows.length) {
+    html += '<div class="pds-card"><div class="pds-card-title">🗓 Plan ahead — the next 4 weeks last year</div>' +
+      '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem">What happened in the same calendar weeks of ' + cfg.label + '. Use it to prepare sites before these weeks arrive.</div>';
+    cmp.aheadRows.forEach(function(a) {
+      html += '<div style="display:flex;gap:.75rem;flex-wrap:wrap;padding:.3rem 0;border-top:1px dashed var(--border);font-size:.8rem">' +
+        '<div style="min-width:130px;font-weight:600">W' + a.week + ' · week of ' + _fmtMD(PW.mondayOf(cur.anchor, a.week)) + '</div>' +
+        '<div>Scholar ' + _fmtPct(a.scholarRate) + ' · Tutor ' + _fmtPct(a.tutorRate) + ' · ' + a.si + ' interruptions</div>' +
+        (a.topSI ? '<div style="color:var(--muted)">Top cause: ' + escHtmlPds(a.topSI) + ' (' + a.topSICount + ')</div>' : '') + '</div>';
+    });
+    if (cmp.aheadRising.length) {
+      html += '<div style="font-weight:700;font-size:.8rem;color:#b45309;margin:.75rem 0 .35rem">Rose in those weeks last year</div>' +
+        cmp.aheadRising.map(function(x){ return '<div style="font-size:.8rem;padding:.15rem 0">• <strong>' + escHtmlPds(x.reason) + '</strong> — ' + x.curPer100 + '/100 scholar records vs ' + x.priorPer100 + '/100 earlier in the year</div>'; }).join('');
+    }
+    html += '</div>';
+  }
+  html += '<div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Sources: live Pearl (' + (window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27') + ') · archived Pearl weekly aggregates (' + cfg.label + ', frozen). Same attendance rules for both years.</div>';
+  return html;
+}
+
 // ── TAB: Regional ──────────────────────────────────────────────────────────
 // ── NEW: Weekly Recaps tab — most current submission per person ────────────
 // Reads the same live Google Sheet the onsite portal's Weekly Recap feature
@@ -1034,6 +1183,7 @@ function _setPulseDept(dept, enabled) {
 var TABS = [
   { id: 'week',   label: '📋 This Week' },
   { id: 'trends', label: '📈 Trends' },
+  { id: 'yoy',    label: '📆 Year over Year' },
   { id: 'regional', label: '🗺 Regional' },
   { id: 'academic', label: '📚 Academic' },
   { id: 'discrepancies', label: '🔍 Data Health' },
@@ -1086,9 +1236,14 @@ function renderActiveTab() {
     return;
   }
 
+  // Eyebrow follows the Pearl period actually loaded (never a hard-coded year)
+  var eb = document.getElementById('pdsEyebrow');
+  if (eb) eb.textContent = 'Program Intelligence · ' + (window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27');
+
   var html = '';
   if      (_activeTab === 'week')          html = renderThisWeek(d);
   else if (_activeTab === 'trends')        html = renderTrends(d);
+  else if (_activeTab === 'yoy')           html = renderYoY();
   else if (_activeTab === 'regional')      html = renderRegional(d);
   else if (_activeTab === 'academic')      html = renderAcademic();
   else if (_activeTab === 'discrepancies') html = renderDiscrepancies(d);
@@ -1119,7 +1274,7 @@ function buildDOM() {
   sh.innerHTML =
     '<div class="pds-header">' +
       '<div class="pds-header-left">' +
-        '<div class="pds-eyebrow">Program Intelligence · SY 2025–2026</div>' +
+        '<div class="pds-eyebrow" id="pdsEyebrow">Program Intelligence</div>' +
         '<div class="pds-title">Program Pulse</div>' +
         '<div class="pds-subtitle">Your week at a glance — attendance, surveys, interruptions, and what needs your attention.</div>' +
       '</div>' +
