@@ -219,7 +219,12 @@
     const TRACKER_SHEET_ID = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
     const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/${TRACKER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=1830091227`;
     // Onsite Tracker (Summer 2026 + SY 26-27 staff pipeline) — same workbook, gid=0.
-    const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/${TRACKER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
+    // Export endpoint first: gviz blanks cells in mixed-type columns (e.g. the
+    // "Offer Accepted (DATE)" column) and can merge the title row into the header.
+    const TRACKER_CSV_URLS = [
+      `https://docs.google.com/spreadsheets/d/${TRACKER_SHEET_ID}/export?format=csv&gid=0`,
+      `https://docs.google.com/spreadsheets/d/${TRACKER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`,
+    ];
 
     // Active period: 'sy2526' | 'summer2026' | 'sy2627'  (default: SY 26-27)
     let _activePeriod = 'sy2627';
@@ -679,14 +684,23 @@
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
       // Total Staff — SY 26-27: live Onsite Tracker roster (offer accepted, not
       // terminated). SY 25-26: HR Master List (authoritative). DB sum fallback.
-      const _syTracker = (_activePeriod === 'sy2627' && _trackerReady)
-        ? _trackerRows.filter(r => r.isSY && r.isActive && !r.isTerminated).length : null;
+      // Active onsite staff = tracker rows for the School Year cycle with a role,
+      // offer not declined, not terminated (column or SY Terminations tab).
+      let _syPending = 0;
+      const _syTracker = (_activePeriod === 'sy2627' && _trackerReady) ? (function(){
+        const nk = n => (n||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+        const termed = new Set((window._njtcOnsiteTerms2627||[]).filter(t => /school year/i.test(t.cycle||'')).map(t => nk(t.name)));
+        const onRoster = _trackerRows.filter(r => r.isSY && (r.isRostered !== undefined ? r.isRostered : r.isActive) && !r.isTerminated && !termed.has(nk(r.fullName)));
+        _syPending = onRoster.filter(r => r.offerPending).length;
+        return onRoster.length;
+      })() : null;
       const _hrStaff = _syTracker != null ? _syTracker
         : (_activePeriod !== 'sy2627' && window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
         ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
       const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
-      setText('syStatStaffSub', _syTracker != null ? 'Onsite staff · SY 26-27 Onsite Tracker'
+      const _pearlActiveStaff = (_poStats && _poStats.activePeriod === 'sy2627' && _poStats.activeInstructorsCurrent != null) ? _poStats.activeInstructorsCurrent : null;
+      setText('syStatStaffSub', _syTracker != null ? 'SY Database roster (reference)' + (_pearlActiveStaff != null ? ' · ' + _pearlActiveStaff.toLocaleString() + ' active in Pearl' : '') + (_syPending ? ' · ' + _syPending + ' offer pending' : '')
         : _hrStaff != null ? 'Active FT staff · HR Master List' : 'Total staffing · Locations tab');
       // Cache stats for Exec Dashboard period selector
       window._syaStats = window._syaStats || {};
@@ -1041,7 +1055,7 @@
     // Parses both Summer 2026 and SY 26-27 staff rows from the tracker tab.
     // Active employees = offer accepted (date or "Yes") and not terminated.
     async function fetchOnsiteTracker(force = false) {
-      const cacheKey = 'njtc_tracker_2627_v2';  // v2: header-based parse (26-27 layout)
+      const cacheKey = 'njtc_tracker_2627_v3';  // v3: export endpoint + roster-based active flag
       if (!force) {
         const cached = NJTC_CACHE.get(cacheKey);
         if (cached && cached.data && cached.data.length) {
@@ -1053,11 +1067,16 @@
         }
       }
       try {
-        const url = TRACKER_CSV_URL; // gviz direct sheet-ID endpoint (sheet: 1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU)
-        const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const text = await res.text();
-        const rows = parseOnsiteTracker(text);
+        let rows = [], lastErr = null;
+        for (const url of TRACKER_CSV_URLS) {
+          try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            rows = parseOnsiteTracker(await res.text());
+            if (rows.length) break;
+          } catch(eUrl) { lastErr = eUrl; }
+        }
+        if (!rows.length && lastErr) throw lastErr;
         if (rows.length) {
           _trackerRows  = rows;
           _trackerReady = true;
@@ -1077,11 +1096,11 @@
       const rows = parseCSVFull(text);
       let hIdx = -1;
       for (let i = 0; i < Math.min(5, rows.length); i++) {
-        if ((rows[i][0]||'').trim().toLowerCase() === 'cycle') { hIdx = i; break; }
+        if (/(^|\s)cycle$/.test((rows[i][0]||'').replace(/\s+/g,' ').trim().toLowerCase())) { hIdx = i; break; }
       }
       if (hIdx < 0) { console.warn('[Tracker] Header not found'); return []; }
 
-      const H  = rows[hIdx].map(h => (h||'').replace(/\s+/g,' ').trim().toLowerCase());
+      const H  = rows[hIdx].map((h, i) => { const v = (h||'').replace(/\s+/g,' ').trim().toLowerCase(); return i === 0 && /cycle$/.test(v) ? 'cycle' : v; });
       const eq = s => H.indexOf(s);
       const ci = s => H.findIndex(h => h.includes(s));
       const TC = {
@@ -1151,6 +1170,10 @@
             // "Offer Accepted" is a date in the 26-27 tracker (was Yes/No) — any
             // value other than blank / No / N/A means the offer was accepted.
             isActive:    !!accepted && accepted !== 'no' && accepted !== 'n/a',
+            // On the active roster: listed with a role and the offer not declined.
+            // (Blank "Offer Accepted" = offer pending — still on the roster.)
+            isRostered:  !!role && !/^(no|n\/a|declined|rescinded)/.test(accepted),
+            offerPending: !accepted,
             isTerminated: g(r, TC.TERMINATED).toLowerCase() === 'yes',
           };
         });
@@ -8720,13 +8743,26 @@
             // session (used for Summer's "Active Staff" figure — distinct from the
             // rostered activeTutors count above).
             stats.activeInstructors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
-            // Current active instructors: attended >=1 session AND not separated this
-            // year (Onsite tracker Terminations). Placeholder for the SY 26-27 "Active
-            // Onsite Staff" card until the HR 2026-27 roster is wired.
+            // ACTIVE TUTOR (definition used by Department Home "Active Onsite Staff"):
+            // unique Pearl instructor marked Attended/Late on >=1 session in this
+            // period whose session date has already arrived (a future-dated record is
+            // a data-entry error, never activity), excluding zzz-archived schools
+            // (stripped at ingest) and staff separated this year (Terminations tab).
             try {
               var _nTN = function(x){ return (x||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' '); };
               var _sep = _separatedStaffMap(_nTN);
-              stats.activeInstructorsCurrent = Object.keys(_personMap).filter(function(k){ var q=_personMap[k]; return q && q.role==='Instructor' && q.attended > 0 && !_sep[_nTN(q.name)]; }).length;
+              var _eod = new Date(); _eod.setHours(23,59,59,999);
+              var _started = function(r){
+                var v = String(r[ATT.SESS_DATE] || r[ATT.PLAN_START] || '').trim();
+                var m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                var d = m ? new Date(+m[3], +m[1]-1, +m[2]) : new Date(v);
+                return isNaN(d) ? true : d <= _eod;   // unparseable date: trust the Attended mark
+              };
+              stats.activeInstructorsCurrent = Object.keys(_personMap).filter(function(k){
+                var q = _personMap[k];
+                if (!q || q.role !== 'Instructor' || !(q.attended > 0) || _sep[_nTN(q.name)]) return false;
+                return (q.rows || []).some(function(r){ return classifyRecord(r) === 'attended' && _started(r); });
+              }).length;
             } catch(eSep) { stats.activeInstructorsCurrent = stats.activeInstructors; }
           }
           // Rostered scholars: unique student IDs from Pearl Attendance tab (_attRows).
