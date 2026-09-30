@@ -1202,7 +1202,7 @@
       <!-- Header -->
       <div class="kn-header">
         <div class="kn-header-left">
-          <div class="kn-eyebrow">🌐 Community Platform · SY 2025–26</div>
+          <div class="kn-eyebrow">🌐 Community Platform · SY ${(function(){ var d=new Date(), y=d.getMonth()>=6?d.getFullYear():d.getFullYear()-1; return y+'–'+String(y+1).slice(2); })()}</div>
           <h2 class="kn-title">Knowtion Community</h2>
           <p class="kn-subtitle">
             Your shared space for shout-outs, strategy sharing, reflection, and team connection.

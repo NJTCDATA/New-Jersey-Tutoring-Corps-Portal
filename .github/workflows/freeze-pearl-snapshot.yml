@@ -1,4 +1,11 @@
-name: Freeze Onsite Pearl Snapshot (Manual)
+name: Freeze Onsite Pearl Snapshot (DISABLED)
+# ── DISABLED (SY 26-27) ─────────────────────────────────────────────────────
+# Onsite returners see prior-year data only as high-level aggregates
+# (onsite/data/archive-2025-26.json via scripts/build-onsite-archive.js), so a
+# scholar-level frozen Pearl snapshot is no longer needed for the onsite portal.
+# The job below is hard-disabled with `if: false`. Central's Pearl Operations
+# is unaffected — it still loads full Pearl data live and drills down to any
+# single scholar or tutor. To re-enable, remove the `if: false` line.
 # Exports the onsite portal's Pearl tabs (attendance, surveys, session
 # details, login/roster) to static JSON under onsite/data/ and commits them,
 # so a CONCLUDED term stops needing a live Google Sheets fetch on every
@@ -29,6 +36,7 @@ on:
 
 jobs:
   freeze:
+    if: false   # disabled — see header
     runs-on: ubuntu-latest
     permissions:
       contents: write

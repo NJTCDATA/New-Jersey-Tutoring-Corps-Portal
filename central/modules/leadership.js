@@ -87,6 +87,12 @@
     // headcount and from SY 25-26's HR Master List path below, both unchanged.
     // SY 26-27: placeholder until HR 2026-27 is wired — tutors who have attended
     // >=1 Pearl session this SY, excluding same-year separations.
+    // Primary: SY 26-27 Onsite Tracker roster (SY Analytics). Pearl is only the
+    // fallback while the tracker hasn't loaded / reads 0.
+    // SY 26-27 Active Onsite Staff = Pearl active tutors (see po.getStats:
+    // attended >=1 started session, not separated). The SY Database roster
+    // (Onsite Tracker) is shown alongside as the reference count.
+    const _rosterRef = (execPeriod === 'sy2627' && _syaStats && _syaStats.staff > 0) ? _syaStats.staff : null;
     const _pearlActiveNow = (execPeriod === 'sy2627' && poStats && poStats.activeInstructorsCurrent != null)
       ? poStats.activeInstructorsCurrent : null;
     const tutors = _isLive
@@ -262,10 +268,10 @@
       <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-hero">
-        <div class="ecd-kpi ck-navy" title="${_pearlActiveNow != null ? 'Active Onsite Staff (placeholder until HR 2026-27 roster): tutors who attended at least 1 Pearl session this SY, excluding staff separated this year.' : _isLive ? 'Active Onsite Staff: SY Analytics tracker count for this period.' : 'Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet.'}" style="position:relative">
+        <div class="ecd-kpi ck-navy" title="${_pearlActiveNow != null ? 'Active Onsite Staff: unique Pearl instructors marked Attended/Late on at least 1 session this SY that has already started, excluding staff separated this year. Reference: ' + (_rosterRef != null ? _rosterRef + ' staff' : 'staff') + ' on the SY 26-27 Onsite Tracker roster.' : _isLive ? 'Active Onsite Staff: SY Analytics tracker count for this period.' : 'Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet.'}" style="position:relative">
           <div class="ecd-kpi-lbl">Active Onsite Staff</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">${_pearlActiveNow != null ? 'Pearl · Attended ≥1 session · until HR' : execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null ? 'Pearl · Attended ≥1 session' : (_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List')}</div>
+          <div class="ecd-kpi-foot">${_pearlActiveNow != null ? 'Pearl · led ≥1 session' + (_rosterRef != null ? ' · ' + fc(_rosterRef) + ' on SY roster' : '') : execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null ? 'Pearl · Attended ≥1 session' : (_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List')}</div>
           ${!_isLive ? `<button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v2';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>` : ''}
         </div>
         <div class="ecd-kpi ck-gold" title="Districts: ${_isLive ? 'Unique districts from SY Analytics tracker for this period.' : 'Count of unique partner districts derived from Pearl Operations attendance records.'}">

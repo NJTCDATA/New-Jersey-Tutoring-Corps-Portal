@@ -1795,7 +1795,7 @@
           <div>
             <div style="font-size:.595rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:${cfg.color};margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem">
               <span style="display:inline-block;width:18px;height:2px;background:${cfg.color};border-radius:1px"></span>
-              Departmental Success · SY 2025–2026
+              Departmental Success · All-time · as of ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
             </div>
             <div style="font-size:1.625rem;font-weight:800;letter-spacing:-.02em;line-height:1.15">
               ${cfg.emoji} ${cfg.label}
@@ -1859,7 +1859,7 @@
         <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1rem 1.375rem;display:flex;align-items:center;justify-content:space-between">
           <div>
             <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.2rem">Network View</div>
-            <div style="font-size:.9375rem;font-weight:700;color:#fff">Departmental Submission Board — SY 2025–2026</div>
+            <div style="font-size:.9375rem;font-weight:700;color:#fff">Departmental Submission Board — All-time · as of ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
           </div>
           <div style="font-size:.6875rem;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace" id="lbLastSync">Syncing…</div>
         </div>
