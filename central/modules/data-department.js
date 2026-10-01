@@ -122,6 +122,9 @@
     const IRLAB_2526_SHEET_ID = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
     const IRLAB_2526_GIDS     = { ela: 1640935949, math: 1676366557 };  // ELA + Math student-level tabs (Norming Window format)
     let   _irlManual2526Rows = [];  // normalized rows currently merged into IRLAB_DATA
+    // When the longitudinal sheet has 2025-26 rows it is the single source of truth for
+    // which scholars exist; the 25-26 sheet is used only to backfill missing scale scores.
+    const IRLAB_2526_SUPPLEMENTAL_MERGE = false;
 
     // ── Placement config ────────────────────────────────────────────────────
     const PLACEMENT_ORDER = [
@@ -289,8 +292,9 @@
         if(isNaN(_v)||_raw===''||_raw===null||_raw===undefined) return null;
         // Handle %-suffixed values: '97%' → parseFloat gives 97 → divide by 100 → 0.97
         if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
-        // Guard: iReady ratio column is 0–~15 range (e.g. 1.50 = 150%); >15 is pct-as-integer
-        else if(_v > 15) { _v=_v/100; }
+        // Guard: iReady ratio column is usually 0–~15 (e.g. 1.50 = 150%); a WHOLE number >15 is
+        // pct-as-integer (97 = 97%). A decimal >15 is a real extreme ratio (15.58 = 1558%).
+        else if(_v > 15 && Number.isInteger(_v)) { _v=_v/100; }
         return _v;
       }());
       const _base   = _num(g(r,'Base overall scale score','base_overall_scale_score'));
@@ -1101,7 +1105,13 @@
             if ((r.year||'').trim() === '2025-2026' && r.school)
               _longSchools2526.add((r.school||'').trim().toLowerCase());
           });
-          var _suppRows = _eoyRaw.filter(function(r) {
+          // Disabled (Oct 2026): the longitudinal sheet now carries the full reconciled 2025-26
+          // roster for every school. Matching here is by school NAME only, so spelling variants
+          // (e.g. "Kuser Elementary School" vs "Kuser") re-added scholars as duplicates, and it
+          // re-added scholars deliberately excluded from the reconciled data (no i-Ready EOY
+          // assessment). Set IRLAB_2526_SUPPLEMENTAL_MERGE = true only if a school is ever
+          // missing from the longitudinal sheet again.
+          var _suppRows = !IRLAB_2526_SUPPLEMENTAL_MERGE ? [] : _eoyRaw.filter(function(r) {
             return r.school && !_longSchools2526.has((r.school||'').trim().toLowerCase());
           });
           if (_suppRows.length) {
