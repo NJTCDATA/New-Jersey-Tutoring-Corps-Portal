@@ -186,6 +186,60 @@
       return '';
     }
 
+    // ── Growth metric definitions (single source of truth) ──────────────────
+    // Scale Score Gain is ALWAYS Spring Scale Score − Base Scale Score, sign kept.
+    // The source sheets' pre-computed gain / % progress columns are NOT used for
+    // calculations, because:
+    //   • i-Ready floors negative gains and % progress at 0 in those columns, and
+    //   • published-CSV values follow the cell's display format, so a gain of 38 in
+    //     a cell formatted "0%" arrives as "3800%" (seen on the longitudinal sheet).
+    // The source values are kept only as a cross-check (see _growthDataCheck) and,
+    // for % Typical, as a separately labeled "as reported" export column.
+    // % of Typical / Stretch Growth = signed gain ÷ annual target (can be negative).
+    // With no target, % is left blank (null) — never borrowed from another source.
+
+    // Numeric parse that keeps 0 and negatives (unlike `parseFloat(x)||null`).
+    // Strips thousands separators; returns null for blank / non-numeric / %-suffixed text
+    // (a "%" on a scale-score or gain value means a display-format error, not a percent).
+    function _num(v) {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'number') return isFinite(v) ? v : null;
+      var s = String(v).trim().replace(/,/g, '');
+      if (!s || !/^-?\d*\.?\d+(e[-+]?\d+)?$/i.test(s)) return null;
+      var n = parseFloat(s);
+      return isFinite(n) ? n : null;
+    }
+    function _signedGain(base, spring) {
+      return (base != null && spring != null) ? Math.round((spring - base) * 10) / 10 : null;
+    }
+    function _pctOfTarget(gain, target) {
+      return (gain != null && target != null && target > 0) ? gain / target : null;
+    }
+    // NJTC "Weeks of Growth": gain ÷ (annual typical target ÷ weeks between diagnostics)
+    function _expectedPerWeek(target, weeks) {
+      return (target != null && target > 0 && weeks != null && weeks > 0) ? target / weeks : null;
+    }
+    function _weeksOfGrowth(gain, target, weeks) {
+      var per = _expectedPerWeek(target, weeks);
+      return (gain != null && per != null) ? gain / per : null;
+    }
+    // Row-level "Data Check" flags for the export. Empty string = no issues.
+    function _growthDataCheck(o) {
+      var f = [];
+      if (o.baseScore == null || o.springScore == null) f.push('Missing Base or Spring scale score — gain not computed');
+      if (o.srcGain != null && o.springGain != null && o.srcGain !== o.springGain &&
+          !(o.springGain < 0 && o.srcGain === 0))
+        f.push('Source gain column (' + o.srcGain + ') ≠ Spring − Base (' + o.springGain + ')');
+      if (o.annualTypical == null) f.push('No Annual Typical Growth target — % Typical left blank');
+      if (o.pctTypicalReported != null && o.pctTypical != null && o.pctTypical >= 0 &&
+          Math.abs(o.pctTypicalReported - o.pctTypical) > 0.015)
+        f.push('i-Ready reported % Typical (' + (o.pctTypicalReported * 100).toFixed(0) +
+               '%) ≠ gain ÷ target (' + (o.pctTypical * 100).toFixed(0) + '%)');
+      if (o.pctTypicalReported != null && o.annualTypical == null)
+        f.push('i-Ready reported % Typical present without a target in this file — not used');
+      return f.join('; ');
+    }
+
     // ── Repeat Scholar flag parser ──────────────────────────────────────────
     // The live sheet's own "Repeat Scholar" / "Repeat Scholar YOY" column values
     // are 'Repeat' or 'Not Repeat'. A naive .includes('repeat') check matches BOTH
@@ -215,16 +269,18 @@
       // pctTypical is computed once, up front, so pctStretch below can cross-check against it
       // (stretch growth targets are always >= typical growth targets, so % of stretch achieved
       // can never legitimately exceed % of typical achieved for the same scholar/row).
+      // i-Ready's own reported value (floored at 0 by i-Ready). Kept for the
+      // "as reported" export column and cross-check only — see _growthDataCheck().
       const _pctTypicalVal = (function(){
-        // Try all known column name variants across Math (Title Case) and ELA (snake_case) sheets
+        // Try all known column name variants across Math (Title Case) and ELA (snake_case) sheets.
+        // 'spring_growth_inclusion' is deliberately NOT an alias: in the 2022-23 ELA layout it
+        // is a 0/1 inclusion flag, and in the old ELA headers it held % of STRETCH growth.
         var _raw = g(r,
           'Spring pct progress typical growth',
           'spring_pct_progress_typical_growth',
           'spring_pct_toward_typical_growth',
           'Spring Pct Progress Toward Typical Growth',
           'spring__progress_typical_growth',       // % sign → _ in normalization
-          'spring_growth_inclusion',               // ELA repeat sheet variant
-          'Spring Growth Inclusion',
           'Spring % Progress Typical Growth',
           'spring_pct_typical',
           'pct_progress_typical_growth'
@@ -237,7 +293,18 @@
         else if(_v > 15) { _v=_v/100; }
         return _v;
       }());
-      return {
+      const _base   = _num(g(r,'Base overall scale score','base_overall_scale_score'));
+      const _spring = _num(g(r,'Spring overall scale score','spring_overall_scale_score'));
+      const _srcGain = _num(g(r,'Spring diagnostic gain','spring_diagnostic_gain'));
+      const _gain   = _signedGain(_base, _spring);
+      const _at     = _num(g(r,'Annual typical growth measure','annual_typical_growth_measure'));
+      const _ast    = _num(g(r,'Annual stretch growth measure','annual_stretch_growth_measure'));
+      // 'Diagnostic window and/or_weeks…' is the pre-cleanup ELA merged header: numeric only on
+      // 2022-23 rows (weeks); text ("Spring") elsewhere → _num() returns null, never a wrong value.
+      const _wk     = _num(g(r,
+                        'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
+                        'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'));
+      const _out = {
         subject,
         year:             g(r,'Academic year','academic_year'),
         district:         g(r,'District'),
@@ -255,68 +322,35 @@
         sped:             g(r,'Special education','special_education'),
         ecodis:           g(r,'Economically disadvantaged','economically_disadvantaged'),
         baseRelPlacement: _normPlacement(g(r,'Base overall relative placement','base_overall_relative_placement')),
-        baseScore:        parseFloat(g(r,'Base overall scale score','base_overall_scale_score'))||null,
+        baseScore:        _base,
         baseRushFlag:     g(r,'Base rush flag','base_rush_flag'),
         springRelPlacement:_normPlacement(g(r,'Spring overall relative placement','spring_overall_relative_placement')),
-        springScore:      parseFloat(g(r,'Spring overall scale score','spring_overall_scale_score'))||null,
-        springGain:       parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
+        springScore:      _spring,
+        // Signed Spring − Base (see "Growth metric definitions" above). srcGain = source column, cross-check only.
+        springGain:       _gain,
+        srcGain:          _srcGain,
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
         springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
-        pctTypical:       _pctTypicalVal,
-        pctStretch:       (function(){
-          var _raw=g(r,'Spring pct progress stretch growth','spring_pct_progress_stretch_growth');
-          var _v=parseFloat(_raw);
-          if(isNaN(_v)) return null;
-          if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
-          else if(_v > 15) { _v=_v/100; }
-          // Self-correcting cross-check: stretch growth targets are always harder to reach than
-          // typical growth targets, so % of stretch achieved can never exceed % of typical
-          // achieved for the same row. Some live sheets (e.g. the ELA tab) store this column as
-          // a raw whole-number percent (e.g. 39 = 39%) rather than a decimal ratio like Math's —
-          // if the parsed value is still implausibly larger than typical, it needs rescaling.
-          if(_pctTypicalVal != null && _v > _pctTypicalVal) { _v = _v/100; }
-          return _v;
-        }()),
-        annualTypical:    parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||null,
-        annualStretch:    parseFloat(g(r,'Annual stretch growth measure','annual_stretch_growth_measure'))||null,
+        pctTypical:       _pctOfTarget(_gain, _at),
+        pctTypicalReported: _pctTypicalVal,
+        // Computed the same way as pctTypical. (The old "self-correcting" ÷100 cross-check here
+        // was compensating for the mislabeled ELA columns, where this header held the gain.)
+        pctStretch:       _pctOfTarget(_gain, _ast),
+        annualTypical:    _at,
+        annualStretch:    _ast,
         isRepeat:         _parseRepeatFlag(g(r,'Repeat Scholar YOY','Repeat Scholar')),
         _hasRepeatCol:    !!(g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toString().trim(),
         basePlacement:    g(r,'Base overall placement','base_overall_placement'),
         springPlacement:  g(r,'Spring overall placement','spring_overall_placement'),
-        // "Diagnostic window and/or_weeks_between_diagnostics" is the ELA sheet's renamed/merged
-        // column — most rows hold the season label ("Spring"), a minority hold the numeric weeks
-        // value. parseFloat() on the season-label rows naturally yields NaN → null, so this alias
-        // is safe to add without a separate guard.
-        springWeeks:      parseFloat(g(r,
-                            'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
-                            'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'
-                          ))||null,
+        springWeeks:      (_wk != null && _wk > 0) ? _wk : null,
         // ── Scale Score Progression (NJTC methodology) ─────────────────────
         // iReady's own norm assumes a full 10-month/30-week school year, but NJTC
         // programs run for a much shorter, variable window — so growth pace is
         // measured against the scholar's OWN diagnostic window instead:
         //   Expected Growth per Week = Annual Typical Growth Measure ÷ Spring Weeks Between Diagnostics
-        //   Weeks of Growth          = Spring Diagnostic Gain ÷ Expected Growth per Week
-        expectedGrowthPerWeek: (function(){
-          var _at = parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'));
-          var _wk = parseFloat(g(r,
-                      'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
-                      'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'
-                    ));
-          if (isNaN(_at) || isNaN(_wk) || _wk <= 0) return null;
-          return _at / _wk;
-        }()),
-        weeksOfGrowth: (function(){
-          var _gain = parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'));
-          var _at   = parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'));
-          var _wk   = parseFloat(g(r,
-                        'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
-                        'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'
-                      ));
-          if (isNaN(_gain) || isNaN(_at) || isNaN(_wk) || _wk <= 0 || _at <= 0) return null;
-          var _perWk = _at / _wk;
-          return _perWk > 0 ? _gain / _perWk : null;
-        }()),
+        //   Weeks of Growth          = Scale Score Gain (signed Spring − Base) ÷ Expected Growth per Week
+        expectedGrowthPerWeek: _expectedPerWeek(_at, _wk),
+        weeksOfGrowth:    _weeksOfGrowth(_gain, _at, _wk),
         // ELA domain subscores
         elaPhonologicalScore:   parseFloat(g(r,'Base phonological awareness scale score','base_phonological_awareness_scale_score'))||null,
         elaPhonicsScore:        parseFloat(g(r,'Base phonics scale score','base_phonics_scale_score'))||null,
@@ -347,16 +381,33 @@
           return /yes/i.test(_pv.trim());
         }()),
       };
+      _out.dataCheck = _growthDataCheck(_out);
+      return _out;
     }
 
     // ── Data loading: embedded CSV strings (hardcoded or Data dept update) ──
     // Decode compact encoded row arrays back to normalised row objects
+    // Frozen fallback snapshot (window.__IRLAB_RAW__) — used only when the live sheet
+    // can't be fetched; live rows replace every year they cover.
+    // The snapshot carries no Base/Spring scale scores, so signed gain CANNOT be computed:
+    //   • r[16] is i-Ready's gain column (negatives floored at 0), r[17] i-Ready's reported
+    //     % Typical ratio. Both are exposed as-is and flagged in dataCheck.
+    //   • ELA 2023-24 / 2024-25 were captured from the old mislabeled ELA headers (r[16] holds
+    //     weeks between diagnostics, not gain), so those growth values are withheld (null).
     function _decodeRows(rawRows, L, subject) {
       return rawRows.map(function(r) {
         var inst = r[5] || '';
+        var year = L['0'][r[0]];
+        var unusable = subject === 'ELA' && year !== '2022-2023';
+        var pctRep = (function(){
+          var _pv=r[17]; if(_pv==null) return null;
+          var _p=parseFloat(_pv); if(isNaN(_p)) return null;
+          if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%') return _p/100;
+          return _p>15 ? _p/100 : _p;   // legacy percentage encoding fallback
+        }());
         return {
           subject:            subject,
-          year:               L['0'][r[0]],
+          year:               year,
           district:           L['1'][r[1]],
           school:             L['2'][r[2]],
           grade:              L['3'][r[3]],
@@ -373,37 +424,20 @@
           ecodis:             L['13'][r[13]],
           baseRelPlacement:   L['14'][r[14]],
           springRelPlacement: L['15'][r[15]],
-          springGain:         r[16],
-          pctTypical:         (function(){
-            var _pv=r[17]; if(_pv==null) return null;
-            var _pf=parseFloat(_pv); if(isNaN(_pf)) return null;
-            if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%'){_pf=_pf/100;}
-            else if(_pf===0) { if(subject==='ELA') return null; }  // ELA zero = no data; Math zero = valid 0%
-            else if(subject==='ELA'&&_pf===Math.floor(_pf)){
-              // ELA integer r[17] = annualTypical (scale score points); pctTypical = springGain / annualTypical
-              if(r[16]==null) return null;
-              var _pct=parseFloat(r[16])/_pf;
-              if(_pct>15) return null;  // cap extreme outliers
-              _pf=_pct;
-            } else if(_pf>15) { _pf=_pf/100; }  // legacy percentage encoding fallback
-            return _pf;
-          }()),
-          annualTypical:      (function(){
-            var _pv=r[17]; if(_pv==null||r[16]==null) return null;
-            var _pf=parseFloat(_pv); if(isNaN(_pf)||_pf<=0) return null;
-            if(subject==='ELA'&&_pf===Math.floor(_pf)){
-              return _pf;  // ELA integer r[17] = annualTypical directly (scale score points)
-            }
-            if(_pf>15) _pf=_pf/100;
-            if(_pf<=0) return null;
-            return parseFloat((parseFloat(r[16])/_pf).toFixed(1));
-          }()),
+          springGain:         unusable ? null : (r[16] == null ? null : r[16]),
+          srcGain:            unusable ? null : (r[16] == null ? null : r[16]),
+          pctTypical:         unusable ? null : pctRep,
+          pctTypicalReported: unusable ? null : pctRep,
+          annualTypical:      null,
           baseRushFlag:       r[18] ? '1' : '',
           springRushFlag:     '',
           baseScore:          null,
           springScore:        null,
           isRepeat:           false,
           isPilot:            null,
+          dataCheck:          unusable
+            ? 'Embedded fallback snapshot: ELA growth values withheld (captured from mislabeled source columns)'
+            : 'Embedded fallback snapshot: no scale scores — gain and % Typical are i-Ready source values (negatives floored at 0)',
         };
       });
     }
@@ -804,9 +838,7 @@
         function _pf(row) {
           var keys = Array.prototype.slice.call(arguments, 1);
           if (!row) return null;
-          var v = g.apply(null, [row].concat(keys));
-          var n = parseFloat(v);
-          return isNaN(n) ? null : n;
+          return _num(g.apply(null, [row].concat(keys)));
         }
         // Percent helper — handles %-suffix and >15 integer encoding (for longitudinal data)
         function _pct(row) {
@@ -833,6 +865,22 @@
 
         var isELA  = subject === 'ELA';
         var isMath = subject === 'Math';
+
+        // Growth inputs (see "Growth metric definitions" near the top of this module).
+        var _TYP = ['Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure'];
+        var _STR = ['Stretch Growth','stretch_growth','Annual Stretch Growth Measure','annual_stretch_growth_measure'];
+        var _SS  = ['Overall Scale Score','overall_scale_score','Scale Score','scale_score'];
+        var _WKS = ['Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics'];
+        var _base    = _pf.apply(null, [win].concat(_SS));
+        var _spring  = _pf.apply(null, [spr].concat(_SS));
+        var _gain    = _signedGain(_base, _spring);
+        // Targets: baseline row first, then most-recent row (i-Ready may populate either).
+        var _at      = _pf.apply(null, [win].concat(_TYP));
+        if (_at == null) _at = _pf.apply(null, [spr].concat(_TYP));
+        var _ast     = _pf.apply(null, [win].concat(_STR));
+        if (_ast == null) _ast = _pf.apply(null, [spr].concat(_STR));
+        var _wk      = _pf.apply(null, [spr].concat(_WKS));
+        if (_wk != null && _wk <= 0) _wk = null;
 
         var obj = {
           subject:            subject,
@@ -877,41 +925,31 @@
           sped:               g(dem,'Special Education','special_education'),
           ecodis:             g(dem,'Economically Disadvantaged','economically_disadvantaged'),
           // Base (Winter) fields
-          baseScore:          _pf(win,'Overall Scale Score','overall_scale_score','Scale Score','scale_score'),
+          baseScore:          _base,
           baseRelPlacement:   _normPlacement(g(win||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement')),
           basePlacement:      g(win||{},'Overall Placement','overall_placement','Placement','placement'),
           baseRushFlag:       '',
           // Spring fields
-          springScore:        _pf(spr,'Overall Scale Score','overall_scale_score','Scale Score','scale_score'),
+          springScore:        _spring,
           springRelPlacement: _normPlacement(g(spr||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement')),
           springPlacement:    g(spr||{},'Overall Placement','overall_placement','Placement','placement'),
-          springGain:         _pf(spr,'Diagnostic Gain','diagnostic_gain','Spring Diagnostic Gain','spring_diagnostic_gain'),
+          springGain:         _gain,   // signed Spring − Base
+          srcGain:            _pf(spr,'Diagnostic Gain','diagnostic_gain','Spring Diagnostic Gain','spring_diagnostic_gain'),
           springPercentile:   _pf(spr,'Percentile','percentile'),
           springRushFlag:     '',
-          springWeeks:        _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics'),
-          pctTypical:         _iPct(spr,'Percent Progress to Annual Typical Growth (%)','percent_progress_to_annual_typical_growth',
+          springWeeks:        _wk,
+          pctTypical:         _pctOfTarget(_gain, _at),
+          // i-Ready's own value (floored at 0) — "as reported" export column / cross-check only
+          pctTypicalReported: _iPct(spr,'Percent Progress to Annual Typical Growth (%)','percent_progress_to_annual_typical_growth',
                                     'Spring Pct Progress Typical Growth','spring_pct_progress_typical_growth',
                                     '% Progress Toward Typical Growth','pct_progress_toward_typical_growth',
                                     'Pct Progress Typical Growth','pct_progress_typical_growth'),
-          pctStretch:         _iPct(spr,'Percent Progress to Annual Stretch Growth (%)','percent_progress_to_annual_stretch_growth',
-                                    'Spring Pct Progress Stretch Growth','spring_pct_progress_stretch_growth',
-                                    '% Progress Toward Stretch Growth','pct_progress_toward_stretch_growth'),
-          annualTypical:      _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure'),
-          annualStretch:      _pf(win,'Stretch Growth','stretch_growth','Annual Stretch Growth Measure','annual_stretch_growth_measure'),
+          pctStretch:         _pctOfTarget(_gain, _ast),
+          annualTypical:      _at,
+          annualStretch:      _ast,
           // Scale Score Progression (NJTC methodology) — see normalizeRow() for full formula notes.
-          expectedGrowthPerWeek: (function(){
-            var _at = _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure');
-            var _wk = _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics');
-            return (_at != null && _wk != null && _wk > 0) ? _at / _wk : null;
-          }()),
-          weeksOfGrowth: (function(){
-            var _gain = _pf(spr,'Diagnostic Gain','diagnostic_gain','Spring Diagnostic Gain','spring_diagnostic_gain');
-            var _at   = _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure');
-            var _wk   = _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics');
-            if (_gain == null || _at == null || _wk == null || _wk <= 0 || _at <= 0) return null;
-            var _perWk = _at / _wk;
-            return _perWk > 0 ? _gain / _perWk : null;
-          }()),
+          expectedGrowthPerWeek: _expectedPerWeek(_at, _wk),
+          weeksOfGrowth:      _weeksOfGrowth(_gain, _at, _wk),
           isRepeat:           false,  // set below after longitudinal ID scan
           // ELA domain subscores
           elaPhonologicalScore:       isELA ? _pf(win,'Phonological Awareness Scale Score','phonological_awareness_scale_score') : null,
@@ -946,14 +984,9 @@
           }()),
           _source2526: 'manual',  // internal tag — used for clean removal on re-fetch
         };
-        // Pilot schools lack iReady-computed Diagnostic Gain and % Progress (first-time diagnostics).
-        // Fall back to computing them from raw scale scores so KPI tiles populate correctly.
-        if (obj.springGain === null && obj.springScore !== null && obj.baseScore !== null) {
-          obj.springGain = parseFloat((obj.springScore - obj.baseScore).toFixed(1));
-        }
-        if (obj.pctTypical === null && obj.springGain !== null && obj.annualTypical !== null && obj.annualTypical > 0) {
-          obj.pctTypical = obj.springGain / obj.annualTypical;
-        }
+        // Gain and % Typical are always computed from scale scores and targets above (no
+        // fallback needed). A missing target leaves % Typical blank and is flagged here.
+        obj.dataCheck = _growthDataCheck(obj);
         result.push(obj);
       });
       return result;
@@ -2430,14 +2463,14 @@
           lbl: 'Median Typical Growth (ELA)',
           sub: elaMed !== null ? `${elaTyp.length} scholars w/ growth data` : 'No ELA growth data',
           color: elaMed !== null && elaMed >= 1.0 ? '#0d6e3a' : '#d97706', icon: '📖',
-          tip: 'Median of spring_pct_progress_typical_growth (iReady pre-computed col) across all ELA rows with a valid value. 100% = met exactly typical growth; >100% = exceeded typical growth norms. The MEDIAN (not average) is used to be robust to outliers.',
+          tip: 'Median % of Typical Growth = signed (Spring − Base) ÷ Annual Typical Growth Measure, across all ELA rows with a target (0% and negative growth included). 100% = met exactly typical growth; >100% = exceeded typical growth norms. The MEDIAN (not average) is used to be robust to outliers.',
         },
         {
           val: mathMed !== null ? (mathMed*100).toFixed(1)+'%' : '—',
           lbl: 'Median Typical Growth (Math)',
           sub: mathMed !== null ? `${mathTyp.length} scholars w/ growth data` : 'No Math growth data',
           color: mathMed !== null && mathMed >= 1.0 ? '#0d6e3a' : '#d97706', icon: '➗',
-          tip: 'Median of spring_pct_progress_typical_growth (iReady pre-computed col) across all Math rows with a valid value. 100% = met exactly typical growth norms.',
+          tip: 'Median % of Typical Growth = signed (Spring − Base) ÷ Annual Typical Growth Measure, across all Math rows with a target (0% and negative growth included). 100% = met exactly typical growth norms.',
         },
         {
           val: elaMet !== null ? elaMet+'%' : '—',
@@ -3127,7 +3160,7 @@
         +'<div class="ecdi-panel-hdr"><span>Academic Insights</span><span style="font-size:.55rem;color:#94a3b8;font-weight:500">iReady diagnostic</span></div>'
         // Card A: Scale Gain
         +'<div class="ecdi-card cci-teal">'
-        +'<div class="ecdi-eyebrow">Scale Gain<span class="ecdi-tip" title="Median Scale Score Gain&#10;&#10;Formula: median(springScore &minus; baselineScore)&#10;Source: Spring Diagnostic Gain column (iReady CSV).&#10;Positive values indicate forward progress.&#10;Median used to reduce outlier distortion.">ⓘ</span></div>'
+        +'<div class="ecdi-eyebrow">Scale Gain<span class="ecdi-tip" title="Median Scale Score Gain&#10;&#10;Formula: median(springScore &minus; baselineScore)&#10;Signed: negative values (score declines) are included.&#10;Positive values indicate forward progress.&#10;Median used to reduce outlier distortion.">ⓘ</span></div>'
         +_irlEcdiVal(_irlIMLoaded ? _irlIm.medianScaleGain : null, ' pts', (_irlIMLoaded && _irlIm.medianScaleGain > 0 ? '+' : ''))
         +'<div class="ecdi-card-title">Median Scale Score Gain</div>'
         +'<div class="ecdi-card-desc">Median improvement in iReady scale score between baseline and most recent diagnostic.</div>'
@@ -3137,7 +3170,7 @@
         +'</div></div>'
         // Card B: Learning Progress
         +'<div class="ecdi-card cci-blue">'
-        +'<div class="ecdi-eyebrow">Learning Progress<span class="ecdi-tip" title="Months of Learning Gained&#10;&#10;Formula: Scale Score Gain &divide; (Differentiated Typical Growth &divide; 10)&#10;= pctTypical &times; 10&#10;&#10;10 = school months in a year per iReady norms.&#10;1.0 = one month of expected growth.&#10;Source: Spring_pct_progress_typical_growth column.">ⓘ</span></div>'
+        +'<div class="ecdi-eyebrow">Learning Progress<span class="ecdi-tip" title="Months of Learning Gained&#10;&#10;Formula: Scale Score Gain &divide; (Differentiated Typical Growth &divide; 10)&#10;= pctTypical &times; 10&#10;&#10;10 = school months in a year per iReady norms.&#10;1.0 = one month of expected growth.&#10;pctTypical = signed gain ÷ Annual Typical Growth Measure.">ⓘ</span></div>'
         +_irlEcdiVal(_irlIMLoaded ? _irlIm.medianMonthsGrowth : null, ' mo')
         +'<div class="ecdi-card-title">Months of Learning Gained</div>'
         +'<div class="ecdi-card-desc">Estimated months of academic progress based on scale score change relative to expected yearly growth.</div>'
@@ -3158,7 +3191,7 @@
           var _tip = 'Program-Window Progress&#10;&#10;'
             + 'Adjusts for your actual program duration instead of iReady’s 30-week annual standard.&#10;&#10;'
             + 'Formula: Median % of typical annual growth ÷ (median diagnostic weeks ÷ 30)&#10;&#10;'
-            + 'Each scholar’s pctTypical = actual gain ÷ expected annual gain (pre-computed by iReady).&#10;'
+            + 'Each scholar’s pctTypical = signed gain (Spring − Base) ÷ Annual Typical Growth Measure.&#10;'
             + 'The median across scholars is then divided by (median weeks ÷ 30) to rescale to program duration.&#10;&#10;'
             + '100% = scholars achieved exactly what is expected for their program window&#10;'
             + '>100% = scholars exceeded program-window expectations&#10;'
@@ -3463,14 +3496,14 @@
             const pilotPcts  = allRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
             const pilotMedGain = medianArr(pilotGains);
             const pilotMedPct  = medianArr(pilotPcts);
-            // ELA growth % (pilot ELA students have iReady-pre-computed pctTypical + pctStretch)
-            const _pilotELATyp = allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0);
-            const _pilotELAStr = allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0);
+            // ELA growth % (pctTypical / pctStretch = signed gain ÷ target; see normalize functions)
+            const _pilotELATyp = allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+            const _pilotELAStr = allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v));
             const pilotMedELATyp = medianArr(_pilotELATyp);
             const pilotMedELAStr = medianArr(_pilotELAStr);
             // Math growth % (pilot Math students also have pctTypical + pctStretch)
-            const _pilotMathTyp = allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0);
-            const _pilotMathStr = allMath.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0);
+            const _pilotMathTyp = allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+            const _pilotMathStr = allMath.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v));
             const pilotMedMathTyp = medianArr(_pilotMathTyp);
             const pilotMedMathStr = medianArr(_pilotMathStr);
             // Spring placement distribution
@@ -3508,10 +3541,10 @@
               ${[
                 {v:allRows.length.toLocaleString(), l:'Pilot Scholars', s:'Spring diagnostic', c:'#fff'},
                 {v:pilotMedGain!==null?(pilotMedGain>=0?'+':'')+pilotMedGain.toFixed(1)+' pts':'—', l:'Median Scale Gain', s:'Spring diagnostic gain', c:'#34d399'},
-                {v:pilotMedELATyp!==null?(pilotMedELATyp*100).toFixed(1)+'%':'—', l:'Median % to Typical (ELA)', s:_pilotELATyp.length+' ELA scholars · iReady pre-computed', c:'#4ade80'},
-                {v:pilotMedELAStr!==null?(pilotMedELAStr*100).toFixed(1)+'%':'—', l:'Median % to Stretch (ELA)', s:_pilotELAStr.length+' ELA scholars · iReady pre-computed', c:'#a3e635'},
-                {v:pilotMedMathTyp!==null?(pilotMedMathTyp*100).toFixed(1)+'%':'—', l:'Median % to Typical (Math)', s:_pilotMathTyp.length+' Math scholars · iReady pre-computed', c:'#60a5fa'},
-                {v:pilotMedMathStr!==null?(pilotMedMathStr*100).toFixed(1)+'%':'—', l:'Median % to Stretch (Math)', s:_pilotMathStr.length+' Math scholars · iReady pre-computed', c:'#93c5fd'},
+                {v:pilotMedELATyp!==null?(pilotMedELATyp*100).toFixed(1)+'%':'—', l:'Median % to Typical (ELA)', s:_pilotELATyp.length+' ELA scholars · signed gain ÷ typical target', c:'#4ade80'},
+                {v:pilotMedELAStr!==null?(pilotMedELAStr*100).toFixed(1)+'%':'—', l:'Median % to Stretch (ELA)', s:_pilotELAStr.length+' ELA scholars · signed gain ÷ typical target', c:'#a3e635'},
+                {v:pilotMedMathTyp!==null?(pilotMedMathTyp*100).toFixed(1)+'%':'—', l:'Median % to Typical (Math)', s:_pilotMathTyp.length+' Math scholars · signed gain ÷ typical target', c:'#60a5fa'},
+                {v:pilotMedMathStr!==null?(pilotMedMathStr*100).toFixed(1)+'%':'—', l:'Median % to Stretch (Math)', s:_pilotMathStr.length+' Math scholars · signed gain ÷ typical target', c:'#93c5fd'},
                 {v:sprTotal+' placed', l:'Spring Placement Available', s:PLACEMENT_ORDER.slice(-2).filter(p=>springDist[p]>0).map(p=>pct(springDist[p],sprTotal)+'% '+PLC_SHORT[p]).join(' · ')||'—', c:'#fbbf24'},
               ].map(k=>`<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:.625rem .75rem;border:1px solid rgba(255,255,255,.12);background:var(--surface-2);border:1px solid var(--border)">
                 <div style="font-size:1.3rem;font-weight:800;color:${k.c==='#fff'?'var(--navy)':k.c};letter-spacing:-.02em">${k.v}</div>
@@ -3563,14 +3596,14 @@
                 { v: elaGainAvg!==null?(elaGainAvg>=0?'+':'')+elaGainAvg.toFixed(1)+' pts':'—', l:'Avg Scale Gain ELA', s:'spring minus winter score', c:'#34d399' },
                 { v: mathGainAvg!==null?(mathGainAvg>=0?'+':'')+mathGainAvg.toFixed(1)+' pts':'—', l:'Avg Scale Gain Math', s:'spring minus winter score', c:'#fdba74' },
                 { v: m.pctMoved+'%', l:'Placement Moved Up', s:'improved placement level', c:'#60a5fa' },
-                { v:(()=>{ const t=allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Typical (ELA)', s:(()=>{ const n=allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)&&r.pctTypical>0).length; return n+' ELA scholar'+(n!==1?'s':''); })(), c:'#4ade80', tip:'Median % Progress to Annual Typical Growth (ELA) · iReady pre-computed · 100% = exactly typical growth norms · >100% = above typical' },
-                { v:(()=>{ const t=allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Stretch (ELA)', s:(()=>{ const n=allELA.filter(r=>r.pctStretch!==null&&!isNaN(r.pctStretch)&&r.pctStretch>0).length; return n+' ELA scholar'+(n!==1?'s':''); })(), c:'#a3e635', tip:'Median % Progress to Annual Stretch Growth (ELA) · iReady pre-computed · Stretch target is more ambitious than typical growth · values >100% = exceeded stretch goal' },
-                { v:(()=>{ const t=allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Typical (Math)', s:(()=>{ const n=allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)&&r.pctTypical>0).length; return n+' Math scholar'+(n!==1?'s':''); })(), c:'#60a5fa', tip:'Median % Progress to Annual Typical Growth (Math) · iReady pre-computed · 100% = exactly typical growth norms · >100% = above typical' },
-                { v:(()=>{ const t=allMath.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Stretch (Math)', s:(()=>{ const n=allMath.filter(r=>r.pctStretch!==null&&!isNaN(r.pctStretch)&&r.pctStretch>0).length; return n+' Math scholar'+(n!==1?'s':''); })(), c:'#93c5fd', tip:'Median % Progress to Annual Stretch Growth (Math) · iReady pre-computed · Stretch target is more ambitious than typical growth · values >100% = exceeded stretch goal' },
+                { v:(()=>{ const t=allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Typical (ELA)', s:(()=>{ const n=allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length; return n+' ELA scholar'+(n!==1?'s':''); })(), c:'#4ade80', tip:'Median % Progress to Annual Typical Growth (ELA) · signed (Spring − Base) ÷ Annual Typical Growth, includes 0% and negative growth · 100% = exactly typical growth norms · >100% = above typical' },
+                { v:(()=>{ const t=allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Stretch (ELA)', s:(()=>{ const n=allELA.filter(r=>r.pctStretch!==null&&!isNaN(r.pctStretch)).length; return n+' ELA scholar'+(n!==1?'s':''); })(), c:'#a3e635', tip:'Median % Progress to Annual Stretch Growth (ELA) · signed (Spring − Base) ÷ Annual Stretch Growth · Stretch target is more ambitious than typical growth · values >100% = exceeded stretch goal' },
+                { v:(()=>{ const t=allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Typical (Math)', s:(()=>{ const n=allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length; return n+' Math scholar'+(n!==1?'s':''); })(), c:'#60a5fa', tip:'Median % Progress to Annual Typical Growth (Math) · signed (Spring − Base) ÷ Annual Typical Growth, includes 0% and negative growth · 100% = exactly typical growth norms · >100% = above typical' },
+                { v:(()=>{ const t=allMath.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Stretch (Math)', s:(()=>{ const n=allMath.filter(r=>r.pctStretch!==null&&!isNaN(r.pctStretch)).length; return n+' Math scholar'+(n!==1?'s':''); })(), c:'#93c5fd', tip:'Median % Progress to Annual Stretch Growth (Math) · signed (Spring − Base) ÷ Annual Stretch Growth · Stretch target is more ambitious than typical growth · values >100% = exceeded stretch goal' },
               ] : [
                 { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: rows.length+' valid pairs', c:'#fff' },
-                { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · >100% = above typical · Values come directly from iReady CSV, pre-computed by iReady per scholar' },
-                { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#60a5fa', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · Values come directly from iReady CSV' },
+                { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80', tip:'Median % of Typical Growth = signed (Spring − Base) ÷ Annual Typical Growth Measure · 100% = exactly typical growth norms · >100% = above typical · 0% and negative growth included' },
+                { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#60a5fa', tip:'Median % of Typical Growth = signed (Spring − Base) ÷ Annual Typical Growth Measure · 100% = exactly typical growth norms · 0% and negative growth included' },
                 { v: avgSpringGLAll!==null?fmtGradeLevel(avgSpringGLAll):'—', l:'Avg Grade Level Placement', s: avgBaseGLAll!==null?'BOY: '+fmtGradeLevel(avgBaseGLAll):'Spring (BOY→Spring)', c:'#fbbf24' },
                 { v: elaMeetPct!==null?elaMeetPct+'%':'—', l:'% Meeting Typical ELA', s:'≥100% typical growth', c:'#f9a8d4' },
                 { v: mathMeetPct!==null?mathMeetPct+'%':'—', l:'% Meeting Typical Math', s:'≥100% typical growth', c:'#a78bfa' },
@@ -3616,8 +3649,8 @@
                     <div style="font-size:.8125rem;font-weight:700;color:${color};margin-bottom:.625rem">${icon} ${label}</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.75rem">
                       ${_irlPilot === 'pilot' ? (()=>{
-                        const _pilTypArr = aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0);
-                        const _pilStrArr = aRows.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0);
+                        const _pilTypArr = aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+                        const _pilStrArr = aRows.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v));
                         const _pilTypMed = medianArr(_pilTypArr);
                         const _pilStrMed = medianArr(_pilStrArr);
                         const _hasGrowthPct = _pilTypArr.length > 0;
@@ -3694,7 +3727,7 @@
                 <tbody>${Object.entries(m.bySchool).map(([name,srows])=>{
                   const sm=computeMetrics(srows); if(!sm) return '';
                   const sTyp=_irlPilot==='pilot'
-                    ? medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    ? medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)))
                     : medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const sC=sTyp!==null&&sTyp>=1.0?'#0d6e3a':sTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:sm.n,html:`<tr>
@@ -3713,7 +3746,7 @@
                 <tbody>${Object.entries(m.byGrade).map(([gr,grows])=>{
                   const gm=computeMetrics(grows); if(!gm) return '';
                   const gTyp=_irlPilot==='pilot'
-                    ? medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    ? medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)))
                     : medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const gC=gTyp!==null&&gTyp>=1.0?'#0d6e3a':gTyp!==null?'#b91c1c':'var(--muted)';
                   return {num:parseInt(gr)||99,html:`<tr>
@@ -3733,7 +3766,7 @@
                 <tbody>${Object.entries(m.byDistrict).map(([name,drows])=>{
                   const dm=computeMetrics(drows); if(!dm) return '';
                   const dTyp=_irlPilot==='pilot'
-                    ? medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    ? medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)))
                     : medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const dC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':dTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:dm.n,medT:dTyp||0,html:`<tr>
@@ -7443,12 +7476,12 @@
 
       rows.forEach(function(r) {
         if (!r) return;
-        // Scale score gain: use iReady's pre-computed springGain (diagnostic gain) as primary.
-        // Fall back to springScore - baseScore when springGain not present (live-fetched data).
+        // Scale score gain: springGain is already signed Spring − Base (see normalizeRow);
+        // the score-difference fallback only matters for rows built elsewhere.
         var gain = (r.springGain != null && !isNaN(parseFloat(r.springGain)))
           ? parseFloat(r.springGain)
           : (r.springScore != null && r.baseScore != null ? r.springScore - r.baseScore : NaN);
-        // pctTypical: Spring_pct_progress_typical_growth — ratio where 1.0 = 100% of typical growth.
+        // pctTypical: signed gain ÷ Annual Typical Growth Measure — ratio where 1.0 = 100% of typical growth.
         var pct    = (r.pctTypical != null) ? parseFloat(r.pctTypical) : NaN;
         // Months of growth = scale gain ÷ (annualTypical ÷ 10) = pctTypical × 10.
         var months = !isNaN(pct) ? pct * 10 : NaN;
@@ -7733,13 +7766,19 @@
         'Spring Scale Score':        r.springScore  != null ? r.springScore                      : '',
         'Spring Relative Placement': r.springRelPlacement  || '',
         'Spring Placement':          r.springPlacement     || '',
+        // Signed Spring − Base (negatives kept). All calculations use this value.
         'Scale Score Gain':          r.springGain   != null ? r.springGain                       : '',
+        // Display-only companion; never used in any calculation.
+        'Scale Score Gain (floored at 0, display only)': r.springGain != null ? Math.max(0, r.springGain) : '',
         // Scale Score Progression (NJTC/Mysti methodology) — added to the right of
         // Scale Score Gain per the "Scale Score Progression" breakdown.
         'Expected Growth per Week':  r.expectedGrowthPerWeek != null ? r.expectedGrowthPerWeek.toFixed(2) : '',
         'Weeks of Growth':           r.weeksOfGrowth != null ? r.weeksOfGrowth.toFixed(2)        : '',
         'Diagnostic Weeks (BOY→EOY)':r.springWeeks  != null ? r.springWeeks                      : '',
+        // Signed gain ÷ Annual Typical Growth (can be negative; blank when no target).
         'Pct of Typical Growth':     r.pctTypical   != null ? (r.pctTypical * 100).toFixed(1)+'%': '',
+        // i-Ready's own column, unmodified (i-Ready floors this at 0%). Reference only.
+        'i-Ready % Typical (as reported)': r.pctTypicalReported != null ? (r.pctTypicalReported * 100).toFixed(1)+'%' : '',
         'Window-Adj. Growth %':      (r.pctTypical != null && r.springWeeks > 0)
                                        ? ((r.pctTypical / (r.springWeeks / 30)) * 100).toFixed(1)+'%'
                                        : '',
@@ -7747,7 +7786,33 @@
         'Annual Stretch Growth':     r.annualStretch!= null ? r.annualStretch                    : '',
         'Repeat Scholar':            r.isRepeat ? 'Yes' : 'No',
         'Pilot Program':             r.isPilot === true ? 'Yes' : r.isPilot === false ? 'No' : '',
+        'Data Check':                r.dataCheck || '',
       }));
+    }
+
+    // "Notes & Definitions" sheet for the XLSX export — keep in sync with the
+    // "Growth metric definitions" block near the top of this module.
+    function _irlExportNotes(allRows) {
+      const n      = allRows.length;
+      const neg    = allRows.filter(r => r.springGain != null && r.springGain < 0).length;
+      const noTgt  = allRows.filter(r => r.annualTypical == null).length;
+      const flagged= allRows.filter(r => r.dataCheck).length;
+      return [
+        { 'Item': 'Scale Score Gain', 'Definition': 'Spring Scale Score − Base Scale Score, sign kept. Negative = score declined. Every calculation in this workbook uses this signed value.' },
+        { 'Item': 'Scale Score Gain (floored at 0, display only)', 'Definition': 'Same gain with negatives shown as 0. For display only — not used in any calculation.' },
+        { 'Item': 'Pct of Typical Growth', 'Definition': 'Signed Scale Score Gain ÷ Annual Typical Growth. Can be negative. Blank when the scholar has no Annual Typical Growth target (never filled from another source).' },
+        { 'Item': 'i-Ready % Typical (as reported)', 'Definition': 'i-Ready\'s own Percent Progress to Annual Typical Growth, unmodified. i-Ready floors this at 0%, so it differs from Pct of Typical Growth for scholars whose score declined. Reference only.' },
+        { 'Item': 'Weeks of Growth', 'Definition': 'Signed Scale Score Gain ÷ Expected Growth per Week, where Expected Growth per Week = Annual Typical Growth ÷ Weeks Between Diagnostics.' },
+        { 'Item': 'Months of Growth (summary sheets)', 'Definition': 'Pct of Typical Growth × 10 (signed).' },
+        { 'Item': 'Medians (summary sheets)', 'Definition': 'Include every scholar with a value, including 0% and negative growth.' },
+        { 'Item': 'Data Check', 'Definition': 'Row-level flags: missing scale scores, source gain column disagreeing with Spring − Base, missing growth target, or i-Ready reported % disagreeing with gain ÷ target.' },
+        { 'Item': 'Change note', 'Definition': 'Earlier exports used the source sheet\'s gain and % columns directly: negative gains appeared as 0 or blank, % Typical was floored at 0%, and some gains were ×100 because of a "0%" cell format on the source sheet. Figures from earlier exports are not comparable.' },
+        { 'Item': '── THIS EXPORT ──', 'Definition': '' },
+        { 'Item': 'Rows', 'Definition': n },
+        { 'Item': 'Rows with negative Scale Score Gain', 'Definition': neg },
+        { 'Item': 'Rows with no Annual Typical Growth target', 'Definition': noTgt },
+        { 'Item': 'Rows with a Data Check flag', 'Definition': flagged },
+      ];
     }
 
     function downloadCSV(opts) {
@@ -8023,6 +8088,9 @@
       XLSX.utils.book_append_sheet(wb, ws4, 'Growth by School');
       XLSX.utils.book_append_sheet(wb, ws5, 'Growth by Grade');
       XLSX.utils.book_append_sheet(wb, ws6, 'Growth by District');
+      const ws7 = XLSX.utils.json_to_sheet(_irlExportNotes(allRows));
+      ws7['!cols'] = [{ wch: 46 }, { wch: 120 }];
+      XLSX.utils.book_append_sheet(wb, ws7, 'Notes & Definitions');
       XLSX.writeFile(wb, 'njtc-iready-' + new Date().toISOString().slice(0,10) + '.xlsx');
     }
 
