@@ -77,7 +77,10 @@ var NE_KW_D = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken
 var SW_KW_D = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                'string theory','global leadership academy','global leadership',
                'penns grove','carneys point','haddon township','haddon',
-               'hamilton township','gloucester township'];
+               'hamilton township','pemberton township','gloucester township'];
+// SY 26-27 SW sites checked before NE (iLearn CMO) — mirrors programming.js _SW_PRIORITY
+var SW_PRIORITY = ['pemberton','denbo','crichton','greenwood',
+                   'hamilton township','hamilton twp','lea - hamilton','lea- hamilton'];
 // School-level: SW explicit list (mirrors programming.js SW_SCHOOLS)
 var SW_SCHOOLS_LIST = ['erial','loring flemming','field street','penns grove middle',
                        'van sciver','strawbridge','first philadelphia prep','first philly prep',
@@ -88,6 +91,7 @@ function getRegion(school, district) {
   var s = (school  || '').toLowerCase().trim();
   var d = (district|| '').toLowerCase().trim();
   if (s.startsWith('zzz')) return null;
+  for (var i=0;i<SW_PRIORITY.length;i++) if (d.includes(SW_PRIORITY[i]) || s.includes(SW_PRIORITY[i])) return 'SW';
   // District match (highest priority)
   for (var i=0;i<NE_KW_D.length;i++) if (d.includes(NE_KW_D[i])) return 'NE';
   for (var i=0;i<SW_KW_D.length;i++) if (d.includes(SW_KW_D[i])) return 'SW';

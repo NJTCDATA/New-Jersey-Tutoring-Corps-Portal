@@ -1891,12 +1891,22 @@
     const _SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                     'string theory','global leadership academy','global leadership',
                     'penns grove','carneys point','haddon township','haddon',
-                    'hamilton township','gloucester township'];
+                    'hamilton township','pemberton township','gloucester township'];
     const _SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver',
                     'strawbridge','first philadelphia prep','first philly prep',
                     'the philadelphia charter','philadelphia charter school','global leadership academy'];
+    // SY 26-27 South-West sites, checked before the NE (iLearn CMO) keywords so they
+    // always roll up to SW even when the Pearl school/district text mentions iLearn.
+    //   Pemberton Township → Denbo-Crichton School;  Hamilton Township → Greenwood ES
+    const _SW_PRIORITY = ['pemberton','denbo','crichton','greenwood',
+                          'hamilton township','hamilton twp','lea - hamilton','lea- hamilton'];
+    function _isSWPriority(school, district) {
+      const s = (school||'').toLowerCase(), d = (district||'').toLowerCase();
+      return _SW_PRIORITY.some(k => d.includes(k) || s.includes(k));
+    }
     function _poRegion(school, district) {
       const s = (school||'').toLowerCase(), d = (district||'').toLowerCase();
+      if (_isSWPriority(s, d)) return 'SW';
       if (_NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
       if (_SW_KW.some(k=>d.includes(k))) return 'SW';
       if (_SW_SC.some(k=>s.includes(k))) return 'SW';
@@ -5218,12 +5228,13 @@
       const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
       const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                      'string theory','global leadership academy','global leadership','penns grove',
-                     'carneys point','haddon township','haddon','hamilton township','gloucester township'];
+                     'carneys point','haddon township','haddon','hamilton township','pemberton township','gloucester township'];
       const SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver',
                      'strawbridge','first philadelphia prep','first philly prep',
                      'the philadelphia charter','philadelphia charter school','global leadership academy'];
       function scRegion(sc) {
         const d = (sc.district||'').toLowerCase(), s = (sc.school||'').toLowerCase();
+        if (_isSWPriority(s, d)) return 'SW';
         if (NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
         if (SW_KW.some(k=>d.includes(k))) return 'SW';
         if (SW_SC.some(k=>s.includes(k))) return 'SW';
@@ -6806,12 +6817,13 @@
       const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
       const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                      'string theory','global leadership academy','global leadership','penns grove',
-                     'carneys point','haddon township','haddon','hamilton township','gloucester township'];
+                     'carneys point','haddon township','haddon','hamilton township','pemberton township','gloucester township'];
       const SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver',
                      'strawbridge','first philadelphia prep','first philly prep',
                      'the philadelphia charter','philadelphia charter school','global leadership academy'];
       function scRegion(school, district) {
         const d = (district||'').toLowerCase(), s = (school||'').toLowerCase();
+        if (_isSWPriority(s, d)) return 'SW';
         if (NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
         if (SW_KW.some(k=>d.includes(k))) return 'SW';
         if (SW_SC.some(k=>s.includes(k))) return 'SW';
@@ -7349,10 +7361,11 @@
                         : opts.week;
 
       const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
-      const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter','string theory','global leadership academy','global leadership','penns grove','carneys point','haddon township','haddon','hamilton township','gloucester township'];
+      const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter','string theory','global leadership academy','global leadership','penns grove','carneys point','haddon township','haddon','hamilton township','pemberton township','gloucester township'];
       const SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver','strawbridge','first philadelphia prep','first philly prep','the philadelphia charter','philadelphia charter school','global leadership academy'];
       function scReg(school, district) {
         const d=(district||'').toLowerCase(), s=(school||'').toLowerCase();
+        if (_isSWPriority(s, d)) return 'SW';
         if (NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
         if (SW_KW.some(k=>d.includes(k))) return 'SW';
         if (SW_SC.some(k=>s.includes(k))) return 'SW';
@@ -8250,7 +8263,7 @@
           'global leadership academy', 'global leadership',
           'penns grove', 'carneys point',
           'haddon township', 'haddon',
-          'hamilton township', 'gloucester township',
+          'hamilton township', 'pemberton township', 'gloucester township',
         ];
         const SW_SCHOOLS = [
           'erial', 'loring flemming', 'field street', 'penns grove middle',
@@ -8267,6 +8280,7 @@
           const s = (school  || '').toLowerCase().trim();
           const d = (district|| '').toLowerCase().trim();
           if (isExcluded(s)) return null;
+          if (_isSWPriority(s, d)) return 'SW';
           for (const kw of NE_DISTRICTS) { if (d.includes(kw)) return 'NE'; }
           for (const kw of SW_DISTRICTS) { if (d.includes(kw)) return 'SW'; }
           for (const kw of SW_SCHOOLS)   { if (s.includes(kw)) return 'SW'; }
@@ -9217,9 +9231,10 @@
 
           // ── Helper: region for a school/district ─────────────────────────
           var NE_KW = ['ilearn','i-learn','paterson','pcsst','hoboken','middlesex','central jersey','cjcp'];
-          var SW_KW = ['american paradigm','first philadelphia','first philly','global leadership','penns grove','carneys point','haddon','hamilton township','gloucester'];
+          var SW_KW = ['american paradigm','first philadelphia','first philly','global leadership','penns grove','carneys point','haddon','hamilton township','pemberton township','gloucester'];
           function getRegion(school, district) {
             var s=(school||'').toLowerCase(), d=(district||'').toLowerCase();
+            if (_isSWPriority(s, d)) return 'SW';
             for (var i=0;i<NE_KW.length;i++){ if(d.includes(NE_KW[i])||s.includes(NE_KW[i])) return 'NE'; }
             for (var i=0;i<SW_KW.length;i++){ if(d.includes(SW_KW[i])||s.includes(SW_KW[i])) return 'SW'; }
             return 'NE'; // default
