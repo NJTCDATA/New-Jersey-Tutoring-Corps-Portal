@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// NJTC Pearl Ops — PDF Export  (v5)
-// 4-section executive report: Cover/Aggregates → Positives → Growing Pains → Summary
+// NJTC Pearl Ops — PDF Export  (v6)
+// 2-page program memo: P.1 Key metrics + Executive Summary
+//                      P.2 Region metrics (scholar / tutor) + Flags to Watch (red)
+//                          + non-absence service interruptions + school snapshot
 // jsPDF 2.5.1 + jsPDF-AutoTable 3.8.2 loaded on demand from unpkg.com
 // PC/Mac safe: revokeObjectURL delayed 2 s to avoid Windows AV freeze
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,7 +26,9 @@
   };
 
   // ── Benchmarks ────────────────────────────────────────────────────────────
-  const BM = { scholAtt: 80, tutorAtt: 90, hit: 95, survey: 4.0, capture: 80 };
+  // HIT compliance is intentionally not in this report — the Data team reviews
+  // HIT (ratio champions / violations) in the portal, not in program memos.
+  const BM = { scholAtt: 80, tutorAtt: 90, survey: 4.0, capture: 80 };
 
   function statusColor(rate, benchmark) {
     if (rate == null || isNaN(rate)) return C.mid;
@@ -159,23 +163,27 @@
       return y + 13;
     }
 
-    /** KPI card. */
-    function kpiCard(x, y, w, h, value, label, color) {
+    /** Compact KPI card: big value, label, optional sub-line. */
+    function kpiCard(x, y, w, h, value, label, color, sub) {
       doc.setFillColor(...C.white);
       doc.roundedRect(x, y, w, h, 2, 2, 'F');
       doc.setDrawColor(...C.mid);
       doc.setLineWidth(0.3);
       doc.roundedRect(x, y, w, h, 2, 2, 'S');
-      doc.setFillColor(...C.teal);
-      doc.rect(x, y, 2.5, h, 'F');
-      doc.setFontSize(18);
+      doc.setFillColor(...(color === C.navy ? C.teal : color));
+      doc.rect(x, y, w, 1.8, 'F');
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...(color || C.navy));
-      doc.text(String(value), x + w / 2, y + h / 2 + 2, { align: 'center' });
-      doc.setFontSize(7);
+      doc.text(String(value), x + w / 2, y + 10, { align: 'center' });
+      doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.muted);
-      doc.text(label, x + w / 2, y + h - 3, { align: 'center' });
+      doc.text(label, x + w / 2, y + 14.5, { align: 'center' });
+      if (sub) {
+        doc.setFontSize(5.8);
+        doc.text(sub, x + w / 2, y + 18, { align: 'center' });
+      }
       doc.setTextColor(...C.body);
     }
 
@@ -259,925 +267,348 @@
       return endY + 5;
     }
 
-    /** 4-chip benchmark health bar. Returns y after bar. */
-    function benchmarkBar(y, items) {
-      if (y > BOTTOM_LIMIT - 30) { doc.addPage(); y = TOP_START; }
-      const chipW = (SAFE - (items.length - 1) * 3) / items.length;
-      const chipH = 21;
-      items.forEach((item, i) => {
-        const cx = ML + i * (chipW + 3);
-        const sc = statusColor(item.rate, item.benchmark);
-        const bg = sc === C.green ? [236,253,245] : sc === C.amber ? [255,251,235] : [255,241,242];
-        doc.setFillColor(...bg);
-        doc.roundedRect(cx, y, chipW, chipH, 2, 2, 'F');
-        doc.setFillColor(...sc);
-        doc.roundedRect(cx, y, chipW, 2.5, 1, 1, 'F');
-        doc.setFontSize(13);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...sc);
-        doc.text(item.value, cx + chipW / 2, y + 12, { align: 'center' });
-        doc.setFontSize(6.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...C.muted);
-        doc.text(item.label, cx + chipW / 2, y + 16.5, { align: 'center' });
-        const rate = item.rate;
-        const diff = (rate != null && !isNaN(rate)) ? (rate - item.benchmark).toFixed(1) : null;
-        const note = diff !== null ? (parseFloat(diff) >= 0 ? '+' + diff + '% vs target' : diff + '% vs target') : '--';
-        doc.setFontSize(6);
-        doc.setTextColor(...sc);
-        doc.text(note, cx + chipW / 2, y + 19.5, { align: 'center' });
-      });
-      doc.setTextColor(...C.body);
-      return y + chipH + 5;
-    }
-
-    /** autoTable wrapper with NJTC defaults. */
-    function table(startY, head, body, colStyles, hooks) {
-      if (!body || !body.length) body = [Array(head[0].length).fill('--')];
-      doc.autoTable({
-        startY, head, body,
-        margin: { left: ML, right: PW - MR },
-        tableWidth: SAFE,
-        styles: { fontSize: 8, cellPadding: 3, textColor: C.body, overflow: 'linebreak', font: 'helvetica' },
-        headStyles: { fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 8.5 },
-        alternateRowStyles: { fillColor: C.light },
-        rowPageBreak: 'avoid', showHead: 'everyPage',
-        columnStyles: colStyles || {},
-        didParseCell: hooks && hooks.didParseCell,
-        didDrawCell:  hooks && hooks.didDrawCell,
-        theme: 'plain',
-      });
-      return doc.lastAutoTable.finalY + 5;
-    }
-
-    // ── Pre-compute highlights ─────────────────────────────────────────────
-
-    // Schools with at least 5 sessions
-    const activeSch = data.schools.filter(s => s.sessions >= 5);
-
-    // Attendance leaders (top 3 by att rate, min 5 sessions)
-    const attLeaders  = [...activeSch].sort((a,b) => b.attRate - a.attRate).slice(0, 3);
-    const attConcerns = [...activeSch].filter(s => s.attRate < BM.scholAtt).sort((a,b) => a.attRate - b.attRate).slice(0, 5);
-    const aboveBMCount = activeSch.filter(s => s.attRate >= BM.scholAtt).length;
-
-    // HIT
-    const hitSchools  = activeSch.filter(s => s.ratioViolations > 0).sort((a,b) => b.ratioViolations - a.ratioViolations);
-    const hitCompliant = activeSch.filter(s => s.ratioViolations === 0);
-
-    // Top tutors
-    const topTutors5 = data.topTutors.slice(0, 5);
-    const totalHrs   = data.topTutors.reduce((s, t) => s + (t.hours || 0), 0);
-
-    // Survey capture leaders/laggards (min 5 eligible)
-    const scholCapList  = data.schools.filter(s => s.scholCaptureRate !== null);
-    const capLeaders    = [...scholCapList].sort((a,b) => b.scholCaptureRate - a.scholCaptureRate).slice(0, 3);
-    const capConcerns   = [...scholCapList].sort((a,b) => a.scholCaptureRate - b.scholCaptureRate).slice(0, 5);
-
-    // Service interruptions
-    const siReasons = Object.entries(data.missedReasonCounts || {})
-      .sort((a,b) => b[1] - a[1]).slice(0, 5);
-    const totalSI = data.stuSI || 0;
-
-    // Survey averages (precomputed for benchmark bar)
-    const scholOverall = (data.stuSurveyAvg  || {}).overall || 0;
-    const instOverall  = (data.instSurveyAvg || {}).overall || 0;
-
-    // Tutor attendance concerns (below 90%, min 3 sessions)
-    const tutorConcerns = data.topTutors
-      .filter(t => t.attRate < BM.tutorAtt && (t.attended + t.absent) >= 3)
-      .sort((a, b) => a.attRate - b.attRate)
-      .slice(0, 6);
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PAGE 1 — COVER + AGGREGATES
-    // ─────────────────────────────────────────────────────────────────────
-    doc.setFillColor(...C.navy);
-    doc.rect(0, 0, PW, 64, 'F');
-
-    // Org name
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...C.teal);
-    doc.text('NEW JERSEY TUTORING CORPS', PW / 2, 17, { align: 'center' });
-
-    // Report title
-    doc.setFontSize(26);
-    doc.setTextColor(...C.white);
-    doc.text('Pearl Operations', PW / 2, 33, { align: 'center' });
-
-    // Region pill
-    const pW = 66, pH = 9, pX = PW / 2 - pW / 2, pY = 38;
-    doc.setFillColor(...C.teal);
-    doc.roundedRect(pX, pY, pW, pH, 4, 4, 'F');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...C.white);
-    doc.text(regionLabel + ' Report', PW / 2, pY + 6.2, { align: 'center' });
-
-    // Generated date
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(180, 195, 210);
-    doc.text('Generated ' + generated + '  -  ' + (data.periodLabel || 'SY 2026-2027'), PW / 2, 57, { align: 'center' });
-    doc.setTextColor(...C.body);
-
-    // ── KPI cards — Row 1 ─────────────────────────────────────────────────
-    const cardW = (SAFE - 9) / 4, cardH = 25, cardGap = 3;
-    const row1Y = 70, row2Y = row1Y + cardH + cardGap;
-
-    const kpiRow1 = [
-      { v: pct(data.scholarAttRate, 1), l: 'Scholar Att. Rate',  c: statusColor(data.scholarAttRate, BM.scholAtt) },
-      { v: pct(data.tutorAttRate, 1),   l: 'Tutor Att. Rate',    c: statusColor(data.tutorAttRate,   BM.tutorAtt) },
-      { v: pct(data.hitRate, 0),        l: 'HIT Compliance',     c: statusColor(data.hitRate,        BM.hit)      },
-      { v: num(data.totalSessions),     l: 'Sessions Delivered', c: C.navy },
-    ];
-    const kpiRow2 = [
-      { v: num(data.activeScholars),   l: 'Active Scholars',  c: C.navy },
-      { v: num(data.activeTutors),     l: 'Active Tutors',    c: C.navy },
-      { v: num(data.uniqueSchools),    l: 'Schools Served',   c: C.navy },
-      { v: num(data.uniqueDistricts),  l: 'Districts',        c: C.navy },
-    ];
-    [kpiRow1, kpiRow2].forEach((row, ri) => {
-      row.forEach((kpi, ci) => {
-        kpiCard(ML + ci * (cardW + cardGap), ri === 0 ? row1Y : row2Y, cardW, cardH, kpi.v, kpi.l, kpi.c);
-      });
-    });
-
-    // ── Survey capture summary bar ─────────────────────────────────────────
-    const capY = row2Y + cardH + 6;
-    doc.setFillColor(...C.light);
-    doc.roundedRect(ML, capY, SAFE, 16, 2, 2, 'F');
-    doc.setFillColor(...C.teal);
-    doc.rect(ML, capY, 3, 16, 'F');
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...C.navy);
-    doc.text('Survey Capture Rates', ML + 6, capY + 5.5);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...C.muted);
-    const mismatchNote = data.scholMismatchRate > 0 ? '  |  ' + pct(data.scholMismatchRate, 0) + ' date mismatch' : '';
-    doc.text(
-      'Scholar: ' + pct(data.scholCaptureRate, 0) + ' capture  (' + num(data.totalScholSubm) + ' of ' + num(data.totalScholElig) + ' eligible)' + mismatchNote +
-      '     Tutor: ' + pct(data.tutorCaptureRate, 0) + ' capture  (' + num(data.totalTutorSubm) + ' of ' + num(data.totalTutorElig) + ' eligible)',
-      ML + 6, capY + 12
-    );
-    doc.setTextColor(...C.body);
-
-    // ── Section map ────────────────────────────────────────────────────────
-    const smY = capY + 24;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...C.navy);
-    doc.text('Report Sections', ML, smY);
-    doc.setDrawColor(...C.teal);
-    doc.setLineWidth(0.6);
-    doc.line(ML, smY + 2, MR, smY + 2);
-
-    const sections = [
-      ['P.1', 'Cover + Aggregates',           '8 key metrics at-a-glance across the ' + regionLabel],
-      ['P.2', 'Positives — What\'s Working',  'Attendance leaders, top tutors, HIT champions, survey excellence'],
-      ['P.3', 'Growing Pains',                'Attendance concerns, HIT violations, capture gaps, SI hotspots'],
-      ['P.4', 'Executive Summary',            'Narrative overview with specific examples and recommended actions'],
-    ];
-    doc.setFontSize(8);
-    sections.forEach((row, i) => {
-      const ry = smY + 8 + i * 7.5;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...C.teal);
-      doc.text(row[0], ML, ry);
-      doc.setTextColor(...C.navy);
-      doc.text(row[1], ML + 12, ry);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...C.muted);
-      doc.text(row[2], ML + 68, ry);
-    });
-    doc.setTextColor(...C.body);
-
-    // ── Mission strip ──────────────────────────────────────────────────────
-    doc.setFillColor(...C.navy);
-    doc.rect(0, PH - FOOTER_H - 16, PW, 14, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(...C.white);
-    doc.text(
-      'Accelerating student achievement through high-impact, data-driven tutoring.',
-      PW / 2, PH - FOOTER_H - 9, { align: 'center' }
-    );
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...C.body);
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PAGE 2 — POSITIVES: WHAT'S WORKING WELL
-    // ─────────────────────────────────────────────────────────────────────
-    doc.addPage();
-    let y = secHeader(TOP_START, 'POSITIVES  -  WHAT\'S WORKING WELL', C.teal);
-
-    // ── Benchmark health check bar ─────────────────────────────────────────
-    y = benchmarkBar(y, [
-      { label: 'Scholar Attendance', value: pct(data.scholarAttRate, 1), rate: data.scholarAttRate, benchmark: BM.scholAtt },
-      { label: 'Tutor Attendance',   value: pct(data.tutorAttRate, 1),   rate: data.tutorAttRate,   benchmark: BM.tutorAtt },
-      { label: 'HIT Compliance',     value: pct(data.hitRate, 0),        rate: data.hitRate,        benchmark: BM.hit      },
-      { label: 'Scholar Survey Avg', value: fmt(scholOverall, 2) + ' / 5', rate: scholOverall > 0 ? scholOverall * 20 : null, benchmark: BM.scholAtt },
-    ]);
-
-    // ── Panel Row 1: Attendance Leaders + HIT Champions ───────────────────
-    const attLeaderLines = [];
-    attLeaderLines.push({ type: 'subtitle', text: aboveBMCount + ' of ' + activeSch.length + ' schools at or above 80% benchmark' });
-    attLeaderLines.push({ type: 'divider' });
-    if (attLeaders.length > 0) {
-      attLeaders.forEach((sc, i) => {
-        attLeaderLines.push({
-          label: (i + 1) + '. ' + trunc(sc.name, 36),
-          value: pct(sc.attRate, 1),
-          valueColor: statusColor(sc.attRate, BM.scholAtt),
-        });
-      });
-    } else {
-      attLeaderLines.push({ label: 'No school data available', value: '--' });
-    }
-    attLeaderLines.push({ type: 'divider' });
-    attLeaderLines.push({
-      label: 'Network scholar att. rate',
-      value: pct(data.scholarAttRate, 1),
-      valueColor: statusColor(data.scholarAttRate, BM.scholAtt),
-    });
-    attLeaderLines.push({
-      label: 'Total attended / missed',
-      value: num(data.stuAttended) + ' / ' + num(data.stuAbsent),
-      valueColor: C.navy,
-    });
-
-    const hitChampLines = [];
-    if (data.hitRate >= BM.hit) {
-      hitChampLines.push({ type: 'subtitle', text: 'Meeting HIT benchmark of 95% - sessions at 4:1 ratio or better' });
-    } else {
-      hitChampLines.push({ type: 'subtitle', text: pct(data.hitRate, 0) + ' HIT compliance (' + num(data.hitSessions) + ' of ' + num(data.totalSessions) + ' sessions)' });
-    }
-    hitChampLines.push({ type: 'divider' });
-    if (hitCompliant.length > 0) {
-      const showHit = hitCompliant.slice(0, 5);
-      showHit.forEach((sc, i) => {
-        hitChampLines.push({
-          label: (i + 1) + '. ' + trunc(sc.name, 36),
-          value: '100%',
-          valueColor: C.green,
-        });
-      });
-      if (hitCompliant.length > 5) {
-        hitChampLines.push({ type: 'subtitle', text: '+ ' + (hitCompliant.length - 5) + ' more fully compliant schools' });
-      }
-    } else {
-      hitChampLines.push({ label: 'No fully compliant schools recorded', value: '--' });
-    }
-    hitChampLines.push({ type: 'divider' });
-    hitChampLines.push({
-      label: 'Network HIT rate',
-      value: pct(data.hitRate, 0),
-      valueColor: statusColor(data.hitRate, BM.hit),
-    });
-    hitChampLines.push({
-      label: 'Ratio violations',
-      value: num(data.ratioViolations),
-      valueColor: data.ratioViolations > 0 ? C.red : C.green,
-    });
-
-    y = twoColPanels(y, 'Scholar Attendance Leaders', attLeaderLines, 'HIT Compliance Champions', hitChampLines);
-
-    // ── Panel Row 2: Top Tutors + Survey Excellence ───────────────────────
-    const tutorLines = [];
-    const totalTutorHrs = parseFloat(totalHrs.toFixed(1));
-    tutorLines.push({ type: 'subtitle', text: num(data.activeTutors) + ' active tutors  -  ' + hrs(totalTutorHrs) + ' delivered network-wide' });
-    tutorLines.push({ type: 'divider' });
-    if (topTutors5.length > 0) {
-      topTutors5.forEach((t, i) => {
-        const sepTag = t.terminated ? ' [SEP]' : '';
-        tutorLines.push({
-          label: (i + 1) + '. ' + trunc(t.name, 27) + safeStr(sepTag) + '  (' + trunc(t.school, 14) + ')',
-          value: hrs(t.hours),
-          valueColor: t.terminated ? C.amber : C.teal,
-        });
-      });
-    } else {
-      tutorLines.push({ label: 'No tutor hour data available', value: '--' });
-    }
-    tutorLines.push({ type: 'divider' });
-    tutorLines.push({
-      label: 'Tutor attendance rate',
-      value: pct(data.tutorAttRate, 1),
-      valueColor: statusColor(data.tutorAttRate, BM.tutorAtt),
-    });
-
-    const surveyLines = [];
-    surveyLines.push({ type: 'subtitle', text: 'Survey scores on 1-5 scale. Capture: scholars ' + pct(data.scholCaptureRate, 0) + ', tutors ' + pct(data.tutorCaptureRate, 0) });
-    surveyLines.push({ type: 'divider' });
-    surveyLines.push({ label: 'Scholar overall avg (n=' + num((data.stuSurveyAvg || {}).count) + ')', value: fmt(scholOverall, 2) + ' / 5.0', valueColor: scholOverall >= 4.0 ? C.green : scholOverall >= 3.5 ? C.amber : C.red });
-    surveyLines.push({ label: '  Confidence', value: fmt((data.stuSurveyAvg || {}).confidence, 2), valueColor: C.teal });
-    surveyLines.push({ label: '  Enjoyment',  value: fmt((data.stuSurveyAvg || {}).enjoyment, 2),  valueColor: C.teal });
-    surveyLines.push({ label: '  Learning',   value: fmt((data.stuSurveyAvg || {}).learning, 2),   valueColor: C.teal });
-    surveyLines.push({ type: 'divider' });
-    surveyLines.push({ label: 'Tutor overall avg (n=' + num((data.instSurveyAvg || {}).count) + ')', value: fmt(instOverall, 2) + ' / 5.0', valueColor: instOverall >= 4.0 ? C.green : instOverall >= 3.5 ? C.amber : C.red });
-    if (capLeaders.length > 0) {
-      surveyLines.push({ type: 'divider' });
-      surveyLines.push({ type: 'subtitle', text: 'Top scholar survey capture:' });
-      capLeaders.forEach((sc, i) => {
-        surveyLines.push({
-          label: (i + 1) + '. ' + trunc(sc.name, 34),
-          value: pct(sc.scholCaptureRate, 0),
-          valueColor: C.green,
-        });
-      });
-    }
-
-    y = twoColPanels(y, 'Top Tutors by Instructional Hours', tutorLines, 'Survey Scores & Capture', surveyLines);
-
-    // ── Scholar Attendance Tiers ────────────────────────────────────────
-    if (y < BOTTOM_LIMIT - 40 && activeSch.length > 0) {
-      y = secHeader(y, 'Scholar Attendance Distribution  -  Schools by Performance Tier');
-      const tierDefs = [
-        { label: 'High (>=90%)',      color: C.green,  fn: s => s.attRate >= 90 },
-        { label: 'Near Target (90-94%)',color: [82,183,100], fn: s => s.attRate >= 90 && s.attRate < 95 },
-        { label: 'At Risk (70-89%)',   color: C.amber,  fn: s => s.attRate >= 70 && s.attRate < 90 },
-        { label: 'Critical (<70%)',   color: C.red,    fn: s => s.attRate > 0 && s.attRate < 70 },
-      ];
-      const tiered = tierDefs.map(t => ({ ...t, schools: activeSch.filter(s => t.fn(s)) }));
-      const total  = tiered.reduce((s, t) => s + t.schools.length, 0);
-
-      if (total > 0) {
-        // Proportional segmented bar
-        const barH = 10;
-        let bx = ML;
-        tiered.forEach(tier => {
-          const segW = SAFE * (tier.schools.length / total);
-          if (segW > 0.5) {
-            doc.setFillColor(...tier.color);
-            doc.rect(bx, y, segW, barH, 'F');
-            if (segW > 14) {
-              doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
-              doc.text(String(tier.schools.length), bx + segW / 2, y + 6.8, { align: 'center' });
-            }
-            bx += segW;
-          }
-        });
-        y += barH + 3;
-
-        // Legend row
-        const legW = SAFE / tiered.length;
-        tiered.forEach((tier, i) => {
-          const lx = ML + i * legW;
-          doc.setFillColor(...tier.color);
-          doc.rect(lx, y, 4, 4, 'F');
-          doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.muted);
-          doc.text(tier.label + ': ' + tier.schools.length, lx + 6, y + 3.5);
-        });
-        y += 8;
-
-        // Call out critical schools by name
-        const crit = tiered[3].schools;
-        if (crit.length > 0) {
-          doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.red);
-          doc.text('Critical (<70%): ', ML, y);
-          doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
-          const critStr = crit.map(s => trunc(s.name, 22) + ' (' + pct(s.attRate, 1) + ')').join('  |  ');
-          doc.text(trunc(critStr, 95), ML + 32, y);
-          y += 6;
-        }
-        y += 4;
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PAGE 3 — GROWING PAINS: AREAS NEEDING ATTENTION
-    // ─────────────────────────────────────────────────────────────────────
-    doc.addPage();
-    y = secHeader(TOP_START, 'GROWING PAINS  -  AREAS NEEDING ATTENTION', C.red);
-
-    // ── Panel Row 1: Attendance Concerns + HIT Violations ────────────────
-    const attConcernLines = [];
-    if (attConcerns.length > 0) {
-      attConcernLines.push({ type: 'subtitle', text: attConcerns.length + ' school(s) below the 80% attendance benchmark' });
-      attConcernLines.push({ type: 'divider' });
-      attConcerns.forEach((sc, i) => {
-        const gap = (BM.scholAtt - sc.attRate).toFixed(1);
-        attConcernLines.push({
-          label: (i + 1) + '. ' + trunc(sc.name, 30) + '  (-' + gap + '% below)',
-          value: pct(sc.attRate, 1),
-          valueColor: C.red,
-        });
-      });
-    } else {
-      attConcernLines.push({ type: 'subtitle', text: 'All schools meeting the 80% attendance benchmark' });
-      attConcernLines.push({ type: 'divider' });
-      attConcernLines.push({ label: 'No attendance concerns identified', value: '--', valueColor: C.green });
-    }
-    attConcernLines.push({ type: 'divider' });
-    attConcernLines.push({ label: 'Total scholar absences', value: num(data.stuAbsent), valueColor: data.stuAbsent > 50 ? C.red : C.amber });
-    attConcernLines.push({ label: 'Service interruptions', value: num(data.stuSI), valueColor: C.amber });
-
-    const hitViolLines = [];
-    if (hitSchools.length > 0) {
-      hitViolLines.push({ type: 'subtitle', text: hitSchools.length + ' school(s) recorded HIT ratio violations (>4:1)' });
-      hitViolLines.push({ type: 'divider' });
-      hitSchools.slice(0, 5).forEach((sc, i) => {
-        hitViolLines.push({
-          label: (i + 1) + '. ' + trunc(sc.name, 30) + '  (' + num(sc.sessions) + ' sess)',
-          value: num(sc.ratioViolations) + ' viol.',
-          valueColor: C.red,
-        });
-      });
-    } else {
-      hitViolLines.push({ type: 'subtitle', text: 'No HIT ratio violations recorded - fully compliant' });
-      hitViolLines.push({ type: 'divider' });
-      hitViolLines.push({ label: 'All sessions at 4:1 ratio or better', value: '--', valueColor: C.green });
-    }
-    hitViolLines.push({ type: 'divider' });
-    hitViolLines.push({ label: 'Network HIT rate', value: pct(data.hitRate, 0), valueColor: statusColor(data.hitRate, BM.hit) });
-    hitViolLines.push({ label: 'Highest ratio recorded', value: (data.maxRatio > 0 ? data.maxRatio + ':1' : '--'), valueColor: data.maxRatio > 4 ? C.red : C.green });
-
-    y = twoColPanels(y, 'Attendance Concerns', attConcernLines, 'HIT Compliance Violations', hitViolLines);
-
-    // ── Panel Row 2: Survey Capture Gaps + Service Interruptions ─────────
-    const capGapLines = [];
-    if (capConcerns.length > 0) {
-      const belowBM = capConcerns.filter(s => s.scholCaptureRate < BM.capture).length;
-      capGapLines.push({ type: 'subtitle', text: belowBM + ' of ' + scholCapList.length + ' schools below 80% scholar capture target' });
-      capGapLines.push({ type: 'divider' });
-      capConcerns.forEach((sc, i) => {
-        capGapLines.push({
-          label: (i + 1) + '. ' + trunc(sc.name, 26) + '  (' + sc.scholCaptureSubm + '/' + sc.scholCaptureElig + ')',
-          value: pct(sc.scholCaptureRate, 0),
-          valueColor: statusColor(sc.scholCaptureRate, BM.capture),
-        });
-        if (sc.scholMismatchRate > 0) {
-          capGapLines.push({ type: 'subtitle', text: '   \u25ba ' + sc.scholMismatchRate + '% of submitted surveys have date mismatch' });
-        }
-      });
-    } else {
-      capGapLines.push({ type: 'subtitle', text: 'Insufficient data for capture rate rankings' });
-      capGapLines.push({ label: 'Minimum 5 eligible events per school required', value: '--' });
-    }
-    capGapLines.push({ type: 'divider' });
-    capGapLines.push({ label: 'Network scholar capture', value: pct(data.scholCaptureRate, 0), valueColor: statusColor(data.scholCaptureRate, BM.capture) });
-    if (data.scholMismatchRate > 0) {
-      capGapLines.push({ label: 'Network date mismatch', value: pct(data.scholMismatchRate, 0), valueColor: C.amber });
-    }
-    capGapLines.push({ label: 'Network tutor capture',   value: pct(data.tutorCaptureRate, 0),  valueColor: statusColor(data.tutorCaptureRate, BM.capture) });
-
-    const siLines = [];
-    siLines.push({ type: 'subtitle', text: num(totalSI) + ' SI events  -  ' + num(Object.keys(data.missedReasonCounts || {}).length) + ' distinct reasons recorded' });
-    siLines.push({ type: 'divider' });
-    if (siReasons.length > 0) {
-      const totalReasonCt = siReasons.reduce((s, [, c]) => s + c, 0);
-      siReasons.forEach(([reason, count], i) => {
-        const share = totalReasonCt > 0 ? Math.round(count / totalReasonCt * 100) : 0;
-        siLines.push({
-          label: (i + 1) + '. ' + trunc(reason || 'Unknown', 34),
-          value: num(count) + ' (' + share + '%)',
-          valueColor: i === 0 ? C.red : C.amber,
-        });
-      });
-    } else {
-      siLines.push({ label: 'No service interruption data recorded', value: '--', valueColor: C.green });
-    }
-    siLines.push({ type: 'divider' });
-    siLines.push({
-      label: 'SI as % of all missed events',
-      value: (data.stuAbsent + totalSI) > 0 ? pct(totalSI / (data.stuAbsent + totalSI) * 100, 1) : '--',
-      valueColor: C.amber,
-    });
-
-    y = twoColPanels(y, 'Survey Capture Gaps', capGapLines, 'Service Interruption Hotspots', siLines);
-
-    // ── Bottom tutors by survey capture ──────────────────────────────────
-    if (data.tutorCaptureBottom && data.tutorCaptureBottom.length > 0) {
-      y = secHeader(y, 'Tutors Needing Survey Capture Support (Bottom 5)', C.amber);
-      data.tutorCaptureBottom.forEach((t, i) => {
-        const lateNote = t.lateFlagged ? '  [' + t.lateRate + '% late]' : '';
-        const stat = pct(t.captureRate, 0) + '  (' + t.submitted + '/' + t.eligible + ')' + lateNote;
-        y = listRow(y, {
-          name:      (i + 1) + '. ' + trunc(t.name, 36) + (t.terminated ? ' [SEP]' : ''),
-          detail:    trunc(t.school, 50),
-          stat:      stat,
-          statColor: statusColor(t.captureRate, BM.capture),
-        }, i % 2 === 1);
-      });
-      y += 6;
-    }
-
-    // ── Late survey filers (>=50% of submitted surveys filed after session date) ──
-    if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) {
-      if (y > BOTTOM_LIMIT - 16) { doc.addPage(); y = TOP_START; }
-      y = secHeader(y, 'Tutors Filing Surveys Late - >=50% After Session Date (' + data.tutorLateSurveyList.length + ' flagged)', C.amber);
-      // Brief explanation sub-line
-      doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
-      doc.text('A survey is "late" when its date is after the session date. Tutors with >=50% late rate are listed below.', ML + 3, y);
-      y += 7;
-      doc.setFont('helvetica', 'normal');
-      data.tutorLateSurveyList.forEach((t, i) => {
-        y = listRow(y, {
-          name:      (i + 1) + '. ' + trunc(t.name, 36) + (t.terminated ? ' [SEP]' : ''),
-          detail:    trunc(t.school, 50),
-          stat:      t.lateRate + '% late  (' + t.late + '/' + t.submitted + ' surveys)',
-          statColor: C.amber,
-        }, i % 2 === 1);
-      });
-      y += 6;
-    }
-
-    // ── Tutor Attendance Concerns ─────────────────────────────────────────
-    if (tutorConcerns.length > 0) {
-      y = secHeader(y, 'Tutors Below 90% Attendance Threshold', C.amber);
-      tutorConcerns.forEach((t, i) => {
-        y = listRow(y, {
-          name:      (i + 1) + '. ' + trunc(t.name, 36) + (t.terminated ? ' [SEP]' : ''),
-          detail:    trunc(t.school, 50),
-          stat:      pct(t.attRate, 1) + '  (' + t.attended + '/' + (t.attended + t.absent) + ' sess)',
-          statColor: statusColor(t.attRate, BM.tutorAtt),
-        }, i % 2 === 1);
-      });
-      y += 6;
-    }
-
-    // ── Separated Staff Impact ─────────────────────────────────────────────
-    // Only renders when >=1 same-year separated tutor is found in Pearl data.
-    // Shows who they are, what their incomplete surveys contribute, and side-by-side
-    // KPIs: "As Reported" (all tutors) vs "Excl. Separated Staff".
-    // Future-proof: section silently skips when termTutors is empty or undefined.
-    const _termT = (data.termTutors || []);
-    if (_termT.length > 0) {
-      if (y > BOTTOM_LIMIT - 20) { doc.addPage(); y = TOP_START; }
-      y = secHeader(y, 'SEPARATED STAFF IN PEARL DATA  -  ' + (data.periodLabel || 'SY 2026-2027').toUpperCase(), [79, 70, 229]);  // indigo accent
-
-      // Context note
-      doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
-      const _sepNoteLines = doc.splitTextToSize(safeStr(
-        _termT.length + ' tutor' + (_termT.length !== 1 ? 's' : '') +
-        ' in this report separated from NJTC during ' + (data.periodLabel || 'SY 2026-2027') + '.' +
-        ' Their Pearl session, attendance, and survey records still count in all aggregate metrics' +
-        ' shown throughout this report. [SEP] marks these staff wherever they appear.' +
-        ' The panel below shows adjusted KPIs with these staff excluded.'
-      ), SAFE - 4);
-      _sepNoteLines.forEach(line => {
-        if (y > BOTTOM_LIMIT - 6) { doc.addPage(); y = TOP_START; }
-        doc.text(line, ML + 2, y); y += 5;
-      });
-      y += 4;
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
-
-      // Separated tutors detail table
-      y = table(y,
-        [['Separated Tutor', 'School', 'Att. Rate', 'Sessions', 'Missing Surveys']],
-        _termT.map(t => [
-          safeStr(trunc(t.name, 30)),
-          safeStr(trunc(t.school, 26)),
-          pct(t.attRate, 1),
-          num(t.attended + t.absent),
-          num(Math.max(0, (t.captureElig||0) - (t.captureSubm||0))),
-        ]),
-        { 0: { cellWidth: 54 }, 1: { cellWidth: 50 }, 2: { cellWidth: 20, halign: 'center' },
-          3: { cellWidth: 22, halign: 'center' }, 4: { cellWidth: 32, halign: 'center' } },
-        {
-          didParseCell: function(d) {
-            if (d.section !== 'body') return;
-            // Highlight missing survey count in amber when non-zero
-            if (d.column.index === 4 && d.cell.raw !== '0' && d.cell.raw !== '--') {
-              d.cell.styles.textColor = [180, 83, 9];
-              d.cell.styles.fontStyle = 'bold';
-            }
-          },
-        }
-      );
-      y += 3;
-
-      // Side-by-side KPI comparison panel
-      if (data.exTermTutorAttRate !== null || data.exTermTutorCaptureRate !== null) {
-        const _missTotal = Math.max(0, (data.totalTutorElig||0) - (data.totalTutorSubm||0));
-        const _missExTerm = Math.max(0, _missTotal - (data.termMissingSurveys||0));
-
-        const _cmpLeft = [
-          { type: 'subtitle', text: 'Includes all ' + num(data.activeTutors) + ' tutors in Pearl data' },
-          { type: 'divider' },
-          { label: 'Tutor Attendance Rate',
-            value: pct(data.tutorAttRate, 1),
-            valueColor: statusColor(data.tutorAttRate, BM.tutorAtt) },
-          { label: 'Tutor Survey Capture Rate',
-            value: pct(data.tutorCaptureRate, 0),
-            valueColor: statusColor(data.tutorCaptureRate, BM.capture) },
-          { label: 'Missing Tutor Surveys',
-            value: num(_missTotal),
-            valueColor: _missTotal > 0 ? C.amber : C.green },
-          { type: 'divider' },
-          { label: 'Tutors counted', value: num(data.activeTutors), bold: true, valueColor: C.navy },
-        ];
-        const _cmpRight = [
-          { type: 'subtitle', text: _termT.length + ' separated staff removed from calc.' },
-          { type: 'divider' },
-          { label: 'Tutor Attendance Rate',
-            value: data.exTermTutorAttRate !== null ? pct(data.exTermTutorAttRate, 1) : '--',
-            valueColor: data.exTermTutorAttRate !== null ? statusColor(data.exTermTutorAttRate, BM.tutorAtt) : C.muted },
-          { label: 'Tutor Survey Capture Rate',
-            value: data.exTermTutorCaptureRate !== null ? pct(data.exTermTutorCaptureRate, 0) : '--',
-            valueColor: data.exTermTutorCaptureRate !== null ? statusColor(data.exTermTutorCaptureRate, BM.capture) : C.muted },
-          { label: 'Missing Tutor Surveys',
-            value: num(_missExTerm),
-            valueColor: _missExTerm > 0 ? C.amber : C.green },
-          { type: 'divider' },
-          { label: 'Tutors counted', value: num(data.exTermActiveTutors||0), bold: true, valueColor: C.navy },
-        ];
-        y = twoColPanels(y, 'As Reported  (All Staff)', _cmpLeft, 'Excl. Separated Staff', _cmpRight);
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PAGE 4 — EXECUTIVE SUMMARY
-    // ─────────────────────────────────────────────────────────────────────
-    doc.addPage();
-    y = secHeader(TOP_START, 'EXECUTIVE SUMMARY  -  ' + regionLabel.toUpperCase());
-
-    // ── Helper to write wrapped paragraph text ────────────────────────────
+    /** Wrapped paragraph. Returns y after. */
     function para(text, startY, opts) {
       opts = opts || {};
-      doc.setFontSize(opts.size || 10);
+      doc.setFontSize(opts.size || 9.5);
       doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
       doc.setTextColor(...(opts.color || C.body));
       const lines = doc.splitTextToSize(safeStr(text), SAFE - 4);
       lines.forEach(line => {
         if (startY > BOTTOM_LIMIT - 6) { doc.addPage(); startY = TOP_START; }
         doc.text(line, ML + 2, startY);
-        startY += opts.lineH || 5.8;
+        startY += opts.lineH || 4.8;
       });
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.body);
-      return startY + (opts.gap || 6);
+      return startY + (opts.gap === undefined ? 3 : opts.gap);
     }
 
+    /** Sub-heading strip inside the Executive Summary. Returns y after. */
     function paraLabel(label, startY) {
-      if (startY > BOTTOM_LIMIT - 12) { doc.addPage(); startY = TOP_START; }
-      const bgH = 8;
-      // Subtle fill
+      if (startY > BOTTOM_LIMIT - 16) { doc.addPage(); startY = TOP_START; }
+      const bgH = 7;
       doc.setFillColor(237, 241, 248);
       doc.rect(ML, startY - 1, SAFE, bgH, 'F');
-      // Left border rule (3 mm wide, navy)
       doc.setFillColor(...C.navy);
-      doc.rect(ML, startY - 1, 3, bgH, 'F');
-      doc.setFontSize(11);
+      doc.rect(ML, startY - 1, 2.5, bgH, 'F');
+      doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...C.navy);
-      doc.text(safeStr(label), ML + 6, startY + 5);
+      doc.text(safeStr(label), ML + 5, startY + 4);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.body);
-      return startY + bgH + 3;
+      return startY + bgH + 4;
     }
 
-    /**
-     * Two-line list row for Growing Pains lists.
-     * Line 1: 9pt bold name (navy) LEFT  |  stat (accent) RIGHT
-     * Line 2: 8pt italic muted school/detail
-     * Alternating row tint; thin separator between rows.
-     * @param {object} opts  { name, detail, stat, statColor, isAlt }
-     * Returns y after row.
-     */
-    function listRow(y, opts, isAlt) {
-      if (y > BOTTOM_LIMIT - 14) { doc.addPage(); y = TOP_START; }
-      const ROW_H = 12;
-      if (isAlt) {
-        doc.setFillColor(...C.rowAlt);
-        doc.rect(ML, y, SAFE, ROW_H, 'F');
+    /** One flag row: red bullet + label (left), red stat (right), optional muted detail. */
+    function flagRow(y, f, isAlt) {
+      const detailLines = f.detail ? doc.splitTextToSize(safeStr(f.detail), SAFE - 14) : [];
+      const rowH = 6.5 + detailLines.length * 3.8;
+      if (y + rowH > BOTTOM_LIMIT) { doc.addPage(); y = TOP_START; }
+      if (isAlt) { doc.setFillColor(255, 245, 245); doc.rect(ML, y, SAFE, rowH, 'F'); }
+      doc.setFillColor(...C.red);
+      doc.circle(ML + 3.5, y + 3.6, 1.1, 'F');
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.red);
+      doc.text(safeStr(f.label), ML + 7, y + 4.6);
+      if (f.stat) doc.text(safeStr(f.stat), MR - 3, y + 4.6, { align: 'right' });
+      if (detailLines.length) {
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...C.muted);
+        detailLines.forEach((ln, i) => doc.text(ln, ML + 7, y + 8.4 + i * 3.8));
       }
-      // Separator
-      doc.setDrawColor(...C.mid);
-      doc.setLineWidth(0.15);
-      doc.line(ML, y, MR, y);
-      // Name line
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...C.navy);
-      doc.text(safeStr(opts.name || ''), ML + 4, y + 5);
-      // Stat right-aligned on name line
-      doc.setTextColor(...(opts.statColor || C.amber));
-      doc.text(safeStr(opts.stat || ''), MR - 4, y + 5, { align: 'right' });
-      // School/detail line
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(...C.muted);
-      doc.text(safeStr(opts.detail || ''), ML + 4, y + 9.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.body);
-      return y + ROW_H;
+      return y + rowH;
     }
 
-    // ── Build narrative ───────────────────────────────────────────────────
+    const capTag = (subm, elig) => '(' + num(subm) + ' of ' + num(elig) + ')';
+    const listNames = (arr, max, fmtFn) => {
+      const shown = arr.slice(0, max).map(fmtFn).join('; ');
+      return shown + (arr.length > max ? '; +' + (arr.length - max) + ' more' : '');
+    };
+    const scoreColor = v => !(v > 0) ? C.mid : v >= BM.survey ? C.green : v >= 3.5 ? C.amber : C.red;
+
+    // ── Pre-compute ────────────────────────────────────────────────────────
+    const schoolsWithAtt = data.schools.filter(s => (s.stuAttended + s.stuAbsent) > 0);
+    const attLeaders     = schoolsWithAtt.filter(s => s.attRate >= BM.scholAtt).sort((a,b) => b.attRate - a.attRate);
+    const attConcerns    = schoolsWithAtt.filter(s => s.attRate <  BM.scholAtt).sort((a,b) => a.attRate - b.attRate);
+    const capConcerns    = data.schools.filter(s => s.scholCaptureRate !== null && s.scholCaptureRate < BM.capture)
+                                       .sort((a,b) => a.scholCaptureRate - b.scholCaptureRate);
+    const lowSurveySch   = data.schools.filter(s => s.stuSurveyAvg > 0 && s.stuSurveyAvg < 3.5)
+                                       .sort((a,b) => a.stuSurveyAvg - b.stuSurveyAvg);
+    // Only tutors actually below the 80% target (previously a fixed "bottom 5"
+    // that listed tutors at 100% when the region had no capture gaps).
+    const tutorCapBelow  = (data.tutorCaptureBottom || []).filter(t => t.captureRate < BM.capture);
+    const tutorAttBelow  = data.topTutors
+      .filter(t => t.attRate < BM.tutorAtt && (t.attended + t.absent) >= 3)
+      .sort((a, b) => a.attRate - b.attRate);
+    const lateFilers     = data.tutorLateSurveyList || [];
+    const noDelivered    = data.tutorsNoDelivered || [];
+    const deliveringTutors = Math.max(0, (data.activeTutors || 0) - noDelivered.length);
+    const termT          = data.termTutors || [];
+    const totalIncomplete = data.totalIncomplete || 0;
+
+    // Service interruptions — SI only (scholar absences are excluded upstream)
+    const siReasons = Object.entries(data.siReasonCounts || {}).sort((a,b) => b[1] - a[1]);
+    const totalSI   = data.stuSI || 0;
+
+    const stu = data.stuSurveyAvg  || {};
+    const ins = data.instSurveyAvg || {};
+    const scholOverall = stu.overall || 0;
+    const instOverall  = ins.overall || 0;
+
+    // ── Flags to watch (rendered in red on page 2) ─────────────────────────
+    // Each flag: label (what), stat (how much), topic (short phrase for the
+    // Executive Summary), detail (who / where). Labels name the count that
+    // tripped the flag, so a region that meets target overall is never shown
+    // as "below target".
+    const flags = [];
+    const nOf = (n, w) => n + ' ' + w + (n !== 1 ? 's' : '');
+    const regionStat = (v, bm, f) => 'Region ' + f + (v >= bm ? ' (meets target)' : '');
+    if (attConcerns.length) flags.push({
+      topic: 'scholar attendance at ' + nOf(attConcerns.length, 'school'),
+      label: 'Scholar attendance below ' + BM.scholAtt + '% at ' + nOf(attConcerns.length, 'school'),
+      stat: regionStat(data.scholarAttRate, BM.scholAtt, pct(data.scholarAttRate, 1)),
+      detail: listNames(attConcerns, 6, s => trunc(s.name, 40) + ' ' + pct(s.attRate, 1)),
+    });
+    if (data.scholCaptureRate < BM.capture || capConcerns.length) flags.push({
+      topic: 'scholar survey capture' + (capConcerns.length ? ' at ' + nOf(capConcerns.length, 'school') : ''),
+      label: 'Scholar survey capture below ' + BM.capture + '%' + (capConcerns.length ? ' at ' + nOf(capConcerns.length, 'school') : ''),
+      stat: regionStat(data.scholCaptureRate, BM.capture, pct(data.scholCaptureRate, 0)),
+      detail: capConcerns.length ? listNames(capConcerns, 6, s => trunc(s.name, 40) + ' ' + pct(s.scholCaptureRate, 0)) : '',
+    });
+    if (scholOverall > 0 && scholOverall < BM.survey) flags.push({
+      topic: 'scholar survey average',
+      label: 'Scholar survey average below ' + fmt(BM.survey, 1) + ' target',
+      stat: fmt(scholOverall, 2) + ' / 5',
+    });
+    if (lowSurveySch.length) flags.push({
+      topic: 'low scholar ratings at ' + nOf(lowSurveySch.length, 'school'),
+      label: 'Schools with scholar survey average below 3.5',
+      stat: lowSurveySch.length + ' school' + (lowSurveySch.length !== 1 ? 's' : ''),
+      detail: listNames(lowSurveySch, 6, s => trunc(s.name, 40) + ' ' + fmt(s.stuSurveyAvg, 2)),
+    });
+    if (data.tutorAttRate < BM.tutorAtt || tutorAttBelow.length) flags.push({
+      topic: 'tutor attendance' + (tutorAttBelow.length ? ' (' + nOf(tutorAttBelow.length, 'tutor') + ')' : ''),
+      label: (tutorAttBelow.length ? nOf(tutorAttBelow.length, 'tutor') + ' below ' : 'Tutor attendance below ') + BM.tutorAtt + '% attendance',
+      stat: regionStat(data.tutorAttRate, BM.tutorAtt, pct(data.tutorAttRate, 1)),
+      detail: tutorAttBelow.length ? listNames(tutorAttBelow, 6, t => trunc(t.name, 30) + (t.terminated ? ' [SEP]' : '') + ' ' + pct(t.attRate, 0)) : '',
+    });
+    if (data.tutorCaptureRate < BM.capture || tutorCapBelow.length) flags.push({
+      topic: 'tutor survey capture' + (tutorCapBelow.length ? ' (' + nOf(tutorCapBelow.length, 'tutor') + ')' : ''),
+      label: (tutorCapBelow.length ? nOf(tutorCapBelow.length, 'tutor') + ' below ' : 'Tutor survey capture below ') + BM.capture + '% survey capture',
+      stat: regionStat(data.tutorCaptureRate, BM.capture, pct(data.tutorCaptureRate, 0)),
+      detail: tutorCapBelow.length ? listNames(tutorCapBelow, 6, t => trunc(t.name, 30) + (t.terminated ? ' [SEP]' : '') + ' ' + t.captureRate + '% (' + t.submitted + '/' + t.eligible + ')') : '',
+    });
+    if (instOverall > 0 && instOverall < BM.survey) flags.push({
+      topic: 'tutor survey average',
+      label: 'Tutor survey average below ' + fmt(BM.survey, 1) + ' target',
+      stat: fmt(instOverall, 2) + ' / 5',
+    });
+    if (totalIncomplete > 0) flags.push({
+      topic: nOf(totalIncomplete, 'incomplete session'),
+      label: 'Incomplete sessions (Scheduled, no attendance logged)',
+      stat: num(totalIncomplete) + ' session' + (totalIncomplete !== 1 ? 's' : ''),
+      detail: listNames(data.incompleteTutors || [], 6, t => trunc(t.name, 30) + ' (' + t.count + ')'),
+    });
+    if (noDelivered.length) flags.push({
+      topic: nOf(noDelivered.length, 'rostered tutor') + ' with no delivered sessions',
+      label: 'Rostered tutors with no delivered sessions',
+      stat: noDelivered.length + ' of ' + num(data.activeTutors),
+      detail: listNames(noDelivered, 6, t => trunc(t.name, 30) + (t.terminated ? ' [SEP]' : '')),
+    });
+    if (lateFilers.length) flags.push({
+      topic: 'late tutor surveys',
+      label: 'Tutors filing 50%+ of surveys after the session date',
+      stat: lateFilers.length + ' tutor' + (lateFilers.length !== 1 ? 's' : ''),
+      detail: listNames(lateFilers, 6, t => trunc(t.name, 30) + ' ' + t.lateRate + '%'),
+    });
+    if (termT.length) flags.push({
+      topic: 'separated staff in Pearl data',
+      label: 'Separated staff still counted in Pearl data',
+      stat: termT.length + ' tutor' + (termT.length !== 1 ? 's' : ''),
+      detail: listNames(termT, 6, t => trunc(t.name, 30)) +
+        ((data.termMissingSurveys || 0) > 0 ? '  -  ' + num(data.termMissingSurveys) + ' missing tutor surveys' : ''),
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PAGE 1 — HEADER + KEY METRICS + EXECUTIVE SUMMARY
+    // ─────────────────────────────────────────────────────────────────────
+    doc.setFillColor(...C.navy);
+    doc.rect(0, 0, PW, 30, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.teal);
+    doc.text('NEW JERSEY TUTORING CORPS', ML, 10);
+    doc.setFontSize(17);
+    doc.setTextColor(...C.white);
+    doc.text('Pearl Operations  -  ' + regionLabel, ML, 19);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 195, 210);
+    doc.text('Generated ' + generated + '  -  ' + (data.periodLabel || 'SY 2026-2027'), ML, 25.5);
+    doc.setTextColor(...C.body);
+
+    // ── KPI strip (6 cards) ───────────────────────────────────────────────
+    const kpis = [
+      { v: pct(data.scholarAttRate, 1), l: 'Scholar Attendance', c: statusColor(data.scholarAttRate, BM.scholAtt), s: 'Target ' + BM.scholAtt + '%' },
+      { v: pct(data.tutorAttRate, 1),   l: 'Tutor Attendance',   c: statusColor(data.tutorAttRate, BM.tutorAtt),   s: 'Target ' + BM.tutorAtt + '%' },
+      { v: num(data.totalSessions),     l: 'Sessions Delivered', c: C.navy, s: num(data.activeScholars) + ' scholars served' },
+      { v: num(totalIncomplete),        l: 'Incomplete Sessions', c: totalIncomplete > 0 ? C.red : C.green, s: 'Scheduled, not logged' },
+      { v: scholOverall > 0 ? fmt(scholOverall, 2) : '--', l: 'Scholar Survey Avg', c: scoreColor(scholOverall), s: 'Capture ' + pct(data.scholCaptureRate, 0) },
+      { v: instOverall  > 0 ? fmt(instOverall, 2)  : '--', l: 'Tutor Survey Avg',   c: scoreColor(instOverall),  s: 'Capture ' + pct(data.tutorCaptureRate, 0) },
+    ];
+    const kGap = 2.5, kW = (SAFE - kGap * (kpis.length - 1)) / kpis.length, kH = 21, kY = 35;
+    kpis.forEach((k, i) => kpiCard(ML + i * (kW + kGap), kY, kW, kH, k.v, k.l, k.c, k.s));
+
+    let y = secHeader(kY + kH + 5, 'EXECUTIVE SUMMARY  -  ' + regionLabel.toUpperCase());
 
     // Overall performance
     y = paraLabel('Overall Performance', y);
-    const overallText =
+    y = para(
       'During the reporting period, ' + regionLabel + ' delivered ' + num(data.totalSessions) +
-      ' sessions across ' + num(data.uniqueSchools) + ' school(s) in ' + num(data.uniqueDistricts) +
-      ' district(s), serving ' + num(data.activeScholars) + ' active scholars with ' +
-      num(data.activeTutors) + ' active tutors. Scholar attendance stands at ' +
-      pct(data.scholarAttRate, 1) + ' (benchmark: 80%) and tutor attendance at ' +
-      pct(data.tutorAttRate, 1) + ' (benchmark: 90%). HIT compliance — the requirement that each ' +
-      'session maintain a 4:1 or better scholar-to-tutor ratio — is at ' + pct(data.hitRate, 0) +
-      ' (' + num(data.hitSessions) + ' of ' + num(data.totalSessions) + ' sessions compliant; benchmark: 95%).';
-    y = para(overallText, y);
+      ' sessions across ' + num(data.uniqueSchools) + ' school' + (data.uniqueSchools !== 1 ? 's' : '') +
+      ' in ' + num(data.uniqueDistricts) + ' district' + (data.uniqueDistricts !== 1 ? 's' : '') +
+      ', serving ' + num(data.activeScholars) + ' scholars with ' + num(deliveringTutors) + ' tutor' + (deliveringTutors !== 1 ? 's' : '') +
+      ' delivering sessions (' + num(data.activeTutors) + ' on the roster). Scholar attendance stands at ' +
+      pct(data.scholarAttRate, 1) + ' (' + num(data.stuAttended) + ' attended, ' + num(data.stuAbsent) + ' absent; target ' + BM.scholAtt + '%)' +
+      ' and tutor attendance at ' + pct(data.tutorAttRate, 1) + ' (target ' + BM.tutorAtt + '%). ' +
+      'Scholar surveys average ' + (scholOverall > 0 ? fmt(scholOverall, 2) + ' / 5' : '--') + ' with ' + pct(data.scholCaptureRate, 0) +
+      ' capture ' + capTag(data.totalScholSubm, data.totalScholElig) + '; tutor surveys average ' +
+      (instOverall > 0 ? fmt(instOverall, 2) + ' / 5' : '--') + ' with ' + pct(data.tutorCaptureRate, 0) + ' capture ' +
+      capTag(data.totalTutorSubm, data.totalTutorElig) + '. ' +
+      num(totalIncomplete) + ' scheduled session' + (totalIncomplete !== 1 ? 's are' : ' is') + ' still incomplete in Pearl.',
+      y);
 
-    // What's working
+    // What's working — only metrics that actually meet their target
     y = paraLabel('What\'s Working', y);
-    let positiveText = '';
-    if (attLeaders.length > 0) {
-      positiveText += 'Scholar attendance leaders include ' +
-        attLeaders.map((sc, i) => trunc(sc.name, 28) + ' at ' + pct(sc.attRate, 1)).join(', ') +
-        ' — ' + aboveBMCount + ' of ' + activeSch.length + ' schools are at or above the 80% benchmark. ';
-    }
-    if (topTutors5.length > 0) {
-      positiveText += 'On the instructional side, ' + trunc(topTutors5[0].name, 24) + ' leads with ' + hrs(topTutors5[0].hours) +
-        ' delivered';
-      if (topTutors5[1]) positiveText += ', followed by ' + trunc(topTutors5[1].name, 24) + ' (' + hrs(topTutors5[1].hours) + ')';
-      positiveText += '. ';
-    }
-    if (hitCompliant.length > 0) {
-      positiveText += hitCompliant.length + ' school(s) recorded zero HIT violations this period. ';
-    }
-    if (data.scholCaptureRate >= BM.capture) {
-      positiveText += 'Scholar survey capture of ' + pct(data.scholCaptureRate, 0) + ' is meeting the 80% target. ';
-    }
-    if (!positiveText.trim()) positiveText = 'Insufficient data to identify specific positives this period.';
-    y = para(positiveText, y);
+    const wins = [];
+    if (attLeaders.length) wins.push(attLeaders.length + ' of ' + schoolsWithAtt.length + ' school' + (schoolsWithAtt.length !== 1 ? 's are' : ' is') +
+      ' at or above the ' + BM.scholAtt + '% scholar attendance target: ' +
+      attLeaders.slice(0, 4).map(s => trunc(s.name, 36) + ' (' + pct(s.attRate, 1) + ')').join(', ') + (attLeaders.length > 4 ? ', and others' : '') + '.');
+    if (data.tutorAttRate >= BM.tutorAtt) wins.push('Tutor attendance (' + pct(data.tutorAttRate, 1) + ') is meeting the ' + BM.tutorAtt + '% target.');
+    if (data.scholCaptureRate >= BM.capture) wins.push('Scholar survey capture (' + pct(data.scholCaptureRate, 0) + ') is meeting the ' + BM.capture + '% target.');
+    if (data.tutorCaptureRate >= BM.capture) wins.push('Tutor survey capture (' + pct(data.tutorCaptureRate, 0) + ') is meeting the ' + BM.capture + '% target.');
+    if (scholOverall >= BM.survey) wins.push('Scholars rate their sessions ' + fmt(scholOverall, 2) + ' / 5 overall (confidence ' +
+      fmt(stu.confidence, 2) + ', enjoyment ' + fmt(stu.enjoyment, 2) + ', learning ' + fmt(stu.learning, 2) + ').');
+    y = para(wins.length ? wins.join(' ') : 'No metrics are meeting target this period.', y);
 
-    // Growing pains
+    // Areas needing attention — mirrors the red flags on page 2
     y = paraLabel('Areas Needing Attention', y);
-    let growingText = '';
-    if (attConcerns.length > 0) {
-      growingText += attConcerns.length + ' school(s) are below the 80% attendance benchmark: ' +
-        attConcerns.slice(0, 3).map(sc => trunc(sc.name, 24) + ' (' + pct(sc.attRate, 1) + ')').join(', ') +
-        '. Targeted outreach and attendance recovery plans are recommended for these sites. ';
-    }
-    if (hitSchools.length > 0) {
-      growingText += 'HIT compliance requires attention: ' +
-        hitSchools.slice(0, 3).map(sc => trunc(sc.name, 24) + ' (' + num(sc.ratioViolations) + ' violation' + (sc.ratioViolations !== 1 ? 's' : '') + ')').join(', ') +
-        '. Staff scheduling adjustments are needed to maintain the required 4:1 ratio. ';
-    }
-    if (data.scholCaptureRate < BM.capture) {
-      growingText += 'Scholar survey capture (' + pct(data.scholCaptureRate, 0) + ') is below the 80% target — ' +
-        num(data.totalScholElig - data.totalScholSubm) + ' eligible survey responses are missing. ';
-    }
-    if (data.tutorCaptureRate < BM.capture) {
-      growingText += 'Tutor survey capture (' + pct(data.tutorCaptureRate, 0) + ') also needs improvement. ';
-    }
-    if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) {
-      growingText += data.tutorLateSurveyList.length + ' tutor' + (data.tutorLateSurveyList.length > 1 ? 's are' : ' is') +
-        ' filing surveys 50%+ of the time after the session date — ' +
-        num(data.totalTutorLate) + ' late submission' + (data.totalTutorLate !== 1 ? 's' : '') +
-        ' total. See Late Survey Filers list on the Growing Pains page. ';
-    }
-    if (totalSI > 0 && siReasons.length > 0) {
-      growingText += 'Service interruptions (' + num(totalSI) + ' events) are most frequently caused by: ' +
-        siReasons.slice(0, 3).map(([r, c]) => '"' + trunc(r, 20) + '" (' + num(c) + ')').join(', ') + '. ';
-    }
-    if ((data.termTutors||[]).length > 0) {
-      const _tl = data.termTutors.length;
-      const _tm = data.termMissingSurveys || 0;
-      growingText += _tl + ' separated staff member' + (_tl !== 1 ? 's' : '') +
-        ' [SEP] remain in Pearl data for this period. ' +
-        (_tm > 0
-          ? 'Their ' + num(_tm) + ' missing survey submission' + (_tm !== 1 ? 's' : '') +
-            ' are contributing to the network capture gap. '
-          : '') +
-        'See the Separated Staff Impact section for adjusted KPIs excluding these staff. ';
-    }
-    if (!growingText.trim()) growingText = 'No critical areas of concern identified this period.';
-    y = para(growingText, y);
+    y = para(flags.length
+      ? nOf(flags.length, 'flag') + ' to watch this period (details in red on page 2): ' +
+        flags.map(f => f.topic).join('; ') + '.'
+      : 'No flags this period - all monitored metrics are meeting target.', y);
 
     // Recommended actions
     y = paraLabel('Recommended Actions', y);
     const actions = [];
-    if (attConcerns.length > 0) actions.push('Schedule attendance recovery meetings with site leaders at: ' + attConcerns.slice(0, 2).map(sc => trunc(sc.name, 24)).join(', ') + '.');
-    if (hitSchools.length > 0) actions.push('Review staffing plans at schools with HIT violations to ensure 4:1 ratios are maintained before each session.');
-    if (data.scholCaptureRate < BM.capture) actions.push('Implement scholar survey reminders at session end; target ' + (BM.capture - data.scholCaptureRate) + '+ percentage point improvement in capture rate.');
-    if (data.tutorCaptureRate < BM.capture) actions.push('Send tutor survey completion nudges to instructors below 80% capture. See bottom-5 list on Growing Pains page.');
-    if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) actions.push('Follow up with ' + data.tutorLateSurveyList.length + ' tutor' + (data.tutorLateSurveyList.length > 1 ? 's' : '') + ' filing surveys predominantly after session dates. Encourage same-day completion. See Late Survey Filers on Growing Pains page.');
-    if (totalSI > 5) actions.push('Investigate top SI causes (' + (siReasons[0] || ['Unknown'])[0] + ') with district coordinators to reduce preventable interruptions.');
-    if ((data.termTutors||[]).length > 0) {
-      const _tl = data.termTutors.length;
-      const _tm = data.termMissingSurveys || 0;
-      actions.push(
-        'Review ' + _tl + ' separated staff member' + (_tl !== 1 ? 's' : '') + ' [SEP] still present in Pearl data.' +
-        (_tm > 0 ? ' Close or reassign their ' + num(_tm) + ' outstanding survey submission' + (_tm !== 1 ? 's' : '') + ' to avoid distorting the network capture rate.' : ' Confirm their Pearl records have been closed out properly.') +
-        ' See Separated Staff Impact section for adjusted KPIs.'
-      );
-    }
-    if (actions.length === 0) actions.push('Continue current practices — all key benchmarks are being met.');
+    if (attConcerns.length) actions.push('Hold attendance recovery conversations with site leaders at ' + attConcerns.slice(0, 3).map(s => trunc(s.name, 48)).join(', ') + '.');
+    if (totalIncomplete > 0) actions.push('Have onsite staff close out the ' + num(totalIncomplete) + ' incomplete session' + (totalIncomplete !== 1 ? 's' : '') +
+      ' in Pearl (mark completed or cancelled)' + ((data.incompleteTutors || []).length ? ', starting with ' + data.incompleteTutors.slice(0, 2).map(t => trunc(t.name, 28)).join(' and ') : '') + '.');
+    if (data.scholCaptureRate < BM.capture || capConcerns.length) actions.push('Reinforce end-of-session scholar survey completion' + (capConcerns.length ? ' at ' + capConcerns.slice(0, 3).map(s => trunc(s.name, 36)).join(', ') : '') + '.');
+    if (tutorCapBelow.length) actions.push('Send survey completion nudges to the ' + tutorCapBelow.length + ' tutor' + (tutorCapBelow.length !== 1 ? 's' : '') + ' below ' + BM.capture + '% capture.');
+    if (tutorAttBelow.length) actions.push('Check in with the ' + tutorAttBelow.length + ' tutor' + (tutorAttBelow.length !== 1 ? 's' : '') + ' below ' + BM.tutorAtt + '% attendance.');
+    if (noDelivered.length) actions.push('Confirm schedules for the ' + noDelivered.length + ' rostered tutor' + (noDelivered.length !== 1 ? 's' : '') + ' with no delivered sessions.');
+    if (lateFilers.length) actions.push('Encourage same-day survey completion for tutors filing late.');
+    if (!actions.length) actions.push('Continue current practices - all key benchmarks are being met.');
+    actions.forEach((a, i) => { y = para((i + 1) + '. ' + a, y, { gap: 1 }); });
 
-    actions.forEach((action, i) => {
-      if (y > BOTTOM_LIMIT - 10) { doc.addPage(); y = TOP_START; }
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...C.body);
-      const lines = doc.splitTextToSize(safeStr((i + 1) + '. ' + action), SAFE - 10);
-      lines.forEach(line => {
-        if (y > BOTTOM_LIMIT - 6) { doc.addPage(); y = TOP_START; }
-        doc.text(line, ML + 4, y);
-        y += 5.8;
-      });
-      y += 5;
-    });
+    // ─────────────────────────────────────────────────────────────────────
+    // PAGE 2 — REGION METRICS + FLAGS TO WATCH
+    // ─────────────────────────────────────────────────────────────────────
+    doc.addPage();
+    y = secHeader(TOP_START, 'REGION METRICS  -  ' + regionLabel.toUpperCase());
 
-    y += 6;
-
-    // ── Summary metrics box ───────────────────────────────────────────────
-    if (y > BOTTOM_LIMIT - 30) { doc.addPage(); y = TOP_START; }
-    const boxH = 28;
-    doc.setFillColor(...C.light);
-    doc.roundedRect(ML, y, SAFE, boxH, 2, 2, 'F');
-    doc.setFillColor(...C.navy);
-    doc.rect(ML, y, 3, boxH, 'F');
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...C.navy);
-    doc.text('Key Metrics at a Glance  -  ' + regionLabel + '  -  ' + generated, ML + 6, y + 6);
-
-    const summCols = [
-      ['Scholar Att.', pct(data.scholarAttRate, 1), statusColor(data.scholarAttRate, BM.scholAtt)],
-      ['Tutor Att.',   pct(data.tutorAttRate, 1),   statusColor(data.tutorAttRate, BM.tutorAtt)],
-      ['HIT Rate',     pct(data.hitRate, 0),         statusColor(data.hitRate, BM.hit)],
-      ['Sessions',     num(data.totalSessions),      C.navy],
-      ['Scholars',     num(data.activeScholars),     C.navy],
-      ['Tutors',       num(data.activeTutors),       C.navy],
+    const scholarLines = [
+      { label: 'Attendance rate', value: pct(data.scholarAttRate, 1), valueColor: statusColor(data.scholarAttRate, BM.scholAtt), bold: true },
+      { label: 'Attended / absent', value: num(data.stuAttended) + ' / ' + num(data.stuAbsent) },
+      { label: 'Schools at or above ' + BM.scholAtt + '%', value: attLeaders.length + ' of ' + schoolsWithAtt.length,
+        valueColor: attConcerns.length ? C.red : C.green },
+      { type: 'divider' },
+      { label: 'Survey avg overall (n=' + num(stu.count) + ')', value: scholOverall > 0 ? fmt(scholOverall, 2) + ' / 5' : '--', valueColor: scoreColor(scholOverall), bold: true },
+      { label: '  Confidence / Enjoyment / Learning', value: fmt(stu.confidence, 2) + ' / ' + fmt(stu.enjoyment, 2) + ' / ' + fmt(stu.learning, 2) },
+      { label: 'Survey capture ' + capTag(data.totalScholSubm, data.totalScholElig), value: pct(data.scholCaptureRate, 0), valueColor: statusColor(data.scholCaptureRate, BM.capture) },
     ];
-    const colSW = (SAFE - 6) / summCols.length;
-    summCols.forEach((col, i) => {
-      const cx = ML + 6 + i * colSW;
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...col[2]);
-      doc.text(col[1], cx, y + 18);
-      doc.setFontSize(6.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...C.muted);
-      doc.text(col[0], cx, y + 24);
-    });
+    const tutorLines = [
+      { label: 'Attendance rate', value: pct(data.tutorAttRate, 1), valueColor: statusColor(data.tutorAttRate, BM.tutorAtt), bold: true },
+      { label: 'Attended / absent', value: num(data.instAttended) + ' / ' + num(data.instAbsent) },
+      { label: 'Tutors delivering / rostered', value: num(deliveringTutors) + ' / ' + num(data.activeTutors),
+        valueColor: noDelivered.length ? C.red : C.green },
+      { type: 'divider' },
+      { label: 'Survey avg overall (n=' + num(ins.count) + ')', value: instOverall > 0 ? fmt(instOverall, 2) + ' / 5' : '--', valueColor: scoreColor(instOverall), bold: true },
+      { label: 'Survey capture ' + capTag(data.totalTutorSubm, data.totalTutorElig), value: pct(data.tutorCaptureRate, 0), valueColor: statusColor(data.tutorCaptureRate, BM.capture) },
+      { label: 'Incomplete sessions', value: num(totalIncomplete), valueColor: totalIncomplete > 0 ? C.red : C.green },
+    ];
+    y = twoColPanels(y, 'Scholars  -  Attendance & Surveys', scholarLines, 'Tutors  -  Attendance & Surveys', tutorLines);
+
+    // ── Flags to watch ─────────────────────────────────────────────────────
+    y = secHeader(y, 'FLAGS TO WATCH  (' + flags.length + ')', C.red);
+    if (flags.length) {
+      flags.forEach((f, i) => { y = flagRow(y, f, i % 2 === 1); });
+    } else {
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.green);
+      doc.text('No flags this period - all monitored metrics are meeting target.', ML + 3, y + 4);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
+      y += 8;
+    }
+    y += 4;
+
+    // ── Service interruptions (non-absence only) ───────────────────────────
+    if (y > BOTTOM_LIMIT - 20) { doc.addPage(); y = TOP_START; }
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.navy);
+    doc.text('Service Interruptions (non-absence): ' + num(totalSI) + ' scholar-session' + (totalSI !== 1 ? 's' : ''), ML, y + 3);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.muted);
+    const siTxt = siReasons.length
+      ? 'Top reasons: ' + siReasons.slice(0, 4).map(([r, c]) => safeStr(trunc(r || 'Unknown', 40)) + ' ' + num(c) + ' (' + Math.round(c / totalSI * 100) + '%)').join('  |  ') +
+        '.  Scholar absences are excluded here and counted in attendance.'
+      : 'No service interruptions recorded. Scholar absences are counted in attendance, not here.';
+    doc.splitTextToSize(siTxt, SAFE).forEach((ln, i) => doc.text(ln, ML, y + 7.5 + i * 3.8));
+    y += 7.5 + doc.splitTextToSize(siTxt, SAFE).length * 3.8 + 3;
     doc.setTextColor(...C.body);
 
-    // ── District performance snapshot ─────────────────────────────────────
-    if (data.districts && data.districts.length > 0) {
-      y += boxH + 8;
-      if (y > BOTTOM_LIMIT - 28) { doc.addPage(); y = TOP_START; }
-      y = secHeader(y, 'District Performance Snapshot');
-      const showDist = data.districts.slice(0, 5);
-      const distW = (SAFE - (showDist.length - 1) * 3) / showDist.length;
-      const distH = 22;
-      showDist.forEach((d, i) => {
-        const dx = ML + i * (distW + 3);
-        doc.setFillColor(...C.light);
-        doc.roundedRect(dx, y, distW, distH, 2, 2, 'F');
-        doc.setFillColor(...statusColor(d.attRate, BM.scholAtt));
-        doc.roundedRect(dx, y, distW, 2.5, 1, 1, 'F');
-        doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.navy);
-        doc.text(trunc(d.name, 22), dx + distW / 2, y + 6.5, { align: 'center' });
-        doc.setFontSize(12); doc.setTextColor(...statusColor(d.attRate, BM.scholAtt));
-        doc.text(pct(d.attRate, 1), dx + distW / 2, y + 15, { align: 'center' });
-        doc.setFontSize(6); doc.setTextColor(...C.muted);
-        doc.text(num(d.sessions) + ' sess', dx + distW / 2, y + 20, { align: 'center' });
-      });
-      doc.setTextColor(...C.body);
-      y += distH + 6;
-    }
-
-    // ── School Operations Snapshot ─────────────────────────────────────────
-    const opSchools = data.schools.filter(s => s.sessions >= 5).sort((a,b) => b.sessions - a.sessions).slice(0, 12);
+    // ── School snapshot ────────────────────────────────────────────────────
+    const opSchools = data.schools.filter(s => s.sessions > 0 || s.incomplete > 0)
+      .sort((a,b) => b.sessions - a.sessions).slice(0, 15);
     if (opSchools.length > 0) {
-      if (y > BOTTOM_LIMIT - 50) { doc.addPage(); y = TOP_START; }
-      y = secHeader(y, 'School Operations Snapshot  -  All Active Schools (sorted by volume)');
-      y = table(
-        y,
-        [['School', 'Att %', 'HIT %', 'Sessions', 'SI', 'Scholar Survey']],
-        opSchools.map(sc => [
-          trunc(sc.name, 32),
-          pct(sc.attRate, 1),
-          pct(sc.hitRate, 0),
+      if (y > BOTTOM_LIMIT - 30) { doc.addPage(); y = TOP_START; }
+      doc.autoTable({
+        startY: y,
+        head: [['School', 'Scholar Att.', 'Sessions', 'Incomplete', 'SI', 'Scholar Survey', 'Survey Capture']],
+        body: opSchools.map(sc => [
+          safeStr(trunc(sc.name, 40)),
+          (sc.stuAttended + sc.stuAbsent) > 0 ? pct(sc.attRate, 1) : '--',
           num(sc.sessions),
+          num(sc.incomplete || 0),
           num(sc.siCount),
           sc.stuSurveyAvg > 0 ? fmt(sc.stuSurveyAvg, 2) : '--',
+          sc.scholCaptureRate !== null ? pct(sc.scholCaptureRate, 0) : '--',
         ]),
-        { 0: { cellWidth: 66 }, 1: { cellWidth: 18, halign: 'center' }, 2: { cellWidth: 16, halign: 'center' },
-          3: { cellWidth: 24, halign: 'center' }, 4: { cellWidth: 14, halign: 'center' }, 5: { cellWidth: 22, halign: 'center' } },
-        {
-          didParseCell: function(d) {
-            if (d.section !== 'body') return;
-            if (d.column.index === 1) {
-              const v = parseFloat(d.cell.raw);
-              if (!isNaN(v)) { d.cell.styles.textColor = statusColor(v, BM.scholAtt); d.cell.styles.fontStyle = 'bold'; }
-            }
-            if (d.column.index === 2) {
-              const v = parseFloat(d.cell.raw);
-              if (!isNaN(v)) { d.cell.styles.textColor = statusColor(v, BM.hit); d.cell.styles.fontStyle = 'bold'; }
-            }
-          },
-        }
-      );
+        margin: { left: ML, right: PW - MR },
+        tableWidth: SAFE,
+        styles: { fontSize: 7.5, cellPadding: 1.3, textColor: C.body, font: 'helvetica', overflow: 'linebreak' },
+        headStyles: { fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
+        alternateRowStyles: { fillColor: C.light },
+        columnStyles: { 0: { cellWidth: 62, halign: 'left' }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' },
+                        4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' } },
+        theme: 'plain',
+        rowPageBreak: 'avoid',
+        didParseCell: function (d) {
+          if (d.section !== 'body') return;
+          const v = parseFloat(d.cell.raw);
+          let c = null;
+          if (d.column.index === 1 && !isNaN(v)) c = statusColor(v, BM.scholAtt);
+          if (d.column.index === 3 && v > 0)     c = C.red;
+          if (d.column.index === 5 && !isNaN(v)) c = scoreColor(v);
+          if (d.column.index === 6 && !isNaN(v)) c = statusColor(v, BM.capture);
+          if (c) { d.cell.styles.textColor = c; d.cell.styles.fontStyle = 'bold'; }
+        },
+      });
+      y = doc.lastAutoTable.finalY + 4;
     }
 
     // ── Two-pass footer stamp ──────────────────────────────────────────────

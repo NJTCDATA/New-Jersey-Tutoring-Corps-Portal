@@ -12527,7 +12527,7 @@
           lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
         });
         if (allMode) lines.push('\n_' + concerns.length + ' total concern comments shown._');
-        else lines.push('\n_Top 5 shown. Ask "show all concern comments' + (weekMatch ? ' week '+weekMatch[1] : '') + '" for the full list, or open Onsite Staff Report → Section 4._');
+        else lines.push('\n_Top 5 shown. Ask "show all concern comments' + (weekMatch ? ' week '+weekMatch[1] : '') + '" for the full list, or open Onsite Staff Report → Section 3._');
         return lines.join('\n');
       }
     },
