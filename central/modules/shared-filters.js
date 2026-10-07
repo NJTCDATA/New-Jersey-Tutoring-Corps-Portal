@@ -86,6 +86,8 @@
 
     // Pearl Operations PDF buttons — Data dept only
     document.querySelectorAll('.po-pdf-data-only').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
+    // Field Support Report — Programming + Data
+    document.querySelectorAll('.po-prog-data-only').forEach(b => b.style.display = (dept === 'data' || dept === 'programming') ? 'inline-flex' : 'none');
 
     // Partner Weekly Report PDF (same PDF partners download) — Programming, Data, Leadership, KB
     document.querySelectorAll('.po-partner-pdf-btn').forEach(b =>

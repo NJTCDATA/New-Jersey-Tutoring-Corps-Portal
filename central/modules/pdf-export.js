@@ -632,6 +632,7 @@
 
   // ── Public API ─────────────────────────────────────────────────────────────
   window.njtcPDFExport = {
+    loadLibs,
     generate: async function (regionFilter) {
       if (!window.po || typeof window.po.getExportData !== 'function') {
         alert('Pearl Ops data not ready. Wait for the dashboard to finish loading, then try again.');

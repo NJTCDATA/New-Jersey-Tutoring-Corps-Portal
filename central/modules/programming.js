@@ -8259,6 +8259,23 @@
       // ── PDF export data accessor ─────────────────────────────────────────
       // regionFilter: 'NE' | 'SW' | 'ALL'
       // Returns a live-data snapshot scoped to the requested region.
+      // ── Field Support Report input (modules/field-support.js) ────────────
+      // Hands the report the raw Pearl rows plus the SAME classification and
+      // region rules the dashboard uses, so its numbers can never drift.
+      getFieldSupportInput: function() {
+        const isArch = v => /^\s*z{3}/i.test(v || '');
+        return {
+          attRows: _attRows || [], instRows: _instRows || [], stuRows: _stuRows || [],
+          sessions: Object.values(_sessMap || {}),
+          ATT, INST_S, STU_S,
+          classify: classifyRecord,
+          tutorMissReasons: TUTOR_MISS_REASONS,
+          regionOf: (school, district) => (isArch(school) || isArch(district)) ? null : _poRegion(school, district),
+          schoolNames: [...new Set(Object.values(_sessMap || {}).map(s => s.school).filter(s => s && !isArch(s)))].sort(),
+          now: new Date(),
+        };
+      },
+
       getExportData: function(regionFilter) {
         regionFilter = (regionFilter || 'ALL').toUpperCase();
 
@@ -8431,10 +8448,23 @@
         // student list is the roster, so attendance is joined on user ID +
         // session title + session date (attendance rows carry no session ID).
         // A session with no matching attendance rows keeps its full roster.
-        const stuAttStatus = {};   // userId|title|YMD → classifyRecord result
+        // Planned start time disambiguates a tutor running the same titled
+        // session twice in one day (e.g. 8:45 and 9:20).
+        const clockMins = v => {
+          const m = String(v || '').replace(/^\s*\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}[T\s]*/, '').match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i);
+          if (!m) return '';
+          let h = parseInt(m[1], 10) % 24;
+          if (m[3]) { h = h % 12; if (/pm/i.test(m[3])) h += 12; }
+          return String(h * 60 + parseInt(m[2], 10));
+        };
+        const stuAttStatus = {};   // userId|title|YMD[|mins] → classifyRecord result
         stuRows.forEach(r => {
           const uid = r[ATT.USER_ID]; if (!uid) return;
-          stuAttStatus[uid + '|' + (r[ATT.SESSION] || '') + '|' + toYMD(r[ATT.SESS_DATE])] = classifyRecord(r);
+          const base = uid + '|' + (r[ATT.SESSION] || '') + '|' + toYMD(r[ATT.SESS_DATE]);
+          const cls = classifyRecord(r);
+          stuAttStatus[base] = cls;
+          const t = clockMins(r[ATT.PLAN_START]);
+          if (t) stuAttStatus[base + '|' + t] = cls;
         });
         const scholEligBySchool = {};
         const scholEligMap      = {};   // key: stuId|sessId → { school, sessYMD }
@@ -8442,11 +8472,15 @@
           if (!sess.id) return;
           const sessYMD = toYMD(sess.start);
           const sch = sess.school || '__unknown__';
-          const attKey = stuId => stuId + '|' + (sess.title || '') + '|' + sessYMD;
-          const hasAtt = (sess.studentIds || []).some(stuId => stuAttStatus[attKey(stuId)]);
+          const sessMins = clockMins(sess.start);
+          const attStatus = stuId => {
+            const base = stuId + '|' + (sess.title || '') + '|' + sessYMD;
+            return (sessMins && stuAttStatus[base + '|' + sessMins]) || stuAttStatus[base];
+          };
+          const hasAtt = (sess.studentIds || []).some(stuId => attStatus(stuId));
           (sess.studentIds || []).forEach(stuId => {
             if (!stuId) return;
-            if (hasAtt && stuAttStatus[attKey(stuId)] !== 'attended') return;
+            if (hasAtt && attStatus(stuId) !== 'attended') return;
             scholEligBySchool[sch] = (scholEligBySchool[sch] || 0) + 1;
             const k = stuId + '|' + sess.id;
             if (!scholEligMap[k]) scholEligMap[k] = { school: sch, sessYMD: sessYMD || '' };
