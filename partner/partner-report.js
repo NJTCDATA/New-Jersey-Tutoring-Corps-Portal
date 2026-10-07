@@ -101,6 +101,21 @@
     return _hm(h, +m[2]);
   }
 
+  // Every "HADDON TWP ONLY -- …" reason (whole group support, program
+  // redevelopment, …) is Haddon Township-only. Logged anywhere else (e.g. iLearn CMO) it is treated
+  // as "NJTC Internal Issue/Error" — even if Pearl's backend has it that way.
+  // Same rule in central/modules/programming.js, partner/partner-report.js,
+  // onsite/pearl-data.js, onsite/leader-team.js and scripts/build-pulse-archive.js.
+  function fixMissReason(reason, school, district) {
+    if (/^\s*HADDON TWP ONLY/i.test(reason || '') &&
+        !/haddon/i.test((district || '') + ' ' + (school || ''))) return 'NJTC Internal Issue/Error';
+    return reason;
+  }
+  function fixAttReasons(rows) {
+    (rows || []).forEach(r => { const f = fixMissReason(r[ATT.MISS_REASON] || '', r[ATT.SCHOOL], r[ATT.DISTRICT]); if (f !== (r[ATT.MISS_REASON] || '')) r[ATT.MISS_REASON] = f; });
+    return rows;
+  }
+
   // raw = { att, inst, stu, sess } — each INCLUDING its header row. Returns
   // header-less canonical rows (SESS layout for sessions), minus "zzz" rows.
   function normalizeSeason(season, raw) {
@@ -132,6 +147,7 @@
       sess = body(raw.sess);
     }
     sess = keep(sess, SESS.DISTRICT, SESS.SCHOOL);
+    att = fixAttReasons(att.map(r => r.slice()));
     return { att, inst, stu, sess };
   }
 
@@ -1042,6 +1058,6 @@
     generatePDF, loadPearl, bundleForEntry, scopeMatches,
     SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,
     canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS,
-    canonDistrict, contactsFor, mailtoHref, partnerSafeText
+    canonDistrict, contactsFor, mailtoHref, partnerSafeText, fixMissReason, fixAttReasons
   };
 })();

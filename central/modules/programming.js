@@ -1690,9 +1690,21 @@
     // Pearl prefixes retired/archived schools and districts with "zzz" — not
     // part of any program, so they're excluded from every Pearl view.
     function _isArchivedName(v) { return /^\s*z{3}/i.test(v || ''); }
+    // Every "HADDON TWP ONLY -- …" reason (whole group support, program
+    // redevelopment, …) is Haddon Township-only. Logged anywhere else (e.g. iLearn CMO) it is treated
+    // as "NJTC Internal Issue/Error" — even if Pearl's backend has it that way.
+    // Same rule in central/modules/programming.js, partner/partner-report.js,
+    // onsite/pearl-data.js, onsite/leader-team.js and scripts/build-pulse-archive.js.
+    function _fixMissReason(reason, school, district) {
+      if (/^\s*HADDON TWP ONLY/i.test(reason || '') &&
+          !/haddon/i.test((district || '') + ' ' + (school || ''))) return 'NJTC Internal Issue/Error';
+      return reason;
+    }
+    window.njtcFixMissReason = _fixMissReason; // shared with other Central modules
     function _stripArchived() {
       const keep = (rows, sIdx, dIdx) => rows.filter(r => !_isArchivedName(r[sIdx]) && !_isArchivedName(r[dIdx]));
       _attRows  = keep(_attRows,  ATT.SCHOOL,    ATT.DISTRICT);
+      _attRows.forEach(r => { const f = _fixMissReason(r[ATT.MISS_REASON] || '', r[ATT.SCHOOL], r[ATT.DISTRICT]); if (f !== (r[ATT.MISS_REASON] || '')) r[ATT.MISS_REASON] = f; });
       _sessRows = keep(_sessRows, SESS.SCHOOL,   SESS.DISTRICT);
       _stuRows  = keep(_stuRows,  STU_S.SCHOOL,  STU_S.DISTRICT);
       _instRows = keep(_instRows, INST_S.SCHOOL, INST_S.DISTRICT);

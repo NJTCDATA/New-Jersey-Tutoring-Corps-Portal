@@ -158,6 +158,7 @@
       return;
     }
 
+    CORE.fixAttReasons(BUNDLE.attendance); // bundles built before the Haddon-reason rule
     window.NJTC_BUNDLE = BUNDLE; // read-only handoff to pie-bot.js
     CURRENT_BUNDLE = BUNDLE;
     if (BUNDLE.season) SEASON_BUNDLES[BUNDLE.season] = BUNDLE;

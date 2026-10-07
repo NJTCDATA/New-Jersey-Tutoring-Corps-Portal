@@ -102,6 +102,16 @@
     DISTRICT: 9, REGION: 10, SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13
   };
 
+  // Every "HADDON TWP ONLY -- …" reason (whole group support, program
+  // redevelopment, …) is Haddon Township-only. Logged anywhere else (e.g. iLearn CMO) it is treated
+  // as "NJTC Internal Issue/Error" — even if Pearl's backend has it that way.
+  // Same rule in central/modules/programming.js, partner/partner-report.js,
+  // onsite/pearl-data.js, onsite/leader-team.js and scripts/build-pulse-archive.js.
+  function fixMissReason(reason, school, district) {
+    if (/^\s*HADDON TWP ONLY/i.test(reason || '') &&
+        !/haddon/i.test((district || '') + ' ' + (school || ''))) return 'NJTC Internal Issue/Error';
+    return reason;
+  }
   const SCHOLAR_MISS_REASONS = new Set([
     'Absent',
     'Scholar declined attending tutoring session',
@@ -265,7 +275,7 @@
 
   function classifyRow(row, isInstructor) {
     const status = (row[ATT.ATT_STATUS] || '').trim();
-    const reason = (row[ATT.MISS_REASON] || '').trim();
+    const reason = fixMissReason((row[ATT.MISS_REASON] || '').trim(), row[ATT.SCHOOL], row[ATT.DISTRICT]);
 
     if (status === 'Attended' || status === 'Late') return 'attended';
     if (status === 'Not recorded') return 'not_recorded';
@@ -422,12 +432,12 @@
       } else if (cls === 'absent') {
         myAbsent++;
         weeklyAtt[week].absent++;
-        const reason = (r[ATT.MISS_REASON] || '').trim();
+        const reason = fixMissReason((r[ATT.MISS_REASON] || '').trim(), r[ATT.SCHOOL], r[ATT.DISTRICT]);
         myMissedReasons[reason] = (myMissedReasons[reason] || 0) + 1;
       } else if (cls === 'service_interruption') {
         mySI++;
         weeklyAtt[week].si++;
-        const reason = (r[ATT.MISS_REASON] || '').trim();
+        const reason = fixMissReason((r[ATT.MISS_REASON] || '').trim(), r[ATT.SCHOOL], r[ATT.DISTRICT]);
         siReasons[reason] = (siReasons[reason] || 0) + 1;
       }
     }
@@ -498,7 +508,7 @@
         if (d && (!s.lastSeen || toISODate(d) > toISODate(s.lastSeen))) s.lastSeen = d;
       } else if (cls === 'absent') {
         s.absent++;
-        const reason = (r[ATT.MISS_REASON] || '').trim();
+        const reason = fixMissReason((r[ATT.MISS_REASON] || '').trim(), r[ATT.SCHOOL], r[ATT.DISTRICT]);
         s.missReasons[reason] = (s.missReasons[reason] || 0) + 1;
       } else if (cls === 'service_interruption') {
         s.si++;

@@ -3107,7 +3107,8 @@
         if (status === 'Attended' || status === 'Late') {
           attended++;
         } else if (status === 'Missed') {
-          const reason = (row['Miss Reason'] || row['Absence Reason'] || row[keys[7]] || '').trim();
+          let reason = (row['Miss Reason'] || row['Absence Reason'] || row[keys[7]] || '').trim();
+          if (window.njtcFixMissReason) reason = window.njtcFixMissReason(reason, row['School'] || row[keys[11]], row['District'] || row[keys[12]]);
           if (_APPR_TUTOR_MISS.has(reason)) {
             missed++;
             if (reason) missReasons[reason] = (missReasons[reason] || 0) + 1;
