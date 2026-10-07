@@ -158,8 +158,23 @@
       lovingPct: lovingPct(stu),
       scholarSurveyAvg: ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length * 100) / 100 : null,
       scholarSurveys: stu.length,
+      // ── Final operations summary (prior-year view; no row-level data) ──
+      missedReasons: scholarMissedReasons(st.rows).slice(0, 8),
+      keptInClass: st.rows.filter(r => (r[ATT.ATT_STATUS] || '').trim() === 'Missed' && CT_SUMMARY_REASONS.has((r[ATT.MISS_REASON] || '').trim())).length,
+      surveyDist: ['CONFIDENCE', 'ENJOYMENT', 'LEARNING', 'OVERALL'].reduce((o, k) => {
+        const c = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        stu.forEach(r => { const v = Math.round(parseFloat(r[STU[k]])); if (c[v] !== undefined) c[v]++; });
+        o[k] = c; return o;
+      }, {}),
+      bySchool: [...schools].sort().map(name => {
+        const rows = att.filter(r => (r[ATT.SCHOOL] || '').trim() === name);
+        const ss = scholarStats(rows);
+        return { school: name, scholarAttendanceRate: ss.rate, scholarsServed: servedScholars(rows),
+          lovingPct: lovingPct(stu.filter(r => (r[STU.SCHOOL] || '').trim() === name)) };
+      }),
     };
   }
+  const CT_SUMMARY_REASONS = new Set(['Classroom Teacher Requested to Keep Scholar in Class', 'HADDON TWP ONLY -- Teacher requested whole group support']);
 
 
   const SCHOLAR_MISS_REASONS = new Set([
@@ -378,6 +393,17 @@
   const PROFANITY = /(f+[\W_]*u+[\W_]*c+[\W_]*k+|sh[i1!]+t|b[i1!]+tch|\ba+ss+(hole)?\b|\bd[a@]mn|\bcrap\b|\bh[e3]ll\b|\bd[i1!]ck|\bp[i1!]ss|bastard|\bstupid\b|\bdumb\b|\bidiot|\bsucks?\b|\bsexy\b|\bwtf\b|\bstfu\b|\bomfg\b|\bslut|\bwhore|\bn[i1!]gg|\bretard|\bpenis|\bvagina|\bboob|\bbutt\b|\bpoop|\bfart)/i;
 
   const CONTACT_INFO = /(@|https?:|www\.|\.com\b|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b)/i;
+
+  // Partner-safe display of an individual scholar's own comment (Scholar
+  // Profiles). The comment stays visible — school staff may need to see a
+  // concern — but profanity is masked and contact details are redacted.
+  const PROFANITY_G = new RegExp(PROFANITY.source, 'gi');
+  const CONTACT_G = /(\S+@\S+|https?:\/\/\S+|www\.\S+|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b)/gi;
+  function partnerSafeText(text) {
+    return String(text || '')
+      .replace(PROFANITY_G, m => m.charAt(0) + '*'.repeat(Math.max(2, m.length - 1)))
+      .replace(CONTACT_G, '[removed]');
+  }
 
   // Adult-written notes typed into the scholar comment field.
   const ADULT_VOICE = /\b(she|he|her|him|his|hers|they|them|their|scholar|scholars|student|students|survey|session survey|this is \w+|i believe|i think we|we began|teacher'?s)\b/i;
@@ -1016,6 +1042,6 @@
     generatePDF, loadPearl, bundleForEntry, scopeMatches,
     SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,
     canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS,
-    canonDistrict, contactsFor, mailtoHref
+    canonDistrict, contactsFor, mailtoHref, partnerSafeText
   };
 })();

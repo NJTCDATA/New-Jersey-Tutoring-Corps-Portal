@@ -182,51 +182,106 @@
     bar.hidden = false;
     renderSeasonButtons();
   }
+  // Prior school years are a read-only "final summary" built from the small
+  // per-year summary already inside this account's bundle (CURRENT_BUNDLE.
+  // trend) — never the full prior-year row file, which runs to tens of MB.
+  let ARCHIVE = null; // trend entry while a prior year is selected
   function renderSeasonButtons() {
     const wrap = document.getElementById('seasonButtons');
     const note = document.getElementById('seasonNote');
     const seasons = CURRENT_BUNDLE.seasons || [];
-    wrap.innerHTML = seasons.map(s => {
-      const on = s === BUNDLE.season;
-      const live = s === CURRENT_BUNDLE.season;
-      return `<button type="button" data-season="${esc(s)}" aria-pressed="${on}" style="font:inherit;font-size:.8rem;font-weight:700;padding:.35rem .8rem;border-radius:20px;cursor:pointer;border:1.5px solid ${on ? '#003087' : '#dde3ec'};background:${on ? '#003087' : '#fff'};color:${on ? '#fff' : '#334155'}">${esc(seasonName(s))}${live ? ' · current' : ''}</button>`;
-    }).join('');
-    wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => switchSeason(b.dataset.season)));
-    const archived = BUNDLE.season !== CURRENT_BUNDLE.season;
-    note.hidden = !archived;
-    if (archived) note.textContent = 'Viewing ' + seasonName(BUNDLE.season) + ' — final summary for comparison (read-only)';
+    const shown = ARCHIVE ? ARCHIVE.season : CURRENT_BUNDLE.season;
+    wrap.innerHTML = `<select class="pt-select" id="seasonSelect" aria-label="School year">${seasons.map(s =>
+      `<option value="${esc(s)}"${s === shown ? ' selected' : ''}>${esc(seasonName(s))}${s === CURRENT_BUNDLE.season ? ' (current)' : ' (final summary)'}</option>`).join('')}</select>`;
+    document.getElementById('seasonSelect').addEventListener('change', e => switchSeason(e.target.value));
+    note.hidden = !ARCHIVE;
+    if (ARCHIVE) note.textContent = 'Viewing ' + seasonName(ARCHIVE.season) + ' final summary — read-only, for comparison';
   }
-  async function switchSeason(season) {
-    if (!CURRENT_BUNDLE || season === BUNDLE.season) return;
-    let next = SEASON_BUNDLES[season];
-    if (!next) {
-      const file = (CURRENT_BUNDLE.archives || {})[season];
-      if (!file) return;
-      const note = document.getElementById('seasonNote');
-      note.hidden = false; note.textContent = 'Loading ' + seasonName(season) + '…';
-      try {
-        // Archive files never change once written — cache per season, not per load
-        const res = await fetch(`${BASE}/partner/data/${file}?v=${encodeURIComponent(season)}`);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        next = await res.json();
-        next.identity = next.identity || CURRENT_BUNDLE.identity;
-        next.generatedAt = null;
-        SEASON_BUNDLES[season] = next;
-      } catch (e) {
-        note.textContent = 'Could not load ' + seasonName(season) + ' right now — please try again.';
-        return;
-      }
-    }
-    BUNDLE = next;
-    window.NJTC_BUNDLE = BUNDLE;
+  function setArchiveChrome(on) {
+    ['tutor', 'profiles'].forEach(v => { const t = document.querySelector(`.pt-tab[data-view="${v}"]`); if (t) t.hidden = on; });
+    const pdf = document.getElementById('pdfBtn'); if (pdf) pdf.style.display = on ? 'none' : '';
+    const active = document.querySelector('.pt-tab.active');
+    if (on && active && (active.dataset.view === 'tutor' || active.dataset.view === 'profiles')) goTab('summary');
+  }
+  function switchSeason(season) {
+    if (!CURRENT_BUNDLE) return;
     SCOPE.district = 'ALL'; SCOPE.school = 'ALL'; SCOPE.week = 'ALL';
     resetScopeBar();
+    if (season === CURRENT_BUNDLE.season) {
+      ARCHIVE = null;
+      BUNDLE = CURRENT_BUNDLE;
+      window.NJTC_BUNDLE = BUNDLE;
+      setArchiveChrome(false);
+      renderSeasonButtons();
+      initScopeFilter();
+      renderAll();
+      return;
+    }
+    ARCHIVE = ((CURRENT_BUNDLE.trend || []).find(t => t.season === season)) || null;
     renderSeasonButtons();
-    // Prior school years are a read-only snapshot for comparison — no
-    // drill-down, week filter or sorting; just the year's summary data.
-    if (season === CURRENT_BUNDLE.season) initScopeFilter();
-    renderAll();
-    document.dispatchEvent(new CustomEvent('partnerBundleReady', { detail: BUNDLE }));
+    setArchiveChrome(!!ARCHIVE);
+    if (ARCHIVE) renderArchive(ARCHIVE);
+  }
+
+  function renderArchive(sum) {
+    const id = CURRENT_BUNDLE.identity;
+    document.getElementById('ptMain').innerHTML = ['summary', 'attendance', 'scholar', 'tutor', 'profiles']
+      .map(v => `<div id="view-${v}" class="pt-view"></div>`).join('');
+    const active = (document.querySelector('.pt-tab.active') || {}).dataset;
+    document.getElementById('view-' + ((active && active.view) || 'summary')).classList.add('active');
+    const fmtN = v => v == null ? '—' : Number(v).toLocaleString();
+    const pctTxt = v => v == null ? '—' : v + '%';
+    const banner = `<div class="pt-card" style="margin-bottom:1.1rem;border-left:4px solid var(--blue-mid)"><div class="pt-card-title">${ICONS.trend} ${esc(seasonName(sum.season))} — Final Operations Summary</div>
+      <p style="font-size:.82rem;color:var(--text-2)">The year's final totals for comparison. Choose the current year above to return to live data.</p></div>`;
+    const pending = `<p style="font-size:.8rem;color:var(--muted)">More detail for this year appears after the next data refresh.</p>`;
+
+    let schoolsTbl = '';
+    if ((sum.bySchool || []).length > 1) {
+      schoolsTbl = `<div class="pt-card" style="margin-top:1.1rem"><div class="pt-card-title">${ICONS.roster} By School</div>
+        <table class="pt-table"><thead><tr><th>School</th><th style="text-align:right">Attendance</th><th style="text-align:right">Scholars</th><th style="text-align:right">Loving sessions</th></tr></thead><tbody>
+        ${sum.bySchool.map(x => `<tr><td>${esc(x.school)}</td><td style="text-align:right;font-weight:700;color:${rateColor(x.scholarAttendanceRate)}">${pctTxt(x.scholarAttendanceRate)}</td><td style="text-align:right">${fmtN(x.scholarsServed)}</td><td style="text-align:right">${pctTxt(x.lovingPct)}</td></tr>`).join('')}
+        </tbody></table></div>`;
+    }
+    document.getElementById('view-summary').innerHTML = heroHtml(id) + banner + `
+      <div class="pt-grid pt-grid-4">
+        ${kpiCard(ICONS.check, BRAND.pos, pctTxt(sum.scholarAttendanceRate), 'Scholar Attendance Rate')}
+        ${kpiCard(ICONS.users, BRAND.blue, fmtN(sum.scholarsServed), 'Scholars Served')}
+        ${kpiCard(ICONS.handshake, BRAND.gold, fmtN(sum.sessionsDelivered), 'Sessions Delivered')}
+        ${kpiCard(ICONS.heart, '#c0367a', pctTxt(sum.lovingPct), 'Scholars Loving Their Sessions')}
+      </div>
+      <div class="pt-card" style="margin-top:1.1rem;display:flex;gap:2.2rem;flex-wrap:wrap">
+        <div><div class="pt-kpi-val" style="font-size:1.4rem">${sum.scholarSurveyAvg == null ? '—' : sum.scholarSurveyAvg.toFixed(2)}</div><div class="pt-kpi-sub">Scholar survey average (of 5)</div></div>
+        <div><div class="pt-kpi-val" style="font-size:1.4rem">${sum.tutoredMinutes == null ? '—' : Math.round(sum.tutoredMinutes / 60).toLocaleString()}</div><div class="pt-kpi-sub">Tutoring hours delivered</div></div>
+        <div><div class="pt-kpi-val" style="font-size:1.4rem">${fmtN(sum.scholarSurveys)}</div><div class="pt-kpi-sub">Scholar surveys</div></div>
+      </div>${schoolsTbl}`;
+
+    const reasons = sum.missedReasons || null;
+    const reasonTotal = reasons ? reasons.reduce((a, [, n]) => a + n, 0) : 0;
+    document.getElementById('view-attendance').innerHTML = banner + `
+      <div class="pt-grid pt-grid-2">
+        <div class="pt-card"><div class="pt-card-title">Scholar Attendance Rate</div>
+          <div class="pt-kpi-val pt-kpi-val-lg">${pctTxt(sum.scholarAttendanceRate)}</div>
+          <div style="margin-top:1rem">${quickBar('Attended', sum.attended || 0, (sum.attended || 0) + (sum.absent || 0), BRAND.pos)}${quickBar('Missed', sum.absent || 0, (sum.attended || 0) + (sum.absent || 0), BRAND.neg)}</div>
+          ${sum.keptInClass != null ? `<p style="font-size:.8rem;color:var(--text-2);margin-top:.8rem"><b>${fmtN(sum.keptInClass)}</b> missed sessions were scholars kept in class by a teacher during tutoring.</p>` : ''}
+        </div>
+        <div class="pt-card"><div class="pt-card-title">${ICONS.search} Why Scholars Missed a Session</div>
+          ${reasons ? distRows(reasons, reasonTotal, BRAND.blue) : pending}</div>
+      </div>`;
+
+    const dist = sum.surveyDist || null;
+    const fromCounts = (key) => { const sc = SCALE_LABELS[key] || SCALE_LABELS.OVERALL; const c = dist[key] || {}; return [5, 4, 3, 2, 1].map(k => [`${k} — ${sc[k]}`, c[k] || 0]); };
+    const total = key => [1, 2, 3, 4, 5].reduce((a, k) => a + ((dist[key] || {})[k] || 0), 0);
+    document.getElementById('view-scholar').innerHTML = banner + (dist ? `
+      <div class="pt-card" style="margin-bottom:1.1rem"><div class="pt-card-title">Overall Sentiment</div>
+        ${sentimentRow('Positive', (dist.OVERALL[4] || 0) + (dist.OVERALL[5] || 0), total('OVERALL'), BRAND.pos)}
+        ${sentimentRow('Neutral', dist.OVERALL[3] || 0, total('OVERALL'), BRAND.neu)}
+        ${sentimentRow('Negative', (dist.OVERALL[1] || 0) + (dist.OVERALL[2] || 0), total('OVERALL'), BRAND.neg)}
+      </div>
+      <div class="pt-grid pt-grid-3">
+        <div class="pt-card"><div class="pt-card-title">How confident scholars felt they understood the material</div>${distRows(fromCounts('CONFIDENCE'), total('CONFIDENCE'), BRAND.blue)}</div>
+        <div class="pt-card"><div class="pt-card-title">How much scholars enjoyed the session</div>${distRows(fromCounts('ENJOYMENT'), total('ENJOYMENT'), BRAND.blue)}</div>
+        <div class="pt-card"><div class="pt-card-title">How much scholars felt they learned</div>${distRows(fromCounts('LEARNING'), total('LEARNING'), BRAND.blue)}</div>
+      </div>` : `<div class="pt-card">${pending}</div>`);
   }
   // Replace the drill-down selects with fresh clones so re-initializing for
   // another season never stacks duplicate change listeners.
@@ -828,7 +883,7 @@
       const vals = s.surveys.map(r => parseFloat(r[STU[key]])).filter(v => !isNaN(v));
       return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
     };
-    const comments = s.surveys.map(r => ({ date: (r[STU.DATE] || '').trim(), text: (r[STU.COMMENT] || '').trim() })).filter(c => c.text);
+    const comments = s.surveys.map(r => ({ date: (r[STU.DATE] || '').trim(), text: CORE.partnerSafeText((r[STU.COMMENT] || '').trim()) })).filter(c => c.text);
 
     document.getElementById('scholarModalBody').innerHTML = `
       <div class="pt-scholar-section">
@@ -1138,7 +1193,7 @@
   }
 
   function heroHtml(id) {
-    const season = (BUNDLE && BUNDLE.season) ? 'SY ' + BUNDLE.season : 'Current School Year';
+    const season = ARCHIVE ? 'SY ' + ARCHIVE.season + ' (final summary)' : (BUNDLE && BUNDLE.season) ? 'SY ' + BUNDLE.season : 'Current School Year';
     const drilled = SCOPE.school !== 'ALL' && multiSchoolAccount();
     const place = drilled ? SCOPE.school : scopeLabel(id);
     return `<div class="pt-hero"><div class="pt-hero-row">
@@ -1231,13 +1286,14 @@
         </div>
         <div class="pt-card">
           <div class="pt-card-title">${ICONS.roster} Scholar Attendance</div>
-          <div style="max-height:360px;overflow:auto">
+          <div id="rosterBox">
             <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th>Attendance</th></tr></thead><tbody>
-              ${roster.slice(0, 300).map(s => {
+              ${roster.map((s, i) => {
                 const cls = s.rate == null ? '' : s.rate >= 90 ? 'pt-pill-good' : s.rate >= 75 ? 'pt-pill-warn' : 'pt-pill-bad';
-                return `<tr><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(s.uid)}</td><td>${esc(s.name)}</td><td><span class="pt-pill ${cls}">${s.rate == null ? '—' : s.rate + '%'}</span></td></tr>`;
+                return `<tr data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(s.uid)}</td><td>${esc(s.name)}</td><td><span class="pt-pill ${cls}">${s.rate == null ? '—' : s.rate + '%'}</span></td></tr>`;
               }).join('')}
             </tbody></table>
+            ${roster.length > CHECKIN_PAGE ? pagerHtml('rosterBox', roster.length) : ''}
           </div>
         </div>
       </div>`;
@@ -1272,7 +1328,7 @@
           </div>
         </details>`).join('')}
       ${checkIns.length > CHECKIN_PAGE ? `<div class="pt-pager" id="ckPager">
-        <button type="button" onclick="NJTCPartnerNav.checkinPage(-1)">&larr; Previous</button>
+        <button type="button" onclick="NJTCPartnerNav.checkinPage(-1)" disabled>&larr; Previous</button>
         <span id="ckPagerLabel">1–${CHECKIN_PAGE} of ${checkIns.length}</span>
         <button type="button" onclick="NJTCPartnerNav.checkinPage(1)">Next &rarr;</button>
       </div>` : ''}
@@ -1289,6 +1345,30 @@
     if (lbl) lbl.textContent = (_ckPage * CHECKIN_PAGE + 1) + '–' + Math.min(rows.length, (_ckPage + 1) * CHECKIN_PAGE) + ' of ' + rows.length;
     const btns = document.querySelectorAll('#ckPager button');
     if (btns.length === 2) { btns[0].disabled = _ckPage === 0; btns[1].disabled = _ckPage >= pages - 1; }
+  };
+
+  // Generic 10-per-page pager for any container whose rows carry data-pg.
+  const _pages = {};
+  function pagerHtml(boxId, total) {
+    _pages[boxId] = 0;
+    return `<div class="pt-pager" data-pager-for="${boxId}">
+      <button type="button" onclick="NJTCPartnerNav.page('${boxId}',-1)" disabled>&larr; Previous</button>
+      <span class="pt-pager-label">1–${Math.min(total, CHECKIN_PAGE)} of ${total.toLocaleString()}</span>
+      <button type="button" onclick="NJTCPartnerNav.page('${boxId}',1)">Next &rarr;</button>
+    </div>`;
+  }
+  NJTCPartnerNav.page = function (boxId, delta) {
+    const box = document.getElementById(boxId); if (!box) return;
+    const rows = [...box.querySelectorAll('[data-pg]')];
+    const pages = Math.ceil(rows.length / CHECKIN_PAGE);
+    _pages[boxId] = Math.max(0, Math.min(pages - 1, (_pages[boxId] || 0) + delta));
+    const p = _pages[boxId];
+    rows.forEach(r => { r.hidden = Number(r.dataset.pg) !== p; });
+    const pager = box.querySelector('[data-pager-for]');
+    if (pager) {
+      pager.querySelector('.pt-pager-label').textContent = (p * CHECKIN_PAGE + 1) + '–' + Math.min(rows.length, (p + 1) * CHECKIN_PAGE) + ' of ' + rows.length.toLocaleString();
+      const b = pager.querySelectorAll('button'); b[0].disabled = p === 0; b[1].disabled = p >= pages - 1;
+    }
   };
 
   function keptInClassHtml(attRows, absent) {

@@ -178,10 +178,12 @@
     if (/which school|school.*(attention|lowest|worst|need)|compare.*school/.test(q)) {
       const nav = window.NJTCPartnerNav;
       if (!nav || !nav.isDistrictLens()) return `This view covers one school. Use the "What needs your attention" box at the top of Summary for what to look at first.`;
-      const rows = (window.NJTC_BUNDLE.attendance || []).filter(r => (r[ATT.ROLE] || '').trim() !== 'Instructor');
-      const by = {};
-      rows.forEach(r => { const sc = (r[ATT.SCHOOL] || '').trim(); const c = classifyAtt(r); if (!sc) return; by[sc] = by[sc] || { a: 0, m: 0 }; if (c === 'attended') by[sc].a++; else if (c === 'absent') by[sc].m++; });
-      const list = Object.entries(by).map(([n, v]) => ({ n, r: v.a + v.m ? Math.round(v.a / (v.a + v.m) * 1000) / 10 : null })).filter(x => x.r != null).sort((a, b) => a.r - b.r);
+      // Same column map + scholarStats as the school tiles, so PIE never disagrees with the page
+      const CORE = window.NJTCPartnerReport, A = CORE.ATT;
+      const att = window.NJTC_BUNDLE.attendance || [];
+      const names = [...new Set(att.map(r => (r[A.SCHOOL] || '').trim()).filter(Boolean))];
+      const list = names.map(n => ({ n, r: CORE.scholarStats(att.filter(r => (r[A.SCHOOL] || '').trim() === n)).rate }))
+        .filter(x => x.r != null).sort((a, b) => a.r - b.r);
       const low = list.filter(x => x.r < 80);
       return low.length
         ? `${low.length} school${low.length !== 1 ? 's are' : ' is'} below the 80% attendance goal: ${low.slice(0, 4).map(x => `<b>${x.n}</b> (${x.r}%)`).join(', ')}. Click a school's box on Summary to open its full view.`
