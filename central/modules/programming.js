@@ -8403,15 +8403,27 @@
 
         // ── Scholar capture ────────────────────────────────────────────────
         // Primary key: studentId|sessId — Session ID is the authoritative link.
-        // Count: 1 eligible per (student, session) pair.
+        // Count: 1 eligible per (student, session) pair, ONLY for scholars who
+        // attended — an absent scholar cannot take the survey. Pearl's session
+        // student list is the roster, so attendance is joined on user ID +
+        // session title + session date (attendance rows carry no session ID).
+        // A session with no matching attendance rows keeps its full roster.
+        const stuAttStatus = {};   // userId|title|YMD → classifyRecord result
+        stuRows.forEach(r => {
+          const uid = r[ATT.USER_ID]; if (!uid) return;
+          stuAttStatus[uid + '|' + (r[ATT.SESSION] || '') + '|' + toYMD(r[ATT.SESS_DATE])] = classifyRecord(r);
+        });
         const scholEligBySchool = {};
         const scholEligMap      = {};   // key: stuId|sessId → { school, sessYMD }
         sessions.forEach(sess => {
           if (!sess.id) return;
           const sessYMD = toYMD(sess.start);
           const sch = sess.school || '__unknown__';
+          const attKey = stuId => stuId + '|' + (sess.title || '') + '|' + sessYMD;
+          const hasAtt = (sess.studentIds || []).some(stuId => stuAttStatus[attKey(stuId)]);
           (sess.studentIds || []).forEach(stuId => {
             if (!stuId) return;
+            if (hasAtt && stuAttStatus[attKey(stuId)] !== 'attended') return;
             scholEligBySchool[sch] = (scholEligBySchool[sch] || 0) + 1;
             const k = stuId + '|' + sess.id;
             if (!scholEligMap[k]) scholEligMap[k] = { school: sch, sessYMD: sessYMD || '' };
@@ -8732,11 +8744,13 @@
           totalTutorLate,
           scholCaptureTopN, scholCaptureBottomN,
           tutorCaptureTop, tutorCaptureBottom, tutorLateSurveyList,
+          tutorCaptureAll: tutorCaptureList,
           schools, districts, siReasonCounts,
           totalIncomplete: incompleteSessions.length, incompleteTutors,
           tutorsNoDelivered: tutorsNoDelivered.map(t => ({ name: t.name, school: t.school, terminated: t.terminated })),
           stuSurveyAvg, instSurveyAvg, commentCounts,
           topTutors: tutorList.slice(0, 20),
+          allTutors: tutorList,   // full region roster — flags must not be limited to the top 20 by hours
           // Terminated staff tagging (same-year separations — see _separatedStaffMap)
           periodLabel: _periodLongLabel(),
           termTutors,                                    // full array of SEP tutors in Pearl data

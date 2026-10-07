@@ -342,8 +342,9 @@
                                        .sort((a,b) => a.stuSurveyAvg - b.stuSurveyAvg);
     // Only tutors actually below the 80% target (previously a fixed "bottom 5"
     // that listed tutors at 100% when the region had no capture gaps).
-    const tutorCapBelow  = (data.tutorCaptureBottom || []).filter(t => t.captureRate < BM.capture);
-    const tutorAttBelow  = data.topTutors
+    const tutorCapBelow  = (data.tutorCaptureAll || data.tutorCaptureBottom || [])
+      .filter(t => t.captureRate < BM.capture).sort((a, b) => a.captureRate - b.captureRate);
+    const tutorAttBelow  = (data.allTutors || data.topTutors)
       .filter(t => t.attRate < BM.tutorAtt && (t.attended + t.absent) >= 3)
       .sort((a, b) => a.attRate - b.attRate);
     const lateFilers     = data.tutorLateSurveyList || [];
