@@ -410,6 +410,15 @@
       label: 'Tutor survey average below ' + fmt(BM.survey, 1) + ' target',
       stat: fmt(instOverall, 2) + ' / 5',
     });
+    const ctSchools = data.schools.filter(s => s.ctShare > 10).sort((a, b) => b.ctPulls - a.ctPulls);
+    const ctScholars = data.ctScholars || [];
+    if (ctSchools.length || ctScholars.length) flags.push({
+      topic: 'classroom teacher pull-outs' + (ctSchools.length ? ' at ' + nOf(ctSchools.length, 'school') : ''),
+      label: 'Classroom teacher pull-outs (counted as absences - dosage watch)',
+      stat: num(data.totalCtPulls || 0) + ' pull-outs',
+      detail: (ctSchools.length ? 'Above 10% of scholar absences: ' + listNames(ctSchools, 4, s => trunc(s.name, 32) + ' ' + s.ctPulls + ' (' + s.ctShare + '%)') : '') +
+        (ctScholars.length ? (ctSchools.length ? '.  ' : '') + nOf(ctScholars.length, 'scholar') + ' pulled 3+ times' : ''),
+    });
     if (totalIncomplete > 0) flags.push({
       topic: nOf(totalIncomplete, 'incomplete session'),
       label: 'Incomplete sessions (Scheduled, no attendance logged)',
@@ -509,6 +518,7 @@
     y = paraLabel('Recommended Actions', y);
     const actions = [];
     if (attConcerns.length) actions.push('Hold attendance recovery conversations with site leaders at ' + attConcerns.slice(0, 3).map(s => trunc(s.name, 48)).join(', ') + '.');
+    if (ctSchools.length) actions.push('Talk with site leaders at ' + ctSchools.slice(0, 3).map(s => trunc(s.name, 36)).join(', ') + ' about classroom teachers keeping scholars in class during tutoring, so scholars receive their full dosage.');
     if (totalIncomplete > 0) actions.push('Have onsite staff close out the ' + num(totalIncomplete) + ' incomplete session' + (totalIncomplete !== 1 ? 's' : '') +
       ' in Pearl (mark completed or cancelled)' + ((data.incompleteTutors || []).length ? ', starting with ' + data.incompleteTutors.slice(0, 2).map(t => trunc(t.name, 28)).join(' and ') : '') + '.');
     if (data.scholCaptureRate < BM.capture || capConcerns.length) actions.push('Reinforce end-of-session scholar survey completion' + (capConcerns.length ? ' at ' + capConcerns.slice(0, 3).map(s => trunc(s.name, 36)).join(', ') : '') + '.');
@@ -579,23 +589,24 @@
       if (y > BOTTOM_LIMIT - 30) { doc.addPage(); y = TOP_START; }
       doc.autoTable({
         startY: y,
-        head: [['School', 'Scholar Att.', 'Sessions', 'Incomplete', 'SI', 'Scholar Survey', 'Survey Capture']],
+        head: [['School', 'Scholar Att.', 'Sessions', 'Incomplete', 'Teacher Pull-outs', 'SI', 'Scholar Survey', 'Survey Capture']],
         body: opSchools.map(sc => [
           safeStr(trunc(sc.name, 40)),
           (sc.stuAttended + sc.stuAbsent) > 0 ? pct(sc.attRate, 1) : '--',
           num(sc.sessions),
           num(sc.incomplete || 0),
+          num(sc.ctPulls || 0),
           num(sc.siCount),
           sc.stuSurveyAvg > 0 ? fmt(sc.stuSurveyAvg, 2) : '--',
           sc.scholCaptureRate !== null ? pct(sc.scholCaptureRate, 0) : '--',
         ]),
         margin: { left: ML, right: PW - MR },
         tableWidth: SAFE,
-        styles: { fontSize: 7.5, cellPadding: 1.3, textColor: C.body, font: 'helvetica', overflow: 'linebreak' },
+        styles: { fontSize: 7.2, cellPadding: 1.0, textColor: C.body, font: 'helvetica', overflow: 'linebreak' },
         headStyles: { fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
         alternateRowStyles: { fillColor: C.light },
-        columnStyles: { 0: { cellWidth: 62, halign: 'left' }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' },
-                        4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' } },
+        columnStyles: { 0: { cellWidth: 54, halign: 'left' }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' },
+                        4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' } },
         theme: 'plain',
         rowPageBreak: 'avoid',
         didParseCell: function (d) {
@@ -604,8 +615,9 @@
           let c = null;
           if (d.column.index === 1 && !isNaN(v)) c = statusColor(v, BM.scholAtt);
           if (d.column.index === 3 && v > 0)     c = C.red;
-          if (d.column.index === 5 && !isNaN(v)) c = scoreColor(v);
-          if (d.column.index === 6 && !isNaN(v)) c = statusColor(v, BM.capture);
+          if (d.column.index === 4 && opSchools[d.row.index] && opSchools[d.row.index].ctShare > 10) c = C.red;
+          if (d.column.index === 6 && !isNaN(v)) c = scoreColor(v);
+          if (d.column.index === 7 && !isNaN(v)) c = statusColor(v, BM.capture);
           if (c) { d.cell.styles.textColor = c; d.cell.styles.fontStyle = 'bold'; }
         },
       });

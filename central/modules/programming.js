@@ -8355,6 +8355,29 @@
         // SI only — scholar absences (classifyRecord === 'absent', e.g. "Absent")
         // are scholar-caused and already counted in the attendance rate, so they
         // must not appear in the SI breakdown.
+        // ── Classroom-teacher pull-outs (dosage watch) ─────────────────────
+        // Counted as scholar absences (attendance rate), but monitored on
+        // their own. Same rule as the dashboard ct_pull flag: share of
+        // scholar-caused absences (explicit reasons only, blanks excluded);
+        // a school is flagged above 10%, a scholar at 3+ pull-outs.
+        const CT_REASONS = new Set(['Classroom Teacher Requested to Keep Scholar in Class',
+                                    'HADDON TWP ONLY -- Teacher requested whole group support']);
+        const ctBySchool = {}, ctDenomBySchool = {}, ctByScholar = {};
+        stuRows.forEach(r => {
+          if ((r[ATT.ATT_STATUS] || '') !== 'Missed') return;
+          const reason = r[ATT.MISS_REASON] || '';
+          if (!SCHOLAR_MISS_REASONS.has(reason)) return;
+          const sch = r[ATT.SCHOOL] || '';
+          ctDenomBySchool[sch] = (ctDenomBySchool[sch] || 0) + 1;
+          if (!CT_REASONS.has(reason)) return;
+          ctBySchool[sch] = (ctBySchool[sch] || 0) + 1;
+          const uid = r[ATT.USER_ID] || r[ATT.USER];
+          if (!ctByScholar[uid]) ctByScholar[uid] = { name: r[ATT.USER] || uid, uid: r[ATT.USER_ID] || '', school: sch, count: 0 };
+          ctByScholar[uid].count++;
+        });
+        const ctScholars = Object.values(ctByScholar).filter(x => x.count >= 3).sort((a, b) => b.count - a.count);
+        const totalCtPulls = Object.values(ctBySchool).reduce((a, b) => a + b, 0);
+
         const siReasonCounts = {};
         stuRows
           .filter(r => classifyRecord(r) === 'service_interruption')
@@ -8532,6 +8555,8 @@
               ? parseFloat((sc.stuAttended / (sc.stuAttended + sc.stuAbsent) * 100).toFixed(1)) : 0,
             sessions:         scTotal,
             incomplete:       incompleteBySchool[name] || incompleteBySchool[sc.school] || 0,
+            ctPulls:          ctBySchool[name] || 0,
+            ctShare:          (ctDenomBySchool[name] || 0) > 0 ? Math.round((ctBySchool[name] || 0) / ctDenomBySchool[name] * 100) : 0,
             hitRate:          scTotal > 0 ? Math.round(scHit / scTotal * 100) : 0,
             ratioViolations:  scViolations,
             stuSurveyAvg:     parseFloat((sc.stuSurveyAvg  || 0).toFixed(2)),
@@ -8747,6 +8772,7 @@
           tutorCaptureAll: tutorCaptureList,
           schools, districts, siReasonCounts,
           totalIncomplete: incompleteSessions.length, incompleteTutors,
+          totalCtPulls, ctScholars,
           tutorsNoDelivered: tutorsNoDelivered.map(t => ({ name: t.name, school: t.school, terminated: t.terminated })),
           stuSurveyAvg, instSurveyAvg, commentCounts,
           topTutors: tutorList.slice(0, 20),
