@@ -88,7 +88,7 @@ function showAcknowledgementModal(uid, dayKey) {
                                 <li>Implement exit tickets and formative assessments to check for understanding</li>
                                 <li>Differentiate instruction to meet individual scholar needs within your tutoring group</li>
                                 <li>Prepare all materials and technology before each session begins</li>
-                                <li>Log scholar attendance in Pearl at the start of each session</li>
+                                <li>Complete scholar attendance in Pearl before each session ends</li>
                                 <li>Complete post-session surveys in Pearl with session notes and scholar observations</li>
                                 <li>Maintain 90%+ Pearl completion rate for attendance and surveys</li>
                                 <li>Follow up on absent scholars as directed by your Site Coordinator</li>

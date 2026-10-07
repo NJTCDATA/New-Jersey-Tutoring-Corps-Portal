@@ -10729,7 +10729,7 @@
       respond: function() {
         return '**NJTC Performance Tier Definitions**\n\nThese designations apply to individual tutor/staff profiles across Programming, Data, and HR department views.\n\n' +
           '⭐ **Stellar**\n' +
-          'Consistently meets or exceeds ALL benchmarks — scholar attendance ≥85%, tutor attendance ≥90%, surveys submitted on time, no active HR concerns, scholar survey avg ≥4.0/5. ' +
+          'Consistently meets or exceeds ALL benchmarks — scholar attendance ≥80%, tutor attendance ≥90%, surveys submitted on time, no active HR concerns, scholar survey avg ≥4.0/5. ' +
           'Sustained over 8+ consecutive weeks. iReady median pctTypical ≥80% (when data available). Identified as a program model and retention priority.\n\n' +
           '✅ **On Track**\n' +
           'Meeting core benchmarks with no critical flags. Minor operational gaps acceptable (e.g., one late survey, one absence). No active HR action. Strong baseline performer.\n\n' +
