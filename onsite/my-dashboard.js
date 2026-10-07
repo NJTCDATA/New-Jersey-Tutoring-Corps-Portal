@@ -37,6 +37,20 @@
     return '🎯 Needs Support';
   }
 
+  // Scholars are measured against the 80% scholar attendance goal (tutors: 90%)
+  function schAttColor(rate) {
+    if (rate === null || rate === undefined) return '#6b7280';
+    if (rate >= 80) return '#22c55e';
+    if (rate >= 70) return '#f59e0b';
+    return '#ef4444';
+  }
+  function schAttLabel(rate) {
+    if (rate === null || rate === undefined) return '';
+    if (rate >= 80) return '✅ On Track';
+    if (rate >= 70) return '⚡ Almost There';
+    return '🎯 Needs Support';
+  }
+
   function gradePillColor(grade) {
     const g = parseInt(grade, 10);
     if (isNaN(g)) return '#6b7280';
@@ -94,7 +108,7 @@
       'Absent; Covered by the Instructional Coach': 'Out — coach covered',
       'Tutor Left Early (no sub)': 'Left early'
     };
-    return map[reason] || reason;
+    return map[reason] || reason || 'No reason entered';
   }
 
   function friendlyScholarReason(reason) {
@@ -105,7 +119,7 @@
       'Scholar Left Early': 'Student left session early',
       'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group session'
     };
-    return map[reason] || reason;
+    return map[reason] || reason || 'No reason entered';
   }
 
   function shortenSchool(school) {
@@ -1255,7 +1269,7 @@
   function fillKPIStrip(strip, data) {
     const attRate = data.myAttRate;
     const color = attColor(attRate);
-    const schColor = attColor(data.scholarAttRate);
+    const schColor = schAttColor(data.scholarAttRate);
     const schSurveyAvg = data.stuSurveyAvg;
     const schSurveyColor = schSurveyAvg === null ? '#6b7280'
       : schSurveyAvg >= 3.5 ? '#a855f7'
@@ -1358,7 +1372,7 @@
   }
 
   function renderScholarProfile(s) {
-    const color = attColor(s.attRate);
+    const color = schAttColor(s.attRate);
     const initials = toInitials(s.name);
     const gColor = gradePillColor(s.grade);
 
@@ -1428,7 +1442,7 @@
             <div class="njtc-sp-name">${esc(initials)}</div>
             <div class="njtc-sp-meta">
               ${s.grade ? `Grade ${esc(s.grade)}` : ''} · ${esc(s.school || '—')}
-              <span style="margin-left:0.5rem;">${attLabel(s.attRate)}</span>
+              <span style="margin-left:0.5rem;">${schAttLabel(s.attRate)}</span>
             </div>
           </div>
         </div>
@@ -1537,8 +1551,8 @@
         const h = schRate !== null ? Math.round((schRate / 100) * 60) : 2;
         const tutH = tutRate !== null ? Math.round((tutRate / 100) * 60) : null;
         const barColor = schRate === null ? 'rgba(255,255,255,0.1)'
-          : schRate >= 90 ? '#22c55e'
-          : schRate >= 80 ? '#f97316'
+          : schRate >= 80 ? '#22c55e'
+          : schRate >= 70 ? '#f97316'
           : '#ef4444';
         const label = w.week.replace(/[^0-9]/g, '') ? 'W' + w.week.replace(/[^0-9]/g, '') : w.week;
         const title = `${esc(w.week)}: Scholar ${schRate !== null ? schRate + '%' : '—'} · Tutor ${tutRate !== null ? tutRate + '%' : '—'}`;
@@ -1657,7 +1671,7 @@
         return `<div class="njtc-empty-state"><p>No students in this group.</p></div>`;
       }
       return `<div class="njtc-scholar-grid">` + list.map(s => {
-        const color = attColor(s.attRate);
+        const color = schAttColor(s.attRate);
         const gColor = gradePillColor(s.grade);
         const gradeLabel = s.grade ? 'Grade ' + s.grade : 'N/A';
         const topReason = Object.entries(s.missReasons).sort((a, b) => b[1] - a[1])[0];
@@ -1674,7 +1688,7 @@
             ${chart}
             <span class="njtc-scholar-att-text">Attended ${s.attended} of ${s.totalSessions}</span>
           </div>
-          <div class="njtc-status-badge">${attLabel(s.attRate)}</div>
+          <div class="njtc-status-badge">${schAttLabel(s.attRate)}</div>
           ${topReason ? `<div class="njtc-scholar-miss-reason">Often: ${esc(friendlyScholarReason(topReason[0]))}</div>` : ''}
           <div class="njtc-scholar-tap-hint">View Profile →</div>
         </div>`;
@@ -1682,8 +1696,8 @@
     }
 
     const allHtml = renderGrid(data.scholars);
-    const needsHtml = renderGrid(data.scholars.filter(s => s.attRate !== null && s.attRate < 75));
-    const goodHtml = renderGrid(data.scholars.filter(s => s.attRate !== null && s.attRate >= 90));
+    const needsHtml = renderGrid(data.scholars.filter(s => s.attRate !== null && s.attRate < 80));
+    const goodHtml = renderGrid(data.scholars.filter(s => s.attRate !== null && s.attRate >= 80));
 
     el.innerHTML = `
       <div class="njtc-scholars-heading">

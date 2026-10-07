@@ -1677,12 +1677,34 @@
       return 'other';
     }
 
+    // Incomplete session: Pearl status 'Scheduled' (no attendance logged) whose
+    // start time has already passed. Future scheduled sessions are not overdue.
+    // Shared by the Onsite Staff Report and the regional PDF export.
+    function _isIncompleteSession(sess, now) {
+      if (!sess || sess.status !== 'Scheduled') return false;
+      const d = sess.start ? new Date(sess.start) : null;
+      if (!d || isNaN(d)) return true;  // undated → still needs cleanup
+      return d <= (now || new Date());
+    }
+
     // Pearl prefixes retired/archived schools and districts with "zzz" — not
     // part of any program, so they're excluded from every Pearl view.
     function _isArchivedName(v) { return /^\s*z{3}/i.test(v || ''); }
+    // Every "HADDON TWP ONLY -- …" reason (whole group support, program
+    // redevelopment, …) is Haddon Township-only. Logged anywhere else (e.g. iLearn CMO) it is treated
+    // as "NJTC Internal Issue/Error" — even if Pearl's backend has it that way.
+    // Same rule in central/modules/programming.js, partner/partner-report.js,
+    // onsite/pearl-data.js, onsite/leader-team.js and scripts/build-pulse-archive.js.
+    function _fixMissReason(reason, school, district) {
+      if (/^\s*HADDON TWP ONLY/i.test(reason || '') &&
+          !/haddon/i.test((district || '') + ' ' + (school || ''))) return 'NJTC Internal Issue/Error';
+      return reason;
+    }
+    window.njtcFixMissReason = _fixMissReason; // shared with other Central modules
     function _stripArchived() {
       const keep = (rows, sIdx, dIdx) => rows.filter(r => !_isArchivedName(r[sIdx]) && !_isArchivedName(r[dIdx]));
       _attRows  = keep(_attRows,  ATT.SCHOOL,    ATT.DISTRICT);
+      _attRows.forEach(r => { const f = _fixMissReason(r[ATT.MISS_REASON] || '', r[ATT.SCHOOL], r[ATT.DISTRICT]); if (f !== (r[ATT.MISS_REASON] || '')) r[ATT.MISS_REASON] = f; });
       _sessRows = keep(_sessRows, SESS.SCHOOL,   SESS.DISTRICT);
       _stuRows  = keep(_stuRows,  STU_S.SCHOOL,  STU_S.DISTRICT);
       _instRows = keep(_instRows, INST_S.SCHOOL, INST_S.DISTRICT);
@@ -6733,7 +6755,7 @@
           <div style="background:linear-gradient(135deg,#1a3a5c,#2563eb);padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0;">
             <div>
               <div style="color:#fff;font-weight:700;font-size:1.05rem;">📋 Onsite Staff Report</div>
-              <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.2rem;">Incompletes · Survey Capture · Low Ratings</div>
+              <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.2rem;">Survey Results · Comments for Follow-Up</div>
             </div>
             <button onclick="document.getElementById('poFieldReportModal').style.display='none'"
               style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1rem;line-height:1;">✕</button>
@@ -6779,14 +6801,19 @@
             </div>
 
             <!-- What's included -->
-            <div style="background:rgba(0,80,200,.05);border:1px solid rgba(0,80,200,.15);border-radius:10px;padding:.875rem;margin-bottom:1.25rem;font-size:.8rem;line-height:1.6;">
+            <div style="background:rgba(0,80,200,.05);border:1px solid rgba(0,80,200,.15);border-radius:10px;padding:.875rem;margin-bottom:.875rem;font-size:.8rem;line-height:1.6;">
               <div style="font-weight:700;color:var(--blue-mid);margin-bottom:.4rem;">Report includes:</div>
-              <div>⚠️ <strong>Incomplete Sessions</strong> — Scheduled sessions with no attendance logged, with Session ID for cleanup</div>
-              <div>📊 <strong>Survey Capture Rate</strong> — % of completed sessions where the tutor submitted their survey (deploys when ≥1 scholar attends)</div>
+              <div>📊 <strong>Survey Capture Follow-Up</strong> — only tutors below the 80% tutor survey capture target</div>
               <div>⭐ <strong>Low Scholar Ratings</strong> — tutors where scholar satisfaction avg is below 3.5 / 5.0</div>
-              <div>🚩 <strong>Flagged Comments</strong> — scholar &amp; tutor comments with concern-category keywords requiring follow-up</div>
+              <div>🚩 <strong>Comments for Follow-Up</strong> — scholar &amp; tutor comments with concern-category keywords</div>
               <div>✨ <strong>Spotlight Comments</strong> — positive comments that are shoutout candidates for team meetings</div>
+              <div style="margin-top:.35rem;color:var(--muted);">Total incomplete sessions now appear in the NE / SW / Network Pearl PDFs.</div>
             </div>
+
+            <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem;font-size:.8rem;cursor:pointer;">
+              <input id="frIncludeIncomplete" type="checkbox" style="width:16px;height:16px;">
+              Include incomplete session detail (Session IDs for Pearl cleanup)
+            </label>
 
             <button onclick="po._generateFieldReport()"
               style="width:100%;padding:.75rem;background:linear-gradient(135deg,#1a3a5c,#2563eb);color:#fff;border:none;border-radius:10px;font-size:.9375rem;font-weight:700;cursor:pointer;letter-spacing:.01em;">
@@ -6818,6 +6845,7 @@
       const tutorQ   = (document.getElementById('frTutorSearch')?.value||'').toLowerCase().trim();
       const schoolF  = (document.getElementById('frSchool')?.value||'').trim();
       const districtF= (document.getElementById('frDistrict')?.value||'').trim();
+      const includeIncomplete = !!document.getElementById('frIncludeIncomplete')?.checked;
 
       // Region keywords (same as in school grid and talent analytics)
       const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
@@ -6862,7 +6890,7 @@
       const incompleteByTutor = {};
       for (const sess of Object.values(_sessMap || {})) {
         if (!matchesFR(sess.school, sess.district)) continue;
-        if (sess.status !== 'Scheduled') continue;  // only Scheduled = not yet completed
+        if (!_isIncompleteSession(sess, now)) continue;  // Scheduled + start passed = not yet completed
         const tname = (sess.instructor || '').trim(); if (!tname) continue;
         if (!matchesTutor(tname)) continue;
         if (!incompleteByTutor[tname]) incompleteByTutor[tname] = { name: tname, school: sess.school, district: sess.district, sessions: [] };
@@ -6981,7 +7009,12 @@
           <td style="padding:6px 10px;color:#6b7280;font-size:.8em;white-space:nowrap">${r.start ? new Date(r.start).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</td>
         </tr>`).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No incomplete sessions found for this filter</td></tr>`;
 
-      const survey_rows = survCapture.length ? survCapture.map(t => {
+      const survBelow   = survCapture.filter(t => t.rate < 80);
+      const survMeeting = survCapture.length - survBelow.length;
+      const survEmptyMsg = survCapture.length
+        ? `✓ All ${survCapture.length} tutor${survCapture.length!==1?'s':''} meeting the 80% capture target`
+        : 'No session data available for this filter';
+      const survey_rows = survBelow.length ? survBelow.map(t => {
         const col  = t.rate >= 80 ? '#16a34a' : t.rate >= 50 ? '#d97706' : '#dc2626';
         const gap  = t.totalSubmitted - t.validated;
         const gapNote = gap > 0
@@ -6993,7 +7026,7 @@
           <td style="padding:6px 10px;text-align:center;color:#4b5563">${t.validated} / ${t.delivered}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:700;color:${col}">${statusDot(t.rate,80,50)}${t.rate}%</td>
         </tr>`;
-      }).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">No session data available for this filter</td></tr>`;
+      }).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">${survEmptyMsg}</td></tr>`;
 
       const rating_rows = lowRatings.length ? lowRatings.map(t => {
         const col = t.avg >= 4.0 ? '#16a34a' : t.avg >= 3.5 ? '#d97706' : '#dc2626';
@@ -7189,39 +7222,23 @@
           <button onclick="window.print()" style="padding:8px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;">🖨 Print / Save PDF</button>
         </div>
 
-        <!-- How to read this report -->
+        <!-- How to read this report (condensed) -->
         <div class="def-box">
-          <h3>📖 How to Read This Report — Metric Definitions</h3>
-          <div class="def-item">
-            <span class="def-label">Incomplete Session</span>
-            <span class="def-text">A session in Pearl with status <strong>Scheduled</strong> and no attendance detail logged. The tutor has not yet marked the session as completed or cancelled. Use the Session ID column to locate these in Pearl and follow up directly with the tutor.</span>
-          </div>
-          <div class="def-item">
-            <span class="def-label">Survey Capture Rate</span>
-            <span class="def-text">% of <strong>delivered sessions</strong> (status = Completed) where the <strong>tutor submitted their survey</strong>. The tutor survey deploys once at least one scholar is in attendance — so any completed session with a scholar present requires a tutor survey response. A rate below 80% means most sessions are running without tutor voice data. Target: ≥80%.</span>
-          </div>
-          <div class="def-item">
-            <span class="def-label">Scholar Rating (Avg)</span>
-            <span class="def-text">The average of four scholar survey questions — Confidence, Enjoyment, Learning, and Overall — each scored 1–5 by the scholar. Averaged across all submitted surveys linked to the tutor's sessions. Threshold for follow-up: below 3.5.</span>
-          </div>
-          <div class="def-item">
-            <span class="def-label">Flagged Comment</span>
-            <span class="def-text">A free-text survey comment (scholar or tutor) that matched concern-category keywords (e.g., struggling, behavior, confusion, difficult). These are auto-categorized and surfaced for team review — not a formal HR action, but a signal to follow up.</span>
-          </div>
-          <div class="def-item">
-            <span class="def-label">Spotlight Comment</span>
-            <span class="def-text">A free-text comment matching positive-category keywords (e.g., amazing, love, great, excited, engaged). Surfaced as candidates for shoutouts or recognition during team meetings.</span>
-          </div>
+          <div class="def-item"><span class="def-text">
+            <strong>Survey capture</strong> = % of delivered sessions with a tutor survey submitted (target ≥80%).
+            <strong>Scholar rating</strong> = avg of Confidence, Enjoyment, Learning, Overall (1–5); follow up below 3.5.
+            <strong>Follow-up / spotlight comments</strong> are auto-tagged by keyword — a signal to check in, not an HR action.
+          </span></div>
         </div>
 
         <!-- Summary pills -->
         <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
-          <div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
+          ${includeIncomplete ? `<div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
             <span style="font-size:1.3rem;font-weight:800;color:#dc2626;">${incompleteRows_flat.length}</span>
             <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Incomplete Sessions</span>
-          </div>
+          </div>` : ''}
           <div style="background:#fef3c7;border-radius:8px;padding:8px 16px;">
-            <span style="font-size:1.3rem;font-weight:800;color:#d97706;">${survCapture.filter(t=>t.rate<80).length}</span>
+            <span style="font-size:1.3rem;font-weight:800;color:#d97706;">${survBelow.length}</span>
             <span style="font-size:.8rem;color:#92400e;font-weight:600;margin-left:6px;">Tutors Below 80% Capture</span>
           </div>
           <div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
@@ -7238,10 +7255,10 @@
           </div>
         </div>
 
-        <!-- Section 1: Incompletes -->
-        <div style="${sectionStyle}">
+        <!-- Incompletes (optional appendix) -->
+        ${includeIncomplete ? `<div style="${sectionStyle}">
           <div style="${hdStyle}background:#fef2f2;border-bottom:1px solid #fecaca;">
-            <span style="color:#991b1b;">⚠️ Section 1 — Incomplete Sessions (Scheduled · No Attendance Logged)</span>
+            <span style="color:#991b1b;">⚠️ Incomplete Sessions (Scheduled · No Attendance Logged)</span>
             <span style="color:#dc2626;font-weight:800;font-size:1rem;">${incompleteRows_flat.length} session${incompleteRows_flat.length!==1?'s':''}</span>
           </div>
           <table>
@@ -7254,13 +7271,13 @@
             </tr></thead>
             <tbody>${incomplete_rows}</tbody>
           </table>
-        </div>
+        </div>` : ''}
 
         <!-- Section 2: Survey Capture -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#eff6ff;border-bottom:1px solid #bfdbfe;">
-            <span style="color:#1d4ed8;">📊 Section 2 — Survey Capture Rate</span>
-            <span style="color:#1d4ed8;font-weight:800;font-size:1rem;">${survCapture.length} tutors</span>
+            <span style="color:#1d4ed8;">📊 Section 1 — Tutors Below 80% Survey Capture</span>
+            <span style="color:#1d4ed8;font-weight:800;font-size:1rem;">${survBelow.length} of ${survCapture.length} tutors</span>
           </div>
           <table>
             <thead><tr>
@@ -7272,17 +7289,16 @@
             </tr></thead>
             <tbody>${survey_rows}</tbody>
           </table>
-          <div style="padding:8px 14px;background:#fefce8;border-top:1px solid #fef08a;font-size:.75rem;color:#713f12;">
-            <strong>Total Submitted</strong> = all tutor surveys in Pearl for this tutor (matches what you see in Pearl directly).
-            <strong>Validated</strong> = surveys whose Session ID maps to a known delivered session.
-            <strong>Unmatched</strong> = submitted surveys with no matching session — investigate in Pearl.
-          </div>
+          ${survBelow.length ? `<div style="padding:8px 14px;background:#fefce8;border-top:1px solid #fef08a;font-size:.75rem;color:#713f12;">
+            ${survMeeting} other tutor${survMeeting!==1?'s are':' is'} meeting target and not listed.
+            <strong>Validated</strong> = surveys whose Session ID maps to a delivered session; <strong>unmatched</strong> surveys need checking in Pearl.
+          </div>` : ''}
         </div>
 
         <!-- Section 3: Low Ratings -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#fef2f2;border-bottom:1px solid #fecaca;">
-            <span style="color:#991b1b;">⭐ Section 3 — Low Scholar Ratings (Avg Below 3.5 / 5.0)</span>
+            <span style="color:#991b1b;">⭐ Section 2 — Low Scholar Ratings (Avg Below 3.5 / 5.0)</span>
             <span style="color:#dc2626;font-weight:800;font-size:1rem;">${lowRatings.length} tutor${lowRatings.length!==1?'s':''}</span>
           </div>
           <table>
@@ -7299,7 +7315,7 @@
         <!-- Section 4: Flagged Comments -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#fff7ed;border-bottom:1px solid #fed7aa;">
-            <span style="color:#9a3412;">🚩 Section 4 — Comments Requiring Follow-Up${_flagWeekLabel ? ' · ' + _flagWeekLabel : ''} (Top 5 · Concern Keywords)</span>
+            <span style="color:#9a3412;">🚩 Section 3 — Comments Requiring Follow-Up${_flagWeekLabel ? ' · ' + _flagWeekLabel : ''} (Top 5 · Concern Keywords)</span>
             <span style="color:#c2410c;font-weight:800;font-size:1rem;">${flaggedComments.length} comment${flaggedComments.length!==1?'s':''}</span>
           </div>
           <table>
@@ -7317,7 +7333,7 @@
         <!-- Section 5: Spotlight Comments -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#f0fdf4;border-bottom:1px solid #bbf7d0;">
-            <span style="color:#14532d;">⭐ Section 5 — Spotlight Comments${_spotWeekLabel ? ' · ' + _spotWeekLabel : ''} (Top 5 · Shoutout Candidates)</span>
+            <span style="color:#14532d;">✨ Section 4 — Spotlight Comments${_spotWeekLabel ? ' · ' + _spotWeekLabel : ''} (Top 5 · Shoutout Candidates)</span>
             <span style="color:#15803d;font-weight:800;font-size:1rem;">${spotlightComments.length} comment${spotlightComments.length!==1?'s':''}</span>
           </div>
           <table>
@@ -8255,6 +8271,23 @@
       // ── PDF export data accessor ─────────────────────────────────────────
       // regionFilter: 'NE' | 'SW' | 'ALL'
       // Returns a live-data snapshot scoped to the requested region.
+      // ── Field Support Report input (modules/field-support.js) ────────────
+      // Hands the report the raw Pearl rows plus the SAME classification and
+      // region rules the dashboard uses, so its numbers can never drift.
+      getFieldSupportInput: function() {
+        const isArch = v => /^\s*z{3}/i.test(v || '');
+        return {
+          attRows: _attRows || [], instRows: _instRows || [], stuRows: _stuRows || [],
+          sessions: Object.values(_sessMap || {}),
+          ATT, INST_S, STU_S,
+          classify: classifyRecord,
+          tutorMissReasons: TUTOR_MISS_REASONS,
+          regionOf: (school, district) => (isArch(school) || isArch(district)) ? null : _poRegion(school, district),
+          schoolNames: [...new Set(Object.values(_sessMap || {}).map(s => s.school).filter(s => s && !isArch(s)))].sort(),
+          now: new Date(),
+        };
+      },
+
       getExportData: function(regionFilter) {
         regionFilter = (regionFilter || 'ALL').toUpperCase();
 
@@ -8347,14 +8380,57 @@
         const instTotal = instAtt + instAbs;
         const tutorAttRate = instTotal > 0 ? parseFloat((instAtt / instTotal * 100).toFixed(1)) : 0;
 
-        // ── Missed reasons (pre-scoped to region via stuRows) ──────────────
-        const missedReasonCounts = {};
+        // ── Service-interruption reasons (pre-scoped to region via stuRows) ─
+        // SI only — scholar absences (classifyRecord === 'absent', e.g. "Absent")
+        // are scholar-caused and already counted in the attendance rate, so they
+        // must not appear in the SI breakdown.
+        // ── Classroom-teacher pull-outs (dosage watch) ─────────────────────
+        // Counted as scholar absences (attendance rate), but monitored on
+        // their own. Same rule as the dashboard ct_pull flag: share of
+        // scholar-caused absences (explicit reasons only, blanks excluded);
+        // a school is flagged above 10%, a scholar at 3+ pull-outs.
+        const CT_REASONS = new Set(['Classroom Teacher Requested to Keep Scholar in Class',
+                                    'HADDON TWP ONLY -- Teacher requested whole group support']);
+        const ctBySchool = {}, ctDenomBySchool = {}, ctByScholar = {};
+        stuRows.forEach(r => {
+          if ((r[ATT.ATT_STATUS] || '') !== 'Missed') return;
+          const reason = r[ATT.MISS_REASON] || '';
+          if (!SCHOLAR_MISS_REASONS.has(reason)) return;
+          const sch = r[ATT.SCHOOL] || '';
+          ctDenomBySchool[sch] = (ctDenomBySchool[sch] || 0) + 1;
+          if (!CT_REASONS.has(reason)) return;
+          ctBySchool[sch] = (ctBySchool[sch] || 0) + 1;
+          const uid = r[ATT.USER_ID] || r[ATT.USER];
+          if (!ctByScholar[uid]) ctByScholar[uid] = { name: r[ATT.USER] || uid, uid: r[ATT.USER_ID] || '', school: sch, count: 0 };
+          ctByScholar[uid].count++;
+        });
+        const ctScholars = Object.values(ctByScholar).filter(x => x.count >= 3).sort((a, b) => b.count - a.count);
+        const totalCtPulls = Object.values(ctBySchool).reduce((a, b) => a + b, 0);
+
+        const siReasonCounts = {};
         stuRows
-          .filter(r => classifyRecord(r) === 'absent' || classifyRecord(r) === 'service_interruption')
+          .filter(r => classifyRecord(r) === 'service_interruption')
           .forEach(r => {
             const reason = r[ATT.MISS_REASON] || 'Unknown';
-            missedReasonCounts[reason] = (missedReasonCounts[reason] || 0) + 1;
+            siReasonCounts[reason] = (siReasonCounts[reason] || 0) + 1;
           });
+
+        // ── Incomplete sessions ────────────────────────────────────────────
+        // Same definition as the Onsite Staff Report: status 'Scheduled' (no
+        // attendance logged), limited to sessions whose start date has passed.
+        const _now = new Date();
+        const incompleteSessions = Object.values(_sessMap || {}).filter(s =>
+          _isIncompleteSession(s, _now) && inRegion(s.school, s.district));
+        const incompleteBySchool = {};
+        const incompleteByTutor  = {};
+        incompleteSessions.forEach(s => {
+          const sch = s.school || '';
+          incompleteBySchool[sch] = (incompleteBySchool[sch] || 0) + 1;
+          const t = (s.instructor || '').trim() || 'Unassigned';
+          if (!incompleteByTutor[t]) incompleteByTutor[t] = { name: t, school: sch, count: 0 };
+          incompleteByTutor[t].count++;
+        });
+        const incompleteTutors = Object.values(incompleteByTutor).sort((a, b) => b.count - a.count);
 
         // ── Survey capture rate — Session-ID validated ─────────────────────
         // Primary key: SESS_ID from survey row matched to sess.id from session details.
@@ -8379,15 +8455,44 @@
 
         // ── Scholar capture ────────────────────────────────────────────────
         // Primary key: studentId|sessId — Session ID is the authoritative link.
-        // Count: 1 eligible per (student, session) pair.
+        // Count: 1 eligible per (student, session) pair, ONLY for scholars who
+        // attended — an absent scholar cannot take the survey. Pearl's session
+        // student list is the roster, so attendance is joined on user ID +
+        // session title + session date (attendance rows carry no session ID).
+        // A session with no matching attendance rows keeps its full roster.
+        // Planned start time disambiguates a tutor running the same titled
+        // session twice in one day (e.g. 8:45 and 9:20).
+        const clockMins = v => {
+          const m = String(v || '').replace(/^\s*\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}[T\s]*/, '').match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i);
+          if (!m) return '';
+          let h = parseInt(m[1], 10) % 24;
+          if (m[3]) { h = h % 12; if (/pm/i.test(m[3])) h += 12; }
+          return String(h * 60 + parseInt(m[2], 10));
+        };
+        const stuAttStatus = {};   // userId|title|YMD[|mins] → classifyRecord result
+        stuRows.forEach(r => {
+          const uid = r[ATT.USER_ID]; if (!uid) return;
+          const base = uid + '|' + (r[ATT.SESSION] || '') + '|' + toYMD(r[ATT.SESS_DATE]);
+          const cls = classifyRecord(r);
+          stuAttStatus[base] = cls;
+          const t = clockMins(r[ATT.PLAN_START]);
+          if (t) stuAttStatus[base + '|' + t] = cls;
+        });
         const scholEligBySchool = {};
         const scholEligMap      = {};   // key: stuId|sessId → { school, sessYMD }
         sessions.forEach(sess => {
           if (!sess.id) return;
           const sessYMD = toYMD(sess.start);
           const sch = sess.school || '__unknown__';
+          const sessMins = clockMins(sess.start);
+          const attStatus = stuId => {
+            const base = stuId + '|' + (sess.title || '') + '|' + sessYMD;
+            return (sessMins && stuAttStatus[base + '|' + sessMins]) || stuAttStatus[base];
+          };
+          const hasAtt = (sess.studentIds || []).some(stuId => attStatus(stuId));
           (sess.studentIds || []).forEach(stuId => {
             if (!stuId) return;
+            if (hasAtt && attStatus(stuId) !== 'attended') return;
             scholEligBySchool[sch] = (scholEligBySchool[sch] || 0) + 1;
             const k = stuId + '|' + sess.id;
             if (!scholEligMap[k]) scholEligMap[k] = { school: sch, sessYMD: sessYMD || '' };
@@ -8489,8 +8594,15 @@
             name:             sc.school || name,
             district:         sc.district || '',
             region:           schoolRegion(name, sc.district) || regionFilter,
-            attRate:          sc.attRate || 0,
+            // One-decimal rate from raw counts — sc.attRate is rounded to a whole
+            // number for the dashboard, which made the PDF school rate (88.0%)
+            // disagree with its district rollup (87.5%) for the same scholars.
+            attRate:          (sc.stuAttended + sc.stuAbsent) > 0
+              ? parseFloat((sc.stuAttended / (sc.stuAttended + sc.stuAbsent) * 100).toFixed(1)) : 0,
             sessions:         scTotal,
+            incomplete:       incompleteBySchool[name] || incompleteBySchool[sc.school] || 0,
+            ctPulls:          ctBySchool[name] || 0,
+            ctShare:          (ctDenomBySchool[name] || 0) > 0 ? Math.round((ctBySchool[name] || 0) / ctDenomBySchool[name] * 100) : 0,
             hitRate:          scTotal > 0 ? Math.round(scHit / scTotal * 100) : 0,
             ratioViolations:  scViolations,
             stuSurveyAvg:     parseFloat((sc.stuSurveyAvg  || 0).toFixed(2)),
@@ -8653,6 +8765,8 @@
           });
         }
         tutorList.sort((a, b) => b.hours - a.hours);
+        // Tutors on the regional roster with no delivered session in the period
+        const tutorsNoDelivered = tutorList.filter(t => !(tutorMinsByUid[t.uid] > 0) && !(tutorEligByUid[t.uid] > 0));
 
         // ── Ex-terminated aggregate metrics ───────────────────────────────────
         // Splits tutorList into separated (SEP) vs still-active staff so the PDF
@@ -8701,9 +8815,14 @@
           totalTutorLate,
           scholCaptureTopN, scholCaptureBottomN,
           tutorCaptureTop, tutorCaptureBottom, tutorLateSurveyList,
-          schools, districts, missedReasonCounts,
+          tutorCaptureAll: tutorCaptureList,
+          schools, districts, siReasonCounts,
+          totalIncomplete: incompleteSessions.length, incompleteTutors,
+          totalCtPulls, ctScholars,
+          tutorsNoDelivered: tutorsNoDelivered.map(t => ({ name: t.name, school: t.school, terminated: t.terminated })),
           stuSurveyAvg, instSurveyAvg, commentCounts,
           topTutors: tutorList.slice(0, 20),
+          allTutors: tutorList,   // full region roster — flags must not be limited to the top 20 by hours
           // Terminated staff tagging (same-year separations — see _separatedStaffMap)
           periodLabel: _periodLongLabel(),
           termTutors,                                    // full array of SEP tutors in Pearl data

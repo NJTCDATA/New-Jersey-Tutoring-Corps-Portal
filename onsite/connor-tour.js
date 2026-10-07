@@ -8,11 +8,17 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'njtc_onsite_tour_seen_v1';
+  const STORAGE_KEY = 'njtc_onsite_tour_seen_v2'; // v2: dashboard sections added
 
   const STEPS = [
     { tab: 'dashboard', target: '.njtc-ph-identity', title: "Welcome to the NJTC Portal", text: "I'm Connor — I'll walk you through what's here in a few quick steps. You can skip anytime, and I'm always available afterward if you have questions." },
     { tab: 'dashboard', target: '#njtcDashContent', title: 'Your Dashboard', text: "This is your live data — attendance, sessions, and scholars — pulled straight from Pearl. Scholars flagged with a ⚠ have a consecutive absence concern worth a check-in." },
+    { tab: 'dashboard', target: '§Your Attendance This Year', title: 'Your attendance', text: "Your own attendance for the year (goal: 90%) and why you missed when you did. Service interruptions such as closures and testing days never count against you." },
+    { tab: 'dashboard', target: '§Your Students', title: 'Your students', text: "Every scholar you tutor. \"Need Attention\" shows who is below the 80% attendance goal; click a scholar for their sessions and surveys. Keep groups at 1:3 and never more than 1:4." },
+    { tab: 'dashboard', target: '§Why Your Students Miss Sessions', title: 'Why sessions are missed', text: "The reasons behind missed sessions. When a teacher keeps a scholar in class, it counts as a missed session for that scholar, so let your site leader know when it keeps happening." },
+    { tab: 'dashboard', target: '§My Survey Completion', title: 'Attendance and surveys', text: "Complete attendance before each session ends, at the start or the end, and submit your survey for every session a scholar attends." },
+    { tab: 'dashboard', target: '§Are Your Students Moving Forward', title: 'Academic growth', text: "Your scholars' i-Ready growth, so you can see who is moving forward." },
+    { tab: 'dashboard', target: '§Career Progression', title: 'Your career path', text: "For apprentices: your progression, OJT and support plan in one place." },
     { tab: 'dashboard', target: '#connor-fab-wrap', title: "I'm always one click away", text: "Ask me about any scholar, your attendance trend, iReady growth, or what a term means — day or night. Try \"Who needs support?\" or \"What is a consecutive concern?\"" },
     { tab: 'platforms', target: '.platforms-grid', title: 'Your Platforms', text: 'Quick links to everything you use day-to-day — Pearl for attendance and surveys, i-Ready for diagnostics, Knowtion for your team, and me. Each card has an ℹ️ button with a full how-to guide.' },
     { tab: 'team', target: '#njtcTeamContainer', title: 'My Team', text: "As a site leader, this is your team view — tutor profiles, attendance, and any flagged concerns across your site, all in one place.", condition: leaderTabVisible },
@@ -38,15 +44,26 @@
     return !!tab && tab.style.display !== 'none';
   }
 
+  // '§Section Title' finds the dashboard card whose section title starts with
+  // that text (the dashboard sections have titles but no ids).
+  function findTarget(target) {
+    if (target.charAt(0) !== '§') return document.querySelector(target);
+    const want = target.slice(1).toLowerCase();
+    const t = [...document.querySelectorAll('.njtc-section-title')].find(e =>
+      e.offsetParent !== null && e.textContent.replace(/^[^A-Za-z]+/, '').toLowerCase().startsWith(want.toLowerCase()));
+    if (!t) return null;
+    return t.closest('.njtc-dash-section') || t.parentElement;
+  }
+
   function position(target) {
     const backdrop = document.getElementById('tourBackdrop');
     const spotlight = document.getElementById('tourSpotlight');
     const card = document.getElementById('tourCard');
-    const el = document.querySelector(target);
+    const el = findTarget(target);
     if (!backdrop || !spotlight || !card || !el) return false;
 
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    setTimeout(() => {
+    const place = () => {
       // #tourBackdrop (the containing block for these two, since it's the
       // nearest positioned ancestor) is itself position:fixed and pinned to
       // the viewport — so getBoundingClientRect()'s viewport-relative
@@ -71,14 +88,28 @@
       }
       let cardTop = r.bottom + 14;
       if (cardTop + 180 > window.innerHeight) cardTop = r.top - 190;
+      // keep the whole card on screen, whatever its height
+      const ch = card.offsetHeight || 180;
+      cardTop = Math.min(cardTop, window.innerHeight - ch - 16);
       card.style.left = Math.max(16, cardLeft) + 'px';
       card.style.top = Math.max(16, cardTop) + 'px';
-    }, 260);
+    };
+    setTimeout(place, 260);
+    setTimeout(place, 750); // again once smooth scrolling has settled
     return true;
   }
 
+  // Steps this person will actually see: role conditions, and dashboard
+  // sections that exist for them (e.g. Career Progression is apprentices-only).
+  // Other tabs are rendered on demand, so their steps are kept.
+  let RUN = STEPS;
+  function activeSteps() {
+    return STEPS.filter(st => (typeof st.condition !== 'function' || st.condition()) &&
+      (st.tab !== 'dashboard' || st.target.charAt(0) !== '§' || !!findTarget(st.target)));
+  }
+
   function render() {
-    const step = STEPS[idx];
+    const step = RUN[idx];
     if (!step) { end(); return; }
     if (typeof step.condition === 'function' && !step.condition()) { idx++; render(); return; }
     if (typeof switchTab === 'function') switchTab(step.tab);
@@ -90,10 +121,10 @@
         <div id="tourCard-title">${step.title}</div>
         <div id="tourCard-text">${step.text}</div>
         <div id="tourCard-foot">
-          <span id="tourCard-progress">${idx + 1} of ${STEPS.length}</span>
+          <span id="tourCard-progress">${idx + 1} of ${RUN.length}</span>
           <span id="tourCard-btns">
             <button class="njtc-tour-btn njtc-tour-skip" id="tourSkip">Skip</button>
-            <button class="njtc-tour-btn njtc-tour-next" id="tourNext">${idx === STEPS.length - 1 ? 'Done' : 'Next'}</button>
+            <button class="njtc-tour-btn njtc-tour-next" id="tourNext">${idx === RUN.length - 1 ? 'Done' : 'Next'}</button>
           </span>
         </div>`;
       document.getElementById('tourSkip').addEventListener('click', end);
@@ -110,6 +141,7 @@
     }
     active = true;
     idx = 0;
+    RUN = activeSteps();
     document.getElementById('tourBackdrop').classList.add('open');
     render();
   }

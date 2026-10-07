@@ -152,6 +152,40 @@
   .pt-nav-btn-primary{background:var(--gold);border-color:var(--gold);color:var(--navy)}
   .pt-nav-btn-primary:hover{background:var(--gold-lite);color:var(--navy)}
 
+  /* ── Partner lenses: attention panel, school tiles, contacts, collapsibles ── */
+  .pt-hero-row{display:flex;gap:1rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;position:relative;z-index:1}
+  .pt-crumb{display:inline-flex;align-items:center;gap:.35rem;margin-bottom:.5rem;font-size:.78rem;font-weight:700;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:.25rem .7rem;cursor:pointer;font-family:inherit}
+  .pt-crumb:hover{background:rgba(255,255,255,.24)}
+  .pt-contact{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:.65rem .85rem;min-width:230px;max-width:340px}
+  .pt-contact-title{font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gold-lite,#ffd166);margin-bottom:.35rem}
+  .pt-contact a{display:block;color:#fff;font-size:.8rem;font-weight:600;text-decoration:none;padding:.15rem 0}
+  .pt-contact a:hover{text-decoration:underline}
+  .pt-contact small{display:block;color:rgba(255,255,255,.6);font-size:.7rem;margin-top:.3rem}
+  .pt-attn{border-left:4px solid var(--gold,#f0a500);margin-bottom:1.1rem}
+  .pt-attn ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45rem}
+  .pt-attn li{display:flex;gap:.55rem;align-items:flex-start;font-size:.88rem;color:var(--text)}
+  .pt-attn li .dot{width:9px;height:9px;border-radius:50%;margin-top:.38rem;flex-shrink:0}
+  .pt-attn li a{color:var(--blue-mid);font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap}
+  .pt-schools{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.75rem}
+  .pt-school-tile{background:var(--surface);border:1px solid var(--border-2);border-radius:12px;padding:.8rem .9rem;cursor:pointer;text-align:left;font-family:inherit;box-shadow:var(--shadow-sm);transition:transform .12s,box-shadow .12s;border-top:4px solid var(--tile-c,#0d6e3a)}
+  .pt-school-tile:hover,.pt-school-tile:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow-lg);outline:none}
+  .pt-school-name{font-size:.84rem;font-weight:800;color:var(--navy);margin-bottom:.45rem;line-height:1.25}
+  .pt-school-rate{font-size:1.45rem;font-weight:800;color:var(--tile-c,#0d6e3a);line-height:1}
+  .pt-school-rate span{font-size:.7rem;font-weight:600;color:var(--muted);margin-left:.3rem}
+  .pt-school-stats{display:grid;grid-template-columns:1fr 1fr;gap:.25rem .6rem;margin-top:.55rem;font-size:.72rem;color:var(--text-2)}
+  .pt-school-stats b{color:var(--navy)}
+  .pt-school-go{margin-top:.55rem;font-size:.72rem;font-weight:700;color:var(--blue-mid)}
+  details.pt-fold{margin-top:1.1rem}
+  details.pt-fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800;color:var(--navy);font-size:.92rem}
+  details.pt-fold>summary::-webkit-details-marker{display:none}
+  details.pt-fold>summary::after{content:'Show';font-size:.72rem;font-weight:700;color:var(--blue-mid)}
+  details.pt-fold[open]>summary::after{content:'Hide'}
+  details.pt-fold[open]>summary{margin-bottom:.8rem}
+  .pt-pager{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-top:.7rem;font-size:.78rem;color:var(--muted)}
+  .pt-pager button{font:inherit;font-size:.78rem;font-weight:700;padding:.3rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--navy);cursor:pointer}
+  .pt-pager button:disabled{opacity:.4;cursor:default}
+  .pt-more{font:inherit;font-size:.78rem;font-weight:700;color:var(--blue-mid);background:none;border:none;cursor:pointer;padding:.4rem 0 0}
+
   /* ── Fit every screen: laptops at 125-150% Windows display scaling land
      at ~1280-1536px wide and ~650-760px tall, phones well below that. ── */
   @media(max-width:1180px){
@@ -336,15 +370,15 @@
     <span class="pt-footer-sep">·</span>
     <span id="footerScope"></span>
     <span class="pt-footer-sep">·</span>
-    <span>Questions about this data? Contact your NJTC Program Manager.</span>
+    <span id="footerContact">Questions about this data? Contact your NJTC Program Manager.</span>
   </div>
 </footer>
 
 <script src="../auth/auth.js?v=1"></script>
 <script src="../auth/partner-guard.js?v=1"></script>
-<script src="./partner-report.js?v=2"></script>
-<script src="./app.js?v=4"></script>
-<script src="./pie-bot.js?v=2"></script>
-<script src="./tour.js?v=2"></script>
+<script src="./partner-report.js?v=4"></script>
+<script src="./app.js?v=6"></script>
+<script src="./pie-bot.js?v=4"></script>
+<script src="./tour.js?v=4"></script>
 </body>
 </html>

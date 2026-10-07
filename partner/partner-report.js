@@ -101,6 +101,21 @@
     return _hm(h, +m[2]);
   }
 
+  // Every "HADDON TWP ONLY -- …" reason (whole group support, program
+  // redevelopment, …) is Haddon Township-only. Logged anywhere else (e.g. iLearn CMO) it is treated
+  // as "NJTC Internal Issue/Error" — even if Pearl's backend has it that way.
+  // Same rule in central/modules/programming.js, partner/partner-report.js,
+  // onsite/pearl-data.js, onsite/leader-team.js and scripts/build-pulse-archive.js.
+  function fixMissReason(reason, school, district) {
+    if (/^\s*HADDON TWP ONLY/i.test(reason || '') &&
+        !/haddon/i.test((district || '') + ' ' + (school || ''))) return 'NJTC Internal Issue/Error';
+    return reason;
+  }
+  function fixAttReasons(rows) {
+    (rows || []).forEach(r => { const f = fixMissReason(r[ATT.MISS_REASON] || '', r[ATT.SCHOOL], r[ATT.DISTRICT]); if (f !== (r[ATT.MISS_REASON] || '')) r[ATT.MISS_REASON] = f; });
+    return rows;
+  }
+
   // raw = { att, inst, stu, sess } — each INCLUDING its header row. Returns
   // header-less canonical rows (SESS layout for sessions), minus "zzz" rows.
   function normalizeSeason(season, raw) {
@@ -132,6 +147,7 @@
       sess = body(raw.sess);
     }
     sess = keep(sess, SESS.DISTRICT, SESS.SCHOOL);
+    att = fixAttReasons(att.map(r => r.slice()));
     return { att, inst, stu, sess };
   }
 
@@ -158,8 +174,23 @@
       lovingPct: lovingPct(stu),
       scholarSurveyAvg: ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length * 100) / 100 : null,
       scholarSurveys: stu.length,
+      // ── Final operations summary (prior-year view; no row-level data) ──
+      missedReasons: scholarMissedReasons(st.rows).slice(0, 8),
+      keptInClass: st.rows.filter(r => (r[ATT.ATT_STATUS] || '').trim() === 'Missed' && CT_SUMMARY_REASONS.has((r[ATT.MISS_REASON] || '').trim())).length,
+      surveyDist: ['CONFIDENCE', 'ENJOYMENT', 'LEARNING', 'OVERALL'].reduce((o, k) => {
+        const c = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        stu.forEach(r => { const v = Math.round(parseFloat(r[STU[k]])); if (c[v] !== undefined) c[v]++; });
+        o[k] = c; return o;
+      }, {}),
+      bySchool: [...schools].sort().map(name => {
+        const rows = att.filter(r => (r[ATT.SCHOOL] || '').trim() === name);
+        const ss = scholarStats(rows);
+        return { school: name, scholarAttendanceRate: ss.rate, scholarsServed: servedScholars(rows),
+          lovingPct: lovingPct(stu.filter(r => (r[STU.SCHOOL] || '').trim() === name)) };
+      }),
     };
   }
+  const CT_SUMMARY_REASONS = new Set(['Classroom Teacher Requested to Keep Scholar in Class', 'HADDON TWP ONLY -- Teacher requested whole group support']);
 
 
   const SCHOLAR_MISS_REASONS = new Set([
@@ -364,7 +395,7 @@
   //  - Rotates weekly: the selected week, or the most recent week that has
   //    an eligible comment.
   // ══════════════════════════════════════════════════════════════════════
-  const HIGHLIGHT_MAX = 8;
+  const HIGHLIGHT_MAX = 5;
 
   const POSITIVE_SIGNALS = /\b(fun|funny|enjoy\w*|lik(e|ed|es)|lov(e|ed|es|ing)|good|great|best|awesome|amazing|cool|nice|happy|help(ed|ful|s|ing)?|learn\w*|understand\w*|understood|excit\w*|proud|thank\w*|favorite|favourite|excellent|wonderful|fantastic|progress\w*|improv\w*|confiden\w*|engag\w*|kind|patient|easy|easier|smart|success\w*|grow\w*|interesting|super|glad|awesome|well)\b/i;
 
@@ -378,6 +409,17 @@
   const PROFANITY = /(f+[\W_]*u+[\W_]*c+[\W_]*k+|sh[i1!]+t|b[i1!]+tch|\ba+ss+(hole)?\b|\bd[a@]mn|\bcrap\b|\bh[e3]ll\b|\bd[i1!]ck|\bp[i1!]ss|bastard|\bstupid\b|\bdumb\b|\bidiot|\bsucks?\b|\bsexy\b|\bwtf\b|\bstfu\b|\bomfg\b|\bslut|\bwhore|\bn[i1!]gg|\bretard|\bpenis|\bvagina|\bboob|\bbutt\b|\bpoop|\bfart)/i;
 
   const CONTACT_INFO = /(@|https?:|www\.|\.com\b|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b)/i;
+
+  // Partner-safe display of an individual scholar's own comment (Scholar
+  // Profiles). The comment stays visible — school staff may need to see a
+  // concern — but profanity is masked and contact details are redacted.
+  const PROFANITY_G = new RegExp(PROFANITY.source, 'gi');
+  const CONTACT_G = /(\S+@\S+|https?:\/\/\S+|www\.\S+|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b)/gi;
+  function partnerSafeText(text) {
+    return String(text || '')
+      .replace(PROFANITY_G, m => m.charAt(0) + '*'.repeat(Math.max(2, m.length - 1)))
+      .replace(CONTACT_G, '[removed]');
+  }
 
   // Adult-written notes typed into the scholar comment field.
   const ADULT_VOICE = /\b(she|he|her|him|his|hers|they|them|their|scholar|scholars|student|students|survey|session survey|this is \w+|i believe|i think we|we began|teacher'?s)\b/i;
@@ -426,6 +468,9 @@
     if (/\n\s*\n/.test(t)) return false; // multi-paragraph write-up
     if (t.split(/\s+/).length < 3) return false;
     if (!/[a-z]/i.test(t)) return false;
+    if (/\d{4,}/.test(t)) return false;                       // number strings ("Best time 67676767")
+    const nonSpace = t.replace(/\s+/g, '');
+    if (nonSpace && (t.match(/[a-z]/gi) || []).length / nonSpace.length < 0.6) return false; // mostly emoji/symbols
     if (!POSITIVE_SIGNALS.test(t)) return false;
     if (NEGATIVE_SIGNALS.test(t) || SENSITIVE_SIGNALS.test(t) || PROFANITY.test(t) || CONTACT_INFO.test(t)) return false;
     if (who === 'Scholar' && ADULT_VOICE.test(t)) return false;
@@ -931,11 +976,21 @@
     return pearlPromises[season];
   }
 
+  // Pearl's district name ↔ the partner directory's name, where they differ.
+  // Compared case-insensitively. Add a line here when Pearl renames a district.
+  const DISTRICT_ALIASES = {
+    'pemberton township': 'Pemberton Twp Schools',
+  };
+  function canonDistrict(name) {
+    const k = String(name || '').trim().toLowerCase();
+    return (DISTRICT_ALIASES[k] || String(name || '').trim()).toLowerCase();
+  }
   function scopeMatches(entry, district, school) {
     if (entry.scopeType === 'all') return true;
-    if (entry.scopeType === 'region') return (REGION_DISTRICTS[entry.region] || []).includes(district);
-    if (entry.scopeType === 'district') return district === entry.district;
-    if (entry.scopeType === 'school') return district === entry.district && (entry.schools || []).includes(school);
+    const d = canonDistrict(district);
+    if (entry.scopeType === 'region') return (REGION_DISTRICTS[entry.region] || []).some(x => canonDistrict(x) === d);
+    if (entry.scopeType === 'district') return d === canonDistrict(entry.district);
+    if (entry.scopeType === 'school') return d === canonDistrict(entry.district) && (entry.schools || []).includes(school);
     return false;
   }
   function inCurrentSY(dateStr) { return inSeason(CURRENT_SEASON, dateStr); }
@@ -946,6 +1001,39 @@
     const h = s.match(/(\d+)\s*hour/); if (h) mins += parseInt(h[1], 10) * 60;
     const mn = s.match(/(\d+)\s*min/); if (mn) mins += parseInt(mn[1], 10);
     return mins;
+  }
+
+  // ── NJTC contacts for partners ──────────────────────────────────────────
+  // Program management by region (same pairs as apps-scripts/concern-form-
+  // receipt.gs), plus the Data team for questions about the numbers.
+  const CONTACTS = {
+    'North-East': [
+      { name: 'Taneisha Clemons', role: 'Regional Director, Program Management', email: 'taneisha@njtutoringcorps.org' },
+      { name: 'Jenny Irwin',      role: 'Regional Director, Program Management', email: 'jenny@njtutoringcorps.org' },
+    ],
+    'South-West': [
+      { name: 'Andrea Bowman',      role: 'Regional Director, Program Management', email: 'andrea@njtutoringcorps.org' },
+      { name: 'Tierney Tittermary', role: 'Regional Director, Program Management', email: 'tierney@njtutoringcorps.org' },
+    ],
+    data: { name: 'Amir Wallace', role: 'NJTC Data Team', email: 'amir@njtutoringcorps.org' },
+  };
+  // identity.region is 'North-East' | 'South-West' | 'ALL'; fall back to the
+  // district's region list when a directory entry has no region set.
+  function regionFor(identity) {
+    const r = (identity && identity.region) || '';
+    if (CONTACTS[r]) return r;
+    const d = canonDistrict(identity && identity.district);
+    const hit = Object.keys(REGION_DISTRICTS).find(k => REGION_DISTRICTS[k].some(x => canonDistrict(x) === d));
+    return hit || 'ALL';
+  }
+  function contactsFor(identity) {
+    const region = regionFor(identity);
+    const pms = CONTACTS[region] || CONTACTS['North-East'].concat(CONTACTS['South-West']);
+    return { region, programManagers: pms, data: CONTACTS.data };
+  }
+  function mailtoHref(emails, subject) {
+    const to = [].concat(emails).join(',');
+    return 'mailto:' + to + (subject ? '?subject=' + encodeURIComponent(subject) : '');
   }
 
   function bundleForEntry(pearl, entry) {
@@ -969,6 +1057,7 @@
     curateHighlights, loadExclusions, allWeeks, buildReportModel, scopeLabel,
     generatePDF, loadPearl, bundleForEntry, scopeMatches,
     SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,
-    canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS
+    canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS,
+    canonDistrict, contactsFor, mailtoHref, partnerSafeText, fixMissReason, fixAttReasons
   };
 })();

@@ -155,7 +155,7 @@
 
   // ── Definitions library ─────────────────────────────────────────────────────
   var DEFINITIONS = {
-    'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Service interruptions (holidays, school closures, testing days) are NOT counted against you or your scholars.** Goal is 90% or higher.' },
+    'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Service interruptions (holidays, school closures, testing days) are NOT counted against you or your scholars.** Goals: scholars 80% or higher, tutors 90% or higher.' },
     'service_interruption': { term:'Service Interruption (SI)', category:'Attendance', short:'A missed session that was NOT the tutor\'s or scholar\'s fault.', full:'Examples: school closures, holidays, NJTC diagnostic testing, school events, drills. These are excluded from attendance rate calculations. You\'ll see them tracked separately on your dashboard.' },
     'not_recorded': { term:'Not Recorded', category:'Pearl', short:'A session where attendance was never entered in Pearl.', full:'When a session shows "Not recorded," no one logged attendance for that day. This is an action item — go into Pearl and mark attendance as soon as possible. Sessions that stay unrecorded affect program data quality.' },
     'unique_scholars': { term:'Unique Scholars', category:'Pearl', short:'The number of individual students you\'ve worked with this year.', full:'This counts each student only once, regardless of how many sessions they attended. It comes from Pearl operations data for the current school year only — not historical iReady data.' },
@@ -188,9 +188,11 @@
   function userName() { var u = cu(); return u ? (u.name || '').split(' ')[0] : ''; }
 
   // Attendance rate color emoji
-  function attEmoji(rate) {
+  // goal: 90 for a tutor's own attendance (default), 80 for scholars
+  function attEmoji(rate, goal) {
     if (rate === null || rate === undefined) return '—';
-    return rate >= 90 ? '🟢' : rate >= 75 ? '🟡' : '🔴';
+    goal = goal || 90;
+    return rate >= goal ? '🟢' : rate >= goal - 10 ? '🟡' : '🔴';
   }
 
   // Format a rate with emoji
@@ -506,7 +508,7 @@
         var name = u ? (u.name || '').split(' ')[0] : 'You';
         var msg = '📊 **' + name + '\'s Dashboard**\n\n';
         msg += attEmoji(d.myAttRate) + ' Tutor Attendance: **' + (d.myAttRate !== null ? d.myAttRate + '%' : '—') + '**\n';
-        msg += attEmoji(d.scholarAttRate) + ' Scholar Attendance: **' + (d.scholarAttRate !== null ? d.scholarAttRate + '%' : '—') + '**\n';
+        msg += attEmoji(d.scholarAttRate, 80) + ' Scholar Attendance: **' + (d.scholarAttRate !== null ? d.scholarAttRate + '%' : '—') + '**\n';
         msg += '👥 Scholars this year: **' + d.uniqueScholarCount + '**\n';
         msg += '✅ Sessions attended: **' + d.myAttended + '**\n';
         msg += '📝 Survey rate: **' + (d.surveyRate !== null ? d.surveyRate + '%' : '—') + '**\n';
@@ -588,7 +590,7 @@
         var d = pd();
         if (!d || !d.hasData) return 'Your Pearl data is still loading — give it a moment!';
         var msg = '**You\'ve worked with ' + d.uniqueScholarCount + ' unique scholars** this school year at ' + (d.tutorSchool || 'your site') + '.';
-        if (d.scholarAttRate !== null) msg += '\n\n' + attEmoji(d.scholarAttRate) + ' Scholar attendance avg: **' + d.scholarAttRate + '%**';
+        if (d.scholarAttRate !== null) msg += '\n\n' + attEmoji(d.scholarAttRate, 80) + ' Scholar attendance avg: **' + d.scholarAttRate + '%**';
         var consecCount = (d.scholars || []).filter(function(s){ return s.consecConcern; }).length;
         if (consecCount > 0) msg += '\n⚠ **' + consecCount + ' scholar' + (consecCount > 1 ? 's' : '') + '** ha' + (consecCount > 1 ? 've' : 's') + ' a consecutive absence concern.';
         var lowAtt = (d.scholars || []).filter(function(s){ return s.attRate !== null && s.attRate < 75; }).length;
@@ -616,16 +618,16 @@
         var d = pd();
         if (!d || !d.hasData) return 'Your Pearl data is still loading — give it a moment!';
         var low = (d.scholars || [])
-          .filter(function(s){ return s.attRate !== null && s.attRate < 90; })
+          .filter(function(s){ return s.attRate !== null && s.attRate < 80; })
           .sort(function(a,b){ return a.attRate - b.attRate; })
           .slice(0, 8);
-        if (!low.length) return '🟢 All your scholars are above 90% attendance — that\'s excellent!';
-        var msg = '**Scholars with attendance below 90%** (worst first):\n\n';
+        if (!low.length) return '🟢 All your scholars are at or above the 80% attendance goal — that\'s excellent!';
+        var msg = '**Scholars below the 80% attendance goal** (worst first):\n\n';
         msg += dataTable(low.map(function(s){
-          return [s.name + (s.consecConcern ? ' ⚠' : ''), s.attRate + '%', s.attRate >= 75 ? '#f59e0b' : '#ef4444'];
+          return [s.name + (s.consecConcern ? ' ⚠' : ''), s.attRate + '%', s.attRate >= 70 ? '#f59e0b' : '#ef4444'];
         }));
-        var critical = low.filter(function(s){ return s.attRate < 75; }).length;
-        if (critical > 0) msg += '\n\n🔴 **' + critical + '** scholar' + (critical > 1 ? 's' : '') + ' are critically low (under 75%). These should be flagged immediately.';
+        var critical = low.filter(function(s){ return s.attRate < 70; }).length;
+        if (critical > 0) msg += '\n\n🔴 **' + critical + '** scholar' + (critical > 1 ? 's' : '') + ' are critically low (under 70%). These should be flagged immediately.';
         return msg;
       }
     },
@@ -1029,7 +1031,7 @@
     // ══ PROGRAM EXPECTATIONS ══════════════════════════════════════════════════
     { match: /expectation|policy|what.*expected|requirement|\bgoal\b/i,
       respond: function() {
-        return '📋 **NJTC Onsite Expectations**\n\n• **Attendance:** 90%+ (yours and your scholars\')\n• **Surveys:** 100% completion — every attended session\n• **Pearl:** Record attendance same-day\n• **Scholars:** Flag concerns in survey comments; notify site leader\n• **Consecutive absences:** Reach out to student + family; notify site leader\n\nAll tracked live on your dashboard.';
+        return '📋 **NJTC Onsite Expectations**\n\n• **Attendance:** yours 90%+ · your scholars 80%+\n• **Group size:** 1:3 (never more than 1:4)\n• **Surveys:** 100% completion — every attended session\n• **Pearl:** Complete attendance before the session ends\n• **Scholars:** Flag concerns in survey comments; notify site leader\n• **Consecutive absences:** Reach out to student + family; notify site leader\n\nAll tracked live on your dashboard.';
       }
     },
 

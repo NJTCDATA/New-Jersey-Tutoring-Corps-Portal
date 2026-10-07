@@ -101,7 +101,7 @@ const platformGuides = {
 
             <div class="guide-section guide-highlight">
                 <h3>📈 Data-Driven Tutoring</h3>
-                <p><strong>Goal:</strong> ≥90% attendance + 30-45 min sessions = Maximum impact</p>
+                <p><strong>Goal:</strong> ≥80% scholar attendance + 30-45 min sessions = Maximum impact</p>
                 <p><strong>Strategy:</strong> Use i-Ready color bands + weekly progress data to differentiate instruction</p>
                 <p><strong>Action:</strong> Review data → Adjust instruction → Monitor impact → Repeat</p>
             </div>
@@ -119,8 +119,8 @@ const platformGuides = {
             <div class="guide-section">
                 <h3>📅 Daily Tasks</h3>
                 <ol>
-                    <li><strong>Log In Daily:</strong> Access PEARL at the start of each session</li>
-                    <li><strong>Mark Attendance:</strong> Record student attendance within 24 hours (REQUIRED)</li>
+                    <li><strong>Log In Daily:</strong> Open PEARL for every session you run</li>
+                    <li><strong>Mark Attendance:</strong> Complete scholar attendance before the session ends — at the start or the end, as long as it is done before the session closes (REQUIRED)</li>
                     <li><strong>Submit Exit Surveys:</strong> Complete session surveys before leaving (REQUIRED)</li>
                     <li><strong>Track Hours:</strong> Ensure your hours are accurately recorded for payroll</li>
                 </ol>
@@ -129,8 +129,8 @@ const platformGuides = {
             <div class="guide-section">
                 <h3>✨ PEARL Best Practices</h3>
                 <ul>
-                    <li><strong>Attendance = Critical:</strong> ≥90% attendance drives program success</li>
-                    <li><strong>Same-Day Logging:</strong> Log attendance immediately after each session</li>
+                    <li><strong>Attendance = Critical:</strong> our goal is ≥80% scholar attendance</li>
+                    <li><strong>Before the Session Ends:</strong> Attendance is complete before the session closes — never left for later</li>
                     <li><strong>Accurate Data:</strong> Double-check student names and dates</li>
                     <li><strong>Survey Completion:</strong> Your feedback improves program quality</li>
                     <li><strong>Technical Issues:</strong> Contact onsite leader immediately if PEARL is down</li>
@@ -335,10 +335,9 @@ const roleContent = {
                 title: "Your Daily Checklist",
                 items: [
                     "Review i-Ready color bands before sessions",
-                    "Log attendance in PEARL immediately after session",
+                    "Complete attendance in PEARL before the session ends",
                     "Complete exit survey before leaving",
                     "Check Ask Connor for any questions or challenges",
-                    "Track student progress in Progress Monitoring",
                     "Share your wins on Knowtion!"
                 ]
             },
@@ -346,7 +345,7 @@ const roleContent = {
                 icon: "🎯",
                 title: "Session Best Practices",
                 items: [
-                    "1:3 tutor-to-student ratio maximum",
+                    "1:3 tutor-to-scholar ratio (never more than 1:4)",
                     "30-45 minute focused sessions",
                     "Start with warm-up activity (5 min)",
                     "Targeted instruction based on i-Ready data (25-35 min)",
@@ -386,7 +385,6 @@ const roleContent = {
                 icon: "📊",
                 title: "Weekly Priorities",
                 items: [
-                    "Review Progress Monitoring data every Monday",
                     "Check tutor attendance logging in PEARL",
                     "Identify tutors needing additional support",
                     "Share best practices and celebrate wins",
@@ -439,8 +437,7 @@ const roleContent = {
                 icon: "📈",
                 title: "Weekly Data Review",
                 items: [
-                    "Check Progress Monitoring dashboard",
-                    "Verify ≥90% attendance goal progress",
+                    "Verify progress toward the 80% scholar attendance goal",
                     "Identify students needing additional support",
                     "Review tutor performance and engagement",
                     "Prepare weekly update for Program Manager"

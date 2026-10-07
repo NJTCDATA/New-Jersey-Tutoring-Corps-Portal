@@ -569,6 +569,14 @@
     return (parts[0][0] || '?').toUpperCase();
   }
 
+  // HADDON TWP ONLY reason outside Haddon → NJTC Internal Issue/Error
+  // (same rule as onsite/pearl-data.js and central/modules/programming.js)
+  function ltFixReason(reason, r) {
+    const where = ((r && (r['District'] || '')) + ' ' + (r && (r['School'] || ''))).trim();
+    if (/^\s*HADDON TWP ONLY/i.test(reason || '') && !/haddon/i.test(where)) return 'NJTC Internal Issue/Error';
+    return reason;
+  }
+
   function attColor(p) {
     if (p == null) return '#6b7280';
     if (p >= 95) return '#10b981';
@@ -1133,7 +1141,7 @@
     attRows.forEach(r => {
       const vals   = Object.values(r);
       const status = (r['Attendance Status'] || r['Status'] || vals[6] || '').trim();
-      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || vals[7] || '').trim();
+      const reason = ltFixReason((r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || vals[7] || '').trim(), r);
       total++;
       // Pearl ATT exact status values (confirmed from Central portal)
       if (status === 'Attended' || status === 'Late') attended++;
@@ -1177,7 +1185,7 @@
       const name   = (r['User'] || vals[0] || '').trim();
       const grade  = r['Grade'] || vals[8] || '';
       const status = (r['Attendance Status'] || vals[6] || '').trim();
-      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || vals[7] || '').trim();
+      const reason = ltFixReason((r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || vals[7] || '').trim(), r);
       const key = normName(name);
       if (!key) return;
       if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0, fromAtt: true };
@@ -1362,11 +1370,11 @@
   function computeSIDetails(attRows) {
     return attRows.filter(r => {
       const status = (r['Attendance Status'] || r['Status'] || '').trim();
-      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim();
+      const reason = ltFixReason((r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim(), r);
       return isSI(status, reason);
     }).map(r => {
       const status = (r['Attendance Status'] || r['Status'] || '').trim();
-      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim();
+      const reason = ltFixReason((r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim(), r);
       // Categorize: tutor-caused vs school-caused
       const tutorCaused = ['Absent; Not Covered', 'Tutor Left Early', 'Tutor Absent'];
       const category = tutorCaused.some(p => status.includes(p) || reason.includes(p))

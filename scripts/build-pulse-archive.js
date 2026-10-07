@@ -57,8 +57,14 @@ console.log('scholar-caused reasons:', [...SCHOLAR_MISS].join(' | '));
 console.log('tutor-caused reasons:  ', [...TUTOR_MISS].join(' | '));
 
 // Mirrors po.classifyRecord (central/modules/programming.js).
+// HADDON TWP ONLY reason outside Haddon → NJTC Internal Issue/Error (same rule as programming.js)
+function fixMissReason(reason, school, district) {
+  if (/^\s*HADDON TWP ONLY/i.test(reason || '') &&
+      !/haddon/i.test((district || '') + ' ' + (school || ''))) return 'NJTC Internal Issue/Error';
+  return reason;
+}
 function classify(r) {
-  const role = r[1] || '', st = r[6] || '', why = r[7] || '';
+  const role = r[1] || '', st = r[6] || '', why = fixMissReason(r[7] || '', r[11], r[12]);
   if (st === 'Attended' || st === 'Late') return 'attended';
   if (COUNTS_AS_ATT.has(why)) return 'attended';
   if (st === 'Not recorded') return 'not_recorded';
@@ -70,6 +76,7 @@ function classify(r) {
 }
 
 const rows = parseCSV(fs.readFileSync(csvPath, 'utf8'));
+rows.forEach((r, i) => { if (i > 0 && r[7]) r[7] = fixMissReason(r[7], r[11], r[12]); });
 const header = rows.shift().map(h => h.trim());
 const expect = ['User', 'Role', 'Session', 'Session Status', 'Planned Session Start', 'Session Date',
   'Attendance Status', 'Attendance Missed Reason'];
