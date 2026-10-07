@@ -7788,7 +7788,7 @@
 
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
-    'Field Support': ['Who needs support?',                    "Who didn't complete their tutor surveys?",    'Which tutors have blank missed reasons?', 'Show incomplete sessions', 'Where are teacher pull-outs happening?', 'Missing scholar surveys by tutor'],
+    'Support Report': ['Who needs support?',                    "Who didn't complete their tutor surveys?",    'Which tutors have blank missed reasons?', 'Show incomplete sessions', 'Where are teacher pull-outs happening?', 'Missing scholar surveys by tutor'],
     'Overview':     ['How are we doing overall?',               'What should I know today?',                   'Give me a flash summary PDF'],
     'Attendance':   ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',            'Which district has the lowest attendance?'],
     'KPIs':         ['Which goals have not been met?',          'Which goal area is the weakest?',             'What does the weighted score mean?'],
@@ -7832,11 +7832,11 @@
 
   // ── Dept-specific extras — prepend these category tabs for specific roles ──
   var DEPT_CAT_DEFAULTS = {
-    programming: { extra: ['Field Support', 'My Sites'],                  def: 'Field Support'   },
+    programming: { extra: ['Support Report', 'My Sites'],                 def: 'Support Report'  },
     training:    { extra: ['T&D'],                                        def: 'T&D'             },
     finance:     { extra: ['Finance'],                                    def: 'Finance'         },
     hr:          { extra: ['Workforce'],                                  def: 'Workforce'       },
-    data:        { extra: ['Field Support','Reports','Demographics'],     def: 'Overview'        },
+    data:        { extra: ['Support Report','Reports','Demographics'],    def: 'Overview'        },
     kb:          { extra: ['Grant Reporting','Dept Briefing'],            def: 'Grant Reporting' },
     leadership:  { extra: ['Grant Reporting','Quarterly','Satisfaction'], def: 'Grant Reporting' },
   };
@@ -9582,7 +9582,8 @@
     input.school = school;
     var R = window.njtcFieldSupport.computeFieldSupport(input);
     var where = school || (input.region === 'ALL' ? 'all regions' : input.region + ' Region');
-    var foot = '\n\n_Full list with Session IDs: Pearl Operations → **Field Support** → Download Excel._';
+    var _reg = input.region !== 'ALL' ? input.region : (school ? input.regionOf(school, '') : '');
+    var foot = '\n\n_Full list with Session IDs: Pearl Operations → **' + (_reg ? _reg + ' Support Report' : 'NE / SW Support Report') + '** → Download Excel._';
     var top = function(arr, n) { return arr.slice(0, n || 10); };
     var lines = [];
     if (kind === 'incomplete') {
@@ -9625,7 +9626,7 @@
       if (sp.length) lines.push('\n**' + sp.length + ' scholar' + (sp.length !== 1 ? 's' : '') + ' pulled 3+ times:** ' + top(sp, 6).map(function(x){ return x.scholar + ' (' + x.pullouts + ')'; }).join(', '));
     } else {
       var hi = R.schools.filter(function(x){ return x.support === 'High'; });
-      lines.push('**Field Support — ' + where + '**\n');
+      lines.push('**Support Report — ' + where + '**\n');
       lines.push('Campuses needing the most support: ' + (hi.length ? hi.map(function(x){ return '**' + x.school + '**'; }).join(', ') : 'none at High level') + '\n');
       lines.push('Tutors with the most fixes:');
       top(R.tutors, 8).forEach(function(x){

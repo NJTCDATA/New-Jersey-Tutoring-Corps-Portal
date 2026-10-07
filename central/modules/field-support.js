@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// NJTC Pearl Ops — Field Support Report  (Programming + Data)
+// NJTC Pearl Ops — Regional Support Report  (Programming NE / SW buttons; Data)
 //
 // Answers "who or which campus needs support, and what do they fix" so
 // program managers can hand their field staff a list instead of digging
@@ -375,7 +375,7 @@
 
     doc.setFillColor(...NAVY); doc.rect(0, 0, PW, 20, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
-    doc.text('Field Support Report  -  ' + ascii(scopeLabel), ML, 10);
+    doc.text('Support Report  -  ' + ascii(scopeLabel), ML, 10);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
     doc.text('Generated ' + gen + (R.from || R.to ? '  -  Sessions ' + (R.from || 'start') + ' to ' + (R.to || 'today') : '') + '  -  Full detail in the Excel download', ML, 16);
 
@@ -460,7 +460,8 @@
   // UI — modal in Pearl Ops (Programming + Data)
   // ─────────────────────────────────────────────────────────────────────────
   let _region = 'ALL';
-  function open() {
+  function open(region) {
+    if (region === 'NE' || region === 'SW' || region === 'ALL') _region = region;
     if (!window.po || typeof window.po.getFieldSupportInput !== 'function') { alert('Pearl Ops data not ready yet - try again in a moment.'); return; }
     const schools = window.po.getFieldSupportInput('ALL').schoolNames || [];
     let m = document.getElementById('fsModal');
@@ -475,7 +476,7 @@
     m.innerHTML = `
       <div style="background:var(--surface);border-radius:16px;width:520px;max-width:96vw;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.3)">
         <div style="background:linear-gradient(135deg,#7c2d12,#c2410c);padding:1.1rem 1.4rem;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
-          <div><div style="color:#fff;font-weight:700">Field Support Report</div>
+          <div><div style="color:#fff;font-weight:700">${_region === 'ALL' ? 'Support Report' : _region + ' Region Support Report'}</div>
           <div style="color:rgba(255,255,255,.8);font-size:.78rem;margin-top:.15rem">Who needs support and what to fix - campus and tutor</div></div>
           <button onclick="document.getElementById('fsModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer">✕</button>
         </div>
@@ -519,7 +520,7 @@
   }
   function fileStem(R) {
     const s = (R.school || (R.region === 'ALL' ? 'All' : R.region + '-Region')).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    return 'NJTC-Field-Support-' + s + '-' + new Date().toISOString().slice(0, 10);
+    return 'NJTC-Support-Report-' + s + '-' + new Date().toISOString().slice(0, 10);
   }
 
   async function download(kind) {
@@ -537,7 +538,7 @@
       }
       if (st) st.textContent = 'Downloaded.';
     } catch (e) {
-      console.error('[Field Support]', e);
+      console.error('[Support Report]', e);
       if (st) st.textContent = 'Could not build the report: ' + e.message;
     }
   }
