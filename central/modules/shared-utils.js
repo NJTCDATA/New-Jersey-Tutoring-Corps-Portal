@@ -7788,6 +7788,7 @@
 
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
+    'Field Support': ['Who needs support?',                    "Who didn't complete their tutor surveys?",    'Which tutors have blank missed reasons?', 'Show incomplete sessions', 'Where are teacher pull-outs happening?', 'Missing scholar surveys by tutor'],
     'Overview':     ['How are we doing overall?',               'What should I know today?',                   'Give me a flash summary PDF'],
     'Attendance':   ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',            'Which district has the lowest attendance?'],
     'KPIs':         ['Which goals have not been met?',          'Which goal area is the weakest?',             'What does the weighted score mean?'],
@@ -7831,11 +7832,11 @@
 
   // ── Dept-specific extras — prepend these category tabs for specific roles ──
   var DEPT_CAT_DEFAULTS = {
-    programming: { extra: ['My Sites'],                                   def: 'Program'         },
+    programming: { extra: ['Field Support', 'My Sites'],                  def: 'Field Support'   },
     training:    { extra: ['T&D'],                                        def: 'T&D'             },
     finance:     { extra: ['Finance'],                                    def: 'Finance'         },
     hr:          { extra: ['Workforce'],                                  def: 'Workforce'       },
-    data:        { extra: ['Reports','Demographics'],                     def: 'Overview'        },
+    data:        { extra: ['Field Support','Reports','Demographics'],     def: 'Overview'        },
     kb:          { extra: ['Grant Reporting','Dept Briefing'],            def: 'Grant Reporting' },
     leadership:  { extra: ['Grant Reporting','Quarterly','Satisfaction'], def: 'Grant Reporting' },
   };
@@ -8475,7 +8476,7 @@
   function _fmtFilteredStats(s, displayName) {
     if (!s) return (displayName||'Site') + ' — Pearl data not loaded. Open Pearl Operations first.';
     if (!s.found) return '**' + s.label + '** — No session records found for this filter. Check that Pearl Operations is loaded and the site name is correct.';
-    var sI = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+    var sI = s.scholPct==null?'—':s.scholPct>=80?'✅':s.scholPct>=70?'⚠️':'🔴';
     var tI = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
     var msg = '**' + s.label + '**\n\n';
     if (s.scholPct!=null) {
@@ -8519,7 +8520,7 @@
 
     // Attendance
     if (stats && stats.found) {
-      var sI = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
+      var sI = stats.scholPct==null?'—':stats.scholPct>=80?'✅':stats.scholPct>=70?'⚠️':'🔴';
       var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE (Pearl)**\n';
       if (stats.scholPct!=null) msg += sI+' Scholars: **'+stats.scholPct+'%** ('+stats.scholAtt+' present / '+stats.scholAbs+' absent'+(stats.siCount?' · '+stats.siCount+' SI':'')+') · '+stats.scholars+' scholars\n';
@@ -8595,7 +8596,7 @@
     var msg = '**' + label + ' — District**\n\n';
 
     if (stats && stats.found) {
-      var sI2 = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
+      var sI2 = stats.scholPct==null?'—':stats.scholPct>=80?'✅':stats.scholPct>=70?'⚠️':'🔴';
       var tI2 = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE**\n';
       if (stats.scholPct!=null) {
@@ -8691,7 +8692,7 @@
 
     // Attendance
     if (stats && stats.found) {
-      var sI = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
+      var sI = stats.scholPct==null?'—':stats.scholPct>=80?'✅':stats.scholPct>=70?'⚠️':'🔴';
       var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE (' + (loc.names||[]).length + ' schools combined)**\n';
       if (stats.scholPct!=null) {
@@ -8714,7 +8715,7 @@
       var ss = _attStatsFiltered(sf, Object.assign({ label: sName }, opts||{}));
       var sShort = sName.length > 35 ? sName.slice(0,33)+'..' : sName; // full name to distinguish ES/MS
       if (ss && ss.found && ss.scholPct!=null) {
-        var ic = ss.scholPct>=85?'✅':ss.scholPct>=75?'⚠️':'🔴';
+        var ic = ss.scholPct>=80?'✅':ss.scholPct>=70?'⚠️':'🔴';
         msg += ic+' **'+sShort+'**: '+ss.scholPct+'% scholar · '+ss.scholars+' scholars · ~'+ss.sessions+' sessions\n';
       } else {
         msg += '— **'+sShort+'**: no data\n';
@@ -9252,7 +9253,7 @@
   function _fmtPeriodStats(s) {
     if (!s) return null;
     if (!s.rows) return '**'+s.label+'** ('+s.start+' – '+s.end+'): No session records found for this period.';
-    var scholIcon = s.scholAttPct==null?'—':s.scholAttPct>=85?'✅':s.scholAttPct>=75?'⚠️':'🔴';
+    var scholIcon = s.scholAttPct==null?'—':s.scholAttPct>=80?'✅':s.scholAttPct>=70?'⚠️':'🔴';
     var tutorIcon = s.tutorAttPct==null?'—':s.tutorAttPct>=90?'✅':s.tutorAttPct>=80?'⚠️':'🔴';
     var lines = ['**'+s.label+'** ('+s.start+' – '+s.end+')'];
     lines.push(scholIcon+' Scholar att: **'+(s.scholAttPct!=null?s.scholAttPct+'%':'—')+'** ('+s.scholAtt+' attended · '+s.scholAbs+' absent)');
@@ -9550,6 +9551,97 @@
     return allLines.join('\n') + '\n\nAsk me about any of these for details.';
   }
 
+  // ── PIE: Field Support answers ───────────────────────────────────────────
+  function _pieFieldSupport(q) {
+    var t = String(q || '').toLowerCase();
+    var kind =
+      /incomplete|never (been )?completed|still scheduled|not (been )?(closed|completed)/.test(t) ? 'incomplete' :
+      /(teacher|classroom).{0,25}(pull|kept|keep)|pull.?outs?\b|kept in class|dosage/.test(t) ? 'pullouts' :
+      /(blank|no|missing|wrong|incorrect|bad|empty).{0,20}(missed.{0,3})?(reason|categor)|reason.{0,20}(blank|missing|wrong|incorrect)|miscategor|wrong categor/.test(t) ? 'reasons' :
+      /scholar.{0,25}survey.{0,30}(missing|not|didn|incomplete|outstanding)|(missing|outstanding).{0,15}scholar.{0,5}survey/.test(t) ? 'scholarSurveys' :
+      /(who|which tutor|tutors?).{0,40}(didn'?t|did not|haven'?t|have not|not|never|missing).{0,25}survey|missing.{0,15}(tutor.{0,3})?surveys?|surveys?.{0,20}(missing|not (done|submitted|completed)|outstanding)|survey (completion|capture)/.test(t) ? 'tutorSurveys' :
+      /(who|which|what).{0,40}needs?.{0,15}(support|help)|support (needed|list|level)|field support|(who|what).{0,25}(is )?(causing|behind|driving)|attendance fix|data (fix|quality|issue|error)|status mismatch|follow.?up list/.test(t) ? 'support' : null;
+    if (!kind) return null;
+    // The general "who needs support" summary is a Programming/Data/Leadership
+    // question — in HR "support" means a staff support concern, so leave it
+    // to HR's own rules there.
+    var _dept = window._currentDept || '';
+    if (kind === 'support' && _dept && ['programming', 'data', 'leadership', 'kb'].indexOf(_dept) < 0) return null;
+    if (!window.po || typeof window.po.getFieldSupportInput !== 'function' || !window.njtcFieldSupport) {
+      return 'Open **Pearl Operations** first so I can read the live session data, then ask again.';
+    }
+    var input = window.po.getFieldSupportInput();
+    var schools = input.schoolNames || [];
+    var school = '';
+    schools.slice().sort(function(a,b){ return b.length - a.length; }).some(function(s) {
+      var full = s.toLowerCase(), short = full.replace(/^lea\s*-\s*ilearn\s*/, '').replace(/^lea\s*-\s*/, '');
+      if (t.indexOf(full) >= 0 || (short.length >= 6 && t.indexOf(short) >= 0)) { school = s; return true; }
+      return false;
+    });
+    input.region = /\bne\b|north.?east/.test(t) ? 'NE' : /\bsw\b|south.?west/.test(t) ? 'SW' : 'ALL';
+    input.school = school;
+    var R = window.njtcFieldSupport.computeFieldSupport(input);
+    var where = school || (input.region === 'ALL' ? 'all regions' : input.region + ' Region');
+    var foot = '\n\n_Full list with Session IDs: Pearl Operations → **Field Support** → Download Excel._';
+    var top = function(arr, n) { return arr.slice(0, n || 10); };
+    var lines = [];
+    if (kind === 'incomplete') {
+      if (!R.incompletes.length) return '✅ No incomplete sessions for **' + where + '** — every past session has been completed or cancelled.';
+      var byT = {};
+      R.incompletes.forEach(function(i){ var k = i.tutor + '|' + i.school; byT[k] = byT[k] || { tutor: i.tutor, school: i.school, n: 0, last: '' }; byT[k].n++; if (i.date > byT[k].last) byT[k].last = i.date; });
+      var arr = Object.keys(byT).map(function(k){ return byT[k]; }).sort(function(a,b){ return b.n - a.n; });
+      lines.push('**' + R.incompletes.length + ' incomplete session' + (R.incompletes.length !== 1 ? 's' : '') + '** for ' + where + ' (still Scheduled — the tutor never completed them):\n');
+      top(arr).forEach(function(x){ lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + x.n + ', most recent ' + x.last); });
+    } else if (kind === 'tutorSurveys') {
+      var ts = R.tutors.filter(function(x){ return x.missingTutorSurveys > 0; }).sort(function(a,b){ return b.missingTutorSurveys - a.missingTutorSurveys; });
+      if (!ts.length) return '✅ Every delivered session for **' + where + '** has a tutor survey.';
+      lines.push('**' + R.totals.missingTutorSurveys + ' missing tutor surveys** for ' + where + ' across ' + ts.length + ' tutor' + (ts.length !== 1 ? 's' : '') + ':\n');
+      top(ts).forEach(function(x){ lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + x.missingTutorSurveys + ' missing · capture ' + (x.tutorSurveyCapture == null ? '—' : x.tutorSurveyCapture + '%')); });
+    } else if (kind === 'scholarSurveys') {
+      var ss = R.tutors.filter(function(x){ return x.missingScholarSurveys > 0; }).sort(function(a,b){ return b.missingScholarSurveys - a.missingScholarSurveys; });
+      if (!ss.length) return '✅ Every scholar who attended has a survey for **' + where + '**.';
+      lines.push('**' + R.totals.missingScholarSurveys + ' missing scholar surveys** for ' + where + ' (scholars who attended but did not submit), by tutor:\n');
+      top(ss).forEach(function(x){ lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + x.missingScholarSurveys + ' missing · capture ' + (x.scholarSurveyCapture == null ? '—' : x.scholarSurveyCapture + '%')); });
+    } else if (kind === 'reasons') {
+      var rs = R.tutors.filter(function(x){ return x.blankReasons + x.wrongCategory + x.statusMismatch + x.notRecorded > 0; })
+        .sort(function(a,b){ return (b.blankReasons + b.wrongCategory + b.statusMismatch + b.notRecorded) - (a.blankReasons + a.wrongCategory + a.statusMismatch + a.notRecorded); });
+      if (!rs.length && !R.totals.wholeGroupReview) return '✅ No missed-reason problems for **' + where + '** — every missed session has a reason in the right category.';
+      lines.push('**Missed-reason fixes for ' + where + ':** ' + R.totals.blankReasons + ' blank · ' + R.totals.wrongCategory + ' wrong category · ' + R.totals.statusMismatch + ' session status mismatch · ' + R.totals.notRecorded + ' not recorded\n');
+      top(rs).forEach(function(x){
+        var parts = [];
+        if (x.blankReasons) parts.push(x.blankReasons + ' blank');
+        if (x.wrongCategory) parts.push(x.wrongCategory + ' wrong category');
+        if (x.statusMismatch) parts.push(x.statusMismatch + ' status mismatch');
+        if (x.notRecorded) parts.push(x.notRecorded + ' not recorded');
+        lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + parts.join(', '));
+      });
+      if (R.totals.wholeGroupReview) lines.push('\n🔎 ' + R.totals.wholeGroupReview + ' whole-group teacher pull-out' + (R.totals.wholeGroupReview !== 1 ? 's were' : ' was') + ' logged as tutor Missed — listed for review, not counted against the tutor.');
+    } else if (kind === 'pullouts') {
+      var ps = R.schools.filter(function(x){ return x.teacherPullouts > 0; }).sort(function(a,b){ return b.teacherPullouts - a.teacherPullouts; });
+      if (!ps.length) return '✅ No classroom-teacher pull-outs recorded for **' + where + '**.';
+      lines.push('**' + R.totals.teacherPullouts + ' classroom-teacher pull-outs** for ' + where + ' — counted as scholar absences, so each one is lost tutoring time:\n');
+      top(ps).forEach(function(x){ lines.push('• ' + (x.teacherPulloutShare > 10 ? '🔴' : '🟡') + ' **' + x.school + '** — ' + x.teacherPullouts + ' (' + x.teacherPulloutShare + '% of scholar absences)'); });
+      var sp = R.scholarPullouts.filter(function(x){ return x.pullouts >= 3; });
+      if (sp.length) lines.push('\n**' + sp.length + ' scholar' + (sp.length !== 1 ? 's' : '') + ' pulled 3+ times:** ' + top(sp, 6).map(function(x){ return x.scholar + ' (' + x.pullouts + ')'; }).join(', '));
+    } else {
+      var hi = R.schools.filter(function(x){ return x.support === 'High'; });
+      lines.push('**Field Support — ' + where + '**\n');
+      lines.push('Campuses needing the most support: ' + (hi.length ? hi.map(function(x){ return '**' + x.school + '**'; }).join(', ') : 'none at High level') + '\n');
+      lines.push('Tutors with the most fixes:');
+      top(R.tutors, 8).forEach(function(x){
+        var parts = [];
+        if (x.incomplete) parts.push(x.incomplete + ' incomplete');
+        if (x.missingTutorSurveys) parts.push(x.missingTutorSurveys + ' missing tutor surveys');
+        if (x.blankReasons) parts.push(x.blankReasons + ' blank reasons');
+        if (x.statusMismatch) parts.push(x.statusMismatch + ' status mismatch');
+        if (x.tutorAttendance != null && x.tutorAttendance < 90) parts.push('attendance ' + x.tutorAttendance + '%');
+        lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + (parts.join(', ') || 'review'));
+      });
+      lines.push('\nTotals: ' + R.totals.incomplete + ' incomplete · ' + R.totals.missingTutorSurveys + ' missing tutor surveys · ' + R.totals.blankReasons + ' blank reasons · ' + R.totals.teacherPullouts + ' teacher pull-outs');
+    }
+    return lines.join('\n') + foot;
+  }
+
   var RULES = [
 
     // Greeting
@@ -9721,7 +9813,7 @@
         var s = _attStatsForWeek(wn);
         if (!s) return 'Pearl data not loaded — open Pearl Operations first, then try again.';
         if (!s.found) return 'No session records found for **' + rng.label + '**. Sessions may not have run that week, or Pearl data may not cover that range.';
-        var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+        var scholIcon = s.scholPct==null?'—':s.scholPct>=80?'✅':s.scholPct>=70?'⚠️':'🔴';
         var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
         var msg = '**Week ' + wn + ' — ' + rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '**\n\n';
         if (s.scholPct != null) msg += scholIcon + ' **Scholars:** ' + s.scholPct + '% (' + s.scholAtt + ' present · ' + s.scholAbs + ' absent)\n';
@@ -9752,7 +9844,7 @@
         var s = _attStatsForDate(dt.mo, dt.day, dt.yr);
         if (!s) return 'Pearl data not loaded — open Pearl Operations first, then ask again.';
         if (!s.found) return 'No attendance records found for **' + dt.label + '** (' + s.date + '). Sessions may not have run that day, or Pearl data may not include that date.';
-        var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+        var scholIcon = s.scholPct==null?'—':s.scholPct>=80?'✅':s.scholPct>=70?'⚠️':'🔴';
         var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
         var msg = '**Attendance — ' + dt.label + '** (' + s.date + ')\n\n';
         if (s.scholPct != null) msg += scholIcon + ' **Scholars:** ' + s.scholPct + '% (' + s.scholAtt + ' present / ' + s.scholAbs + ' absent' + (s.siCount ? ' · ' + s.siCount + ' SI' : '') + ')\n';
@@ -10280,7 +10372,7 @@
             ? '**Scholar Count by District** (' + sorted.length + ' districts · ' + _n(total) + ' total):\n\n'
             : '**Attendance by District** (' + sorted.length + ' districts):\n\n';
           msg += sorted.map(function(d){
-            var icon = (d.scholarRate||0)>=85?'✅':(d.scholarRate||0)>=75?'⚠️':'🔴';
+            var icon = (d.scholarRate||0)>=80?'✅':(d.scholarRate||0)>=70?'⚠️':'🔴';
             return icon + ' **' + d.name + '**: **' + _n(d.scholars||0) + ' scholars** · Att ' + _pct(d.scholarRate) + ' · ' + _n(d.sessions||0) + ' sessions';
           }).join('\n');
           return msg;
@@ -10407,7 +10499,7 @@
     // What is Pearl / Pearl Operations
     { match: /what is pearl|what.?s pearl|pearl ops|pearl operations|pearl (platform|system|tool)|how does pearl work/i,
       respond: function() {
-        return '**Pearl Operations** is NJTC\'s tutoring session data system. It tracks:\n\n• Scholar and tutor attendance per session\n• Service interruptions (SI) — sessions lost to non-scholar causes\n• Scholar survey scores (confidence, enjoyment, learning)\n• Site-level performance\n• District attendance rates\n\nData syncs from the Pearl Google Sheet. Scholar benchmark: ≥85% attendance. Tutor benchmark: ≥90%.';
+        return '**Pearl Operations** is NJTC\'s tutoring session data system. It tracks:\n\n• Scholar and tutor attendance per session\n• Service interruptions (SI) — sessions lost to non-scholar causes\n• Scholar survey scores (confidence, enjoyment, learning)\n• Site-level performance\n• District attendance rates\n\nData syncs from the Pearl Google Sheet. Scholar benchmark: ≥80% attendance. Tutor benchmark: ≥90%.';
       }
     },
 
@@ -10781,7 +10873,7 @@
           var sorted = sc.slice().sort(function(a,b){ return b.attRate - a.attRate; });
           var msg = '**Top Sites by Scholar Attendance:**\n\n';
           msg += sorted.slice(0,8).map(function(s,i){
-            var icon = s.attRate>=85?'✅':s.attRate>=75?'⚠️':'🔴';
+            var icon = s.attRate>=80?'✅':s.attRate>=70?'⚠️':'🔴';
             var surv = s.surveyAvg ? ' · ⭐ '+s.surveyAvg+'/5' : '';
             return (i+1) + '. ' + icon + ' **' + s.school + '** — ' + s.attRate + '% scholar att · ' + _n(s.sessions) + ' sessions' + surv;
           }).join('\n');
@@ -10920,7 +11012,7 @@
         var top = sc.slice(0,6);
         var msg = '**Top Schools by Scholar Attendance:**\n\n';
         msg += top.map(function(s,i){
-          var icon = s.attRate>=85?'✅':s.attRate>=75?'⚠️':'🔴';
+          var icon = s.attRate>=80?'✅':s.attRate>=70?'⚠️':'🔴';
           return (i+1)+'. '+icon+' **'+s.school+'** ('+s.district+') — **'+s.attRate+'%** · '+s.sessions+' sessions'+(s.surveyAvg?' · Survey '+s.surveyAvg+'/5':'');
         }).join('\n');
         return msg;
@@ -11353,7 +11445,7 @@
           var sorted = ld.districts.slice().sort(function(a,b){ return b.scholarRate - a.scholarRate; });
           var msg = '**All Districts — Scholar Attendance (ranked):**\n\n';
           msg += sorted.map(function(d,i){
-            var icon = d.scholarRate>=85?'✅':d.scholarRate>=75?'⚠️':'🔴';
+            var icon = d.scholarRate>=80?'✅':d.scholarRate>=70?'⚠️':'🔴';
             return (i+1)+'. '+icon+' **'+d.name+'**: Scholar **'+_pct(d.scholarRate)+'** · Tutor '+_pct(d.tutorRate)+' · '+_n(d.scholars)+' scholars';
           }).join('\n');
           return msg;
@@ -11426,10 +11518,10 @@
 
         // ── Attendance ──────────────────────────────────────────────────────
         if (p && p.scholAttPct != null) {
-          var sIcon = p.scholAttPct>=85?'✅':p.scholAttPct>=75?'⚠️':'🔴';
+          var sIcon = p.scholAttPct>=80?'✅':p.scholAttPct>=70?'⚠️':'🔴';
           var tIcon = p.instAttPct!=null?(p.instAttPct>=90?'✅':p.instAttPct>=80?'⚠️':'🔴'):'—';
           lines.push('**ATTENDANCE**');
-          lines.push(sIcon+' Scholar: **'+p.scholAttPct+'%** (benchmark ≥85%)'+( p.scholAttPct<85?' ← BELOW TARGET':''));
+          lines.push(sIcon+' Scholar: **'+p.scholAttPct+'%** (benchmark ≥80%)'+( p.scholAttPct<80?' ← BELOW TARGET':''));
           if (p.instAttPct!=null) lines.push(tIcon+' Tutor: **'+p.instAttPct+'%** (benchmark ≥90%)'+( p.instAttPct<90?' ← BELOW TARGET':''));
           if (p.scholAttPct < 85) flags.push('Scholar attendance below 85% benchmark');
           if (p.instAttPct != null && p.instAttPct < 90) flags.push('Tutor attendance below 90% benchmark');
@@ -11780,7 +11872,7 @@
         var msg = '**Pearl Attendance — '+_fmtPeriodStats(s)+'\n\n';
         // Benchmark comparison
         var bench = [];
-        if (s.scholAttPct!=null) bench.push('Scholar benchmark: ≥85%'+(s.scholAttPct>=85?' ✅':' — currently below'));
+        if (s.scholAttPct!=null) bench.push('Scholar benchmark: ≥80%'+(s.scholAttPct>=80?' ✅':' — currently below'));
         if (s.tutorAttPct!=null)  bench.push('Tutor benchmark: ≥90%'+(s.tutorAttPct>=90?' ✅':' — currently below'));
         if (bench.length) msg += bench.join(' · ');
         return msg.replace('**Pearl Attendance — ','').trim();
@@ -11884,7 +11976,7 @@
           var s = _attStatsForWeek(wn);
           if (!s) return 'Pearl data not loaded — open Pearl Operations first.';
           if (!s.found) return 'No session records found for **Week ' + wn + '**. Sessions may not have run that week.';
-          var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+          var scholIcon = s.scholPct==null?'—':s.scholPct>=80?'✅':s.scholPct>=70?'⚠️':'🔴';
           var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
           var msg = '**Week '+wn+' Summary — '+rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'**\n\n';
           msg += scholIcon+' Scholars: **'+(s.scholPct!=null?s.scholPct+'%':'—')+'** ('+s.scholAtt+' present · '+s.scholAbs+' absent)\n';
@@ -12472,8 +12564,8 @@
         if (d)   lines.push('📊 Org KPI Score: **' + d.score + '%** (' + d.health + ') — ' + d.data.filter(function(k){return (k.midStatus||k.status)==='Met';}).length + ' of ' + d.data.length + ' goals on track');
         if (p && p.sessions) lines.push('🏫 Program Reach: **' + _n(p.sessions) + ' tutoring sessions** delivered across **' + _n(p.schools) + ' schools** in **' + _n(p.districts) + ' districts**');
         if (p && p.scholAttPct != null) {
-          var aI = p.scholAttPct>=85?'✅':'⚠️';
-          lines.push(aI + ' Scholar Attendance: **' + _pct(p.scholAttPct) + '** (benchmark ≥85%) · Tutor: **' + _pct(p.tutorAttPct) + '** (benchmark ≥90%)');
+          var aI = p.scholAttPct>=80?'✅':'⚠️';
+          lines.push(aI + ' Scholar Attendance: **' + _pct(p.scholAttPct) + '** (benchmark ≥80%) · Tutor: **' + _pct(p.tutorAttPct) + '** (benchmark ≥90%)');
         }
         if (p && p.surveyAvg != null)  lines.push('⭐ Scholar Satisfaction: **' + p.surveyAvg.toFixed(1) + '/5.0** average survey score');
         if (irl) {
@@ -13124,8 +13216,8 @@
         if (p.schools         != null) msg += '📍 **' + _n(p.schools)          + ' sites** active\n';
         if (p.districts       != null) msg += '🗺 **'  + _n(p.districts)        + ' districts** served\n';
         if (p.scholAttPct     != null) {
-          var attI = p.scholAttPct>=85?'✅':p.scholAttPct>=75?'⚠️':'🔴';
-          msg += '\n' + attI + ' Scholar attendance: **' + _pct(p.scholAttPct) + '** (benchmark ≥85%)';
+          var attI = p.scholAttPct>=80?'✅':p.scholAttPct>=70?'⚠️':'🔴';
+          msg += '\n' + attI + ' Scholar attendance: **' + _pct(p.scholAttPct) + '** (benchmark ≥80%)';
         }
         msg += '\n\nFor site-by-site breakdown open SY Analytics.' + _navBtn('Open SY Analytics', 'sy-analytics');
         _ctxPush('att_summary', {});
@@ -13396,7 +13488,7 @@
         if (p) {
           if (p.activeScholars) lines.push('• '+_n(p.activeScholars)+' scholars · '+_n(p.schools)+' schools · '+_n(p.districts)+' districts');
           if (p.sessions) lines.push('• '+_n(p.sessions)+' sessions · ~'+_n(Math.round((p.totalMins||0)/60))+' instructional hours');
-          if (p.scholAttPct!=null) lines.push((p.scholAttPct>=85?'✅':p.scholAttPct>=75?'⚠️':'🔴')+' Scholar attendance: **'+_pct(p.scholAttPct)+'** (benchmark ≥85%)');
+          if (p.scholAttPct!=null) lines.push((p.scholAttPct>=80?'✅':p.scholAttPct>=70?'⚠️':'🔴')+' Scholar attendance: **'+_pct(p.scholAttPct)+'** (benchmark ≥80%)');
           if (p.surveyAvg!=null) lines.push('⭐ Scholar satisfaction: **'+p.surveyAvg.toFixed(1)+'/5.0**');
         } else { lines.push('• _Load Pearl Operations for program reach data_'); }
         lines.push('\n**📈 ACADEMIC OUTCOMES**');
@@ -14316,6 +14408,13 @@
       var entity = _extractPerson(qt);
       if (entity) return _personResponse(entity, qt);
     }
+
+    // 1a. Field Support questions (Programming / Data) — who or which campus
+    //     needs follow-up. Answered from the same engine as the Field Support
+    //     PDF/Excel (modules/field-support.js), honoring a school or region
+    //     named in the question.
+    var _fs = _pieFieldSupport(qt);
+    if (_fs) return _fs;
 
     // 1b. Location-first: detect a site/district name before rule scan
     //     Skip for pure definition queries or generic commands
