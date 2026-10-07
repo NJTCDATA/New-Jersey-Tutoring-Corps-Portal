@@ -14424,6 +14424,12 @@
     var _fs = _pieFieldSupport(qt);
     if (_fs) return _fs;
 
+    // 1b-pre. Tutorial requests open PIE's guided tour menu
+    if (/\btutorial\b|show me around|walk ?me through|give me a tour|how do i (use|navigate)|guide me|getting started|where do i start/i.test(qt) && window.njtcPortalTour) {
+      setTimeout(function(){ window.njtcPortalTour.open(); }, 150);
+      return 'Opening the **Tutorial** for you — pick a full tour, the page you\'re on, or any section. You can reopen it anytime from the glowing **🎓 Tutorial** button at the top.';
+    }
+
     // 1b. Location-first: detect a site/district name before rule scan
     //     Skip for pure definition queries or generic commands
     var _skipLoc = /^what is\b|^how does\b|^what does\b|^how is .* calculated|generate|flash.*pdf|what can you|capabilities/i.test(qt.trim());

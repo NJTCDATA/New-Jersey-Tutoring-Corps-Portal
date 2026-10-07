@@ -108,7 +108,7 @@
       'Absent; Covered by the Instructional Coach': 'Out — coach covered',
       'Tutor Left Early (no sub)': 'Left early'
     };
-    return map[reason] || reason;
+    return map[reason] || reason || 'No reason entered';
   }
 
   function friendlyScholarReason(reason) {
@@ -119,7 +119,7 @@
       'Scholar Left Early': 'Student left session early',
       'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group session'
     };
-    return map[reason] || reason;
+    return map[reason] || reason || 'No reason entered';
   }
 
   function shortenSchool(school) {
