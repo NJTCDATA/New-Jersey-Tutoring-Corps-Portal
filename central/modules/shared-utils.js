@@ -5254,6 +5254,13 @@
     if (wEl) {
       if (['leadership','data','kb'].includes(dept)) {
         wEl.innerHTML = ''; // exec depts fill this from exec dashboard
+      } else if (!LB_PROCESS_ENABLED) {
+        // Department Updates board retired: HR gets its termination-analytics
+        // widget here (the HR data loaders swap this placeholder for the real
+        // widget once HR data lands); other departments have no hero widget.
+        wEl.innerHTML = dept === 'hr'
+          ? '<div class="njtc-skel" style="height:180px;border-radius:16px;margin-bottom:1.5rem"></div>'
+          : '';
       } else {
         // Leaderboard hero skeleton
         wEl.innerHTML = `
