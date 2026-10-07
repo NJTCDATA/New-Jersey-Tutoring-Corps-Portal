@@ -338,7 +338,6 @@ const roleContent = {
                     "Log attendance in PEARL immediately after session",
                     "Complete exit survey before leaving",
                     "Check Ask Connor for any questions or challenges",
-                    "Track student progress in Progress Monitoring",
                     "Share your wins on Knowtion!"
                 ]
             },
@@ -386,7 +385,6 @@ const roleContent = {
                 icon: "📊",
                 title: "Weekly Priorities",
                 items: [
-                    "Review Progress Monitoring data every Monday",
                     "Check tutor attendance logging in PEARL",
                     "Identify tutors needing additional support",
                     "Share best practices and celebrate wins",
@@ -439,7 +437,6 @@ const roleContent = {
                 icon: "📈",
                 title: "Weekly Data Review",
                 items: [
-                    "Check Progress Monitoring dashboard",
                     "Verify ≥90% attendance goal progress",
                     "Identify students needing additional support",
                     "Review tutor performance and engagement",
