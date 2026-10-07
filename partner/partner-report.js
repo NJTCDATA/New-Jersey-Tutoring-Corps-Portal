@@ -364,7 +364,7 @@
   //  - Rotates weekly: the selected week, or the most recent week that has
   //    an eligible comment.
   // ══════════════════════════════════════════════════════════════════════
-  const HIGHLIGHT_MAX = 8;
+  const HIGHLIGHT_MAX = 5;
 
   const POSITIVE_SIGNALS = /\b(fun|funny|enjoy\w*|lik(e|ed|es)|lov(e|ed|es|ing)|good|great|best|awesome|amazing|cool|nice|happy|help(ed|ful|s|ing)?|learn\w*|understand\w*|understood|excit\w*|proud|thank\w*|favorite|favourite|excellent|wonderful|fantastic|progress\w*|improv\w*|confiden\w*|engag\w*|kind|patient|easy|easier|smart|success\w*|grow\w*|interesting|super|glad|awesome|well)\b/i;
 
@@ -426,6 +426,9 @@
     if (/\n\s*\n/.test(t)) return false; // multi-paragraph write-up
     if (t.split(/\s+/).length < 3) return false;
     if (!/[a-z]/i.test(t)) return false;
+    if (/\d{4,}/.test(t)) return false;                       // number strings ("Best time 67676767")
+    const nonSpace = t.replace(/\s+/g, '');
+    if (nonSpace && (t.match(/[a-z]/gi) || []).length / nonSpace.length < 0.6) return false; // mostly emoji/symbols
     if (!POSITIVE_SIGNALS.test(t)) return false;
     if (NEGATIVE_SIGNALS.test(t) || SENSITIVE_SIGNALS.test(t) || PROFANITY.test(t) || CONTACT_INFO.test(t)) return false;
     if (who === 'Scholar' && ADULT_VOICE.test(t)) return false;
@@ -931,11 +934,21 @@
     return pearlPromises[season];
   }
 
+  // Pearl's district name ↔ the partner directory's name, where they differ.
+  // Compared case-insensitively. Add a line here when Pearl renames a district.
+  const DISTRICT_ALIASES = {
+    'pemberton township': 'Pemberton Twp Schools',
+  };
+  function canonDistrict(name) {
+    const k = String(name || '').trim().toLowerCase();
+    return (DISTRICT_ALIASES[k] || String(name || '').trim()).toLowerCase();
+  }
   function scopeMatches(entry, district, school) {
     if (entry.scopeType === 'all') return true;
-    if (entry.scopeType === 'region') return (REGION_DISTRICTS[entry.region] || []).includes(district);
-    if (entry.scopeType === 'district') return district === entry.district;
-    if (entry.scopeType === 'school') return district === entry.district && (entry.schools || []).includes(school);
+    const d = canonDistrict(district);
+    if (entry.scopeType === 'region') return (REGION_DISTRICTS[entry.region] || []).some(x => canonDistrict(x) === d);
+    if (entry.scopeType === 'district') return d === canonDistrict(entry.district);
+    if (entry.scopeType === 'school') return d === canonDistrict(entry.district) && (entry.schools || []).includes(school);
     return false;
   }
   function inCurrentSY(dateStr) { return inSeason(CURRENT_SEASON, dateStr); }
@@ -946,6 +959,39 @@
     const h = s.match(/(\d+)\s*hour/); if (h) mins += parseInt(h[1], 10) * 60;
     const mn = s.match(/(\d+)\s*min/); if (mn) mins += parseInt(mn[1], 10);
     return mins;
+  }
+
+  // ── NJTC contacts for partners ──────────────────────────────────────────
+  // Program management by region (same pairs as apps-scripts/concern-form-
+  // receipt.gs), plus the Data team for questions about the numbers.
+  const CONTACTS = {
+    'North-East': [
+      { name: 'Taneisha Clemons', role: 'Regional Director, Program Management', email: 'taneisha@njtutoringcorps.org' },
+      { name: 'Jenny Irwin',      role: 'Regional Director, Program Management', email: 'jenny@njtutoringcorps.org' },
+    ],
+    'South-West': [
+      { name: 'Andrea Bowman',      role: 'Regional Director, Program Management', email: 'andrea@njtutoringcorps.org' },
+      { name: 'Tierney Tittermary', role: 'Regional Director, Program Management', email: 'tierney@njtutoringcorps.org' },
+    ],
+    data: { name: 'Amir Wallace', role: 'NJTC Data Team', email: 'amir@njtutoringcorps.org' },
+  };
+  // identity.region is 'North-East' | 'South-West' | 'ALL'; fall back to the
+  // district's region list when a directory entry has no region set.
+  function regionFor(identity) {
+    const r = (identity && identity.region) || '';
+    if (CONTACTS[r]) return r;
+    const d = canonDistrict(identity && identity.district);
+    const hit = Object.keys(REGION_DISTRICTS).find(k => REGION_DISTRICTS[k].some(x => canonDistrict(x) === d));
+    return hit || 'ALL';
+  }
+  function contactsFor(identity) {
+    const region = regionFor(identity);
+    const pms = CONTACTS[region] || CONTACTS['North-East'].concat(CONTACTS['South-West']);
+    return { region, programManagers: pms, data: CONTACTS.data };
+  }
+  function mailtoHref(emails, subject) {
+    const to = [].concat(emails).join(',');
+    return 'mailto:' + to + (subject ? '?subject=' + encodeURIComponent(subject) : '');
   }
 
   function bundleForEntry(pearl, entry) {
@@ -969,6 +1015,7 @@
     curateHighlights, loadExclusions, allWeeks, buildReportModel, scopeLabel,
     generatePDF, loadPearl, bundleForEntry, scopeMatches,
     SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,
-    canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS
+    canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS,
+    canonDistrict, contactsFor, mailtoHref
   };
 })();

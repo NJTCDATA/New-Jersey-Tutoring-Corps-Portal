@@ -194,7 +194,7 @@
     wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => switchSeason(b.dataset.season)));
     const archived = BUNDLE.season !== CURRENT_BUNDLE.season;
     note.hidden = !archived;
-    if (archived) note.textContent = 'Viewing archived ' + seasonName(BUNDLE.season) + ' — read-only snapshot';
+    if (archived) note.textContent = 'Viewing ' + seasonName(BUNDLE.season) + ' — final summary for comparison (read-only)';
   }
   async function switchSeason(season) {
     if (!CURRENT_BUNDLE || season === BUNDLE.season) return;
@@ -222,7 +222,9 @@
     SCOPE.district = 'ALL'; SCOPE.school = 'ALL'; SCOPE.week = 'ALL';
     resetScopeBar();
     renderSeasonButtons();
-    initScopeFilter();
+    // Prior school years are a read-only snapshot for comparison — no
+    // drill-down, week filter or sorting; just the year's summary data.
+    if (season === CURRENT_BUNDLE.season) initScopeFilter();
     renderAll();
     document.dispatchEvent(new CustomEvent('partnerBundleReady', { detail: BUNDLE }));
   }
@@ -256,8 +258,8 @@
       return `<span style="font-size:.72rem;font-weight:700;color:${diff >= 0 ? '#0d6e3a' : '#b91c1c'}">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='} ${Math.abs(diff).toFixed(dp)}${unit}</span>`;
     };
     const line = (label, key, fmt, cmp) => `<tr><td style="padding:.4rem .5rem;color:#475569">${label}</td>${rows.map(r => `<td style="padding:.4rem .5rem;text-align:center;font-weight:700;color:#0a1628">${fmt(r[key])}</td>`).join('')}<td style="padding:.4rem .5rem;text-align:center">${cmp ? d(cur[key], prev[key], cmp.unit, cmp.dp) : '<span style="font-size:.7rem;color:#94a3b8">year in progress</span>'}</td></tr>`;
-    return `<section class="pt-card" style="margin-bottom:1rem;overflow-x:auto">
-      <h3 style="margin:0 0 .25rem">Year over Year</h3>
+    return `<details class="pt-card pt-fold" style="overflow-x:auto">
+      <summary>Compare with last school year</summary>
       <p style="margin:0 0 .75rem;font-size:.8rem;color:#64748b">Your full program scope, ${esc(seasonName(prev.season))} compared with ${esc(seasonName(cur.season))} (school year to date). Same attendance methodology in both years.</p>
       <table style="width:100%;border-collapse:collapse;font-size:.85rem">
         <thead><tr style="color:#64748b;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em"><th style="text-align:left;padding:.4rem .5rem">Measure</th>${rows.map(r => `<th style="padding:.4rem .5rem">${esc(seasonName(r.season))}${r.season === CURRENT_BUNDLE.season ? ' (to date)' : ''}</th>`).join('')}<th style="padding:.4rem .5rem">Change</th></tr></thead>
@@ -271,7 +273,7 @@
         </tbody>
       </table>
       <p style="margin:.5rem 0 0;font-size:.72rem;color:#94a3b8">The current year is in progress, so totals grow through the year — attendance rate and survey average are the like-for-like comparisons.</p>
-    </section>`;
+    </details>`;
   }
 
   // ── Drill-down filter (Network/Regional/Admin accounts only see this if
@@ -479,6 +481,13 @@
     }
     const scopeEl = $('#footerScope');
     if (scopeEl) scopeEl.textContent = `You're viewing: ${scopeLabel(id)}`;
+    const contactEl = $('#footerContact');
+    if (contactEl) {
+      const c = CORE.contactsFor(id);
+      const link = (p, subj) => `<a href="${CORE.mailtoHref(p.email, subj)}" style="color:var(--blue-mid);font-weight:700">${esc(p.name.split(' ')[0])}</a>`;
+      contactEl.innerHTML = 'Program questions: ' + c.programManagers.map(p => link(p, 'NJTC tutoring question')).join(' or ') +
+        ' &middot; Data questions: ' + link(c.data, 'NJTC dashboard data question');
+    }
   }
 
   function wireChrome() {
@@ -877,6 +886,122 @@
     }, { week: SCOPE.week, exclusions: EXCLUSIONS });
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  //  PARTNER LENSES — district partners (many schools) see every school at a
+  //  glance and click into one; school partners see only their school.
+  // ══════════════════════════════════════════════════════════════════════
+  const CT_PULL_SHARE = 10; // % of missed sessions — same threshold NJTC uses internally
+
+  function bundleSchools() {
+    const set = new Set();
+    (BUNDLE.attendance || []).forEach(r => {
+      const d = (r[ATT.DISTRICT] || '').trim(), sc = (r[ATT.SCHOOL] || '').trim();
+      if (sc && (SCOPE.district === 'ALL' || d === SCOPE.district)) set.add(sc);
+    });
+    return [...set].sort();
+  }
+  // District lens = the account spans several schools and none is picked yet.
+  function isDistrictLens() { return SCOPE.school === 'ALL' && bundleSchools().length > 1; }
+  function multiSchoolAccount() { return bundleSchools().length > 1 || SCOPE.school !== 'ALL'; }
+
+  // "Kept in class" — a classroom teacher kept the scholar during tutoring.
+  // Counted as a missed session (it is the scholar's dosage), shown so the
+  // school can act on it.
+  function keptInClass(attRows) {
+    const rows = attRows.filter(r => isScholarRow(r) && (r[ATT.ATT_STATUS] || '').trim() === 'Missed' && CT_REASONS.has((r[ATT.MISS_REASON] || '').trim()));
+    const byScholar = {};
+    rows.forEach(r => {
+      const k = (r[ATT.USER_ID] || r[ATT.USER] || '').trim();
+      if (!byScholar[k]) byScholar[k] = { uid: (r[ATT.USER_ID] || '').trim(), name: (r[ATT.USER] || '').trim(), n: 0 };
+      byScholar[k].n++;
+    });
+    return { count: rows.length, scholars: Object.values(byScholar).sort((a, b) => b.n - a.n) };
+  }
+
+  function schoolMetrics(name) {
+    const inSchool = r => (r[ATT.SCHOOL] || '').trim() === name;
+    const att = scopedAttendance().filter(inSchool);
+    const st = scholarStats(att);
+    const kept = keptInClass(att);
+    return {
+      name, rate: st.rate, served: CORE.servedScholars(att), checkIns: scholarsToCheckIn(st.rows).length,
+      loving: CORE.lovingPct(scopedScholarSurveys().filter(r => (r[STU.SCHOOL] || '').trim() === name)),
+      kept: kept.count, keptShare: st.absent ? Math.round(kept.count / st.absent * 100) : 0,
+    };
+  }
+
+  const rateColor = r => r == null ? '#7d8fa1' : r >= 80 ? BRAND.pos : r >= 75 ? '#b45309' : BRAND.neg;
+
+  function openSchool(name) {
+    const sel = document.getElementById('scopeSchool');
+    if (sel && [...sel.options].some(o => o.value === name)) { sel.value = name; sel.dispatchEvent(new Event('change')); }
+    else { SCOPE.school = name; renderAll(); }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function backToAllSchools() {
+    const sel = document.getElementById('scopeSchool');
+    if (sel) { sel.value = 'ALL'; sel.dispatchEvent(new Event('change')); }
+    else { SCOPE.school = 'ALL'; renderAll(); }
+  }
+  function goTab(view) { const t = document.querySelector(`.pt-tab[data-view="${view}"]`); if (t) t.click(); }
+  window.NJTCPartnerNav = { openSchool, backToAllSchools, goTab, isDistrictLens: () => isDistrictLens() };
+
+  function contactCardHtml(id) {
+    const c = CORE.contactsFor(id);
+    const where = SCOPE.school !== 'ALL' ? SCOPE.school : (id.district && id.district !== 'ALL' ? id.district : 'my program');
+    const subject = 'NJTC tutoring - ' + where;
+    return `<div class="pt-contact" id="tourContact">
+      <div class="pt-contact-title">Questions? Email NJTC</div>
+      ${c.programManagers.map(p => `<a href="${CORE.mailtoHref(p.email, subject)}">${esc(p.name)} &middot; Program Management</a>`).join('')}
+      <a href="${CORE.mailtoHref(c.data.email, 'NJTC dashboard data question - ' + where)}">${esc(c.data.name)} &middot; Data questions</a>
+      <small>Program questions go to Program Management; questions about a number go to the Data team.</small>
+    </div>`;
+  }
+
+  // At most four short lines — what a busy partner should look at first.
+  function attentionHtml(schoolList) {
+    const items = [];
+    const attAll = scopedAttendance();
+    const st = scholarStats(attAll);
+    const checkIns = scholarsToCheckIn(st.rows).length;
+    if (schoolList) {
+      const low = schoolList.filter(x => x.rate != null && x.rate < 80).sort((a, b) => a.rate - b.rate);
+      if (low.length) items.push({ c: BRAND.neg, html: `<b>${low.length} school${low.length !== 1 ? 's' : ''} below 80% attendance:</b> ${low.slice(0, 3).map(x => esc(x.name) + ' (' + x.rate + '%)').join(', ')}${low.length > 3 ? '…' : ''}` });
+      const kept = schoolList.filter(x => x.keptShare > CT_PULL_SHARE && x.kept > 0).sort((a, b) => b.kept - a.kept);
+      if (kept.length) items.push({ c: BRAND.gold, html: `<b>Scholars kept in class during tutoring</b> at ${kept.slice(0, 3).map(x => esc(x.name) + ' (' + x.kept + ')').join(', ')}${kept.length > 3 ? ' and ' + (kept.length - 3) + ' more' : ''} — each one is a missed tutoring session.` });
+    } else {
+      if (st.rate != null && st.rate < 80) items.push({ c: BRAND.neg, html: `<b>Attendance is ${st.rate}%</b> — the goal is 80% or higher.` });
+      const kept = keptInClass(attAll);
+      const share = st.absent ? Math.round(kept.count / st.absent * 100) : 0;
+      if (kept.count && share > CT_PULL_SHARE) items.push({ c: BRAND.gold, html: `<b>Scholars were kept in class during tutoring ${kept.count} time${kept.count !== 1 ? 's' : ''}</b> (${share}% of missed sessions). <a onclick="NJTCPartnerNav.goTab('attendance')">See who &rarr;</a>` });
+    }
+    if (checkIns) items.push({ c: BRAND.blue, html: `<b>${checkIns.toLocaleString()} scholar${checkIns !== 1 ? 's' : ''} to check in with</b> — a pattern of missed sessions. <a onclick="NJTCPartnerNav.goTab('attendance')">View list &rarr;</a>` });
+    if (!items.length) items.push({ c: BRAND.pos, html: '<b>Everything is on track</b> — attendance is at goal and no scholars are flagged for a check-in.' });
+    return `<div class="pt-card pt-attn" id="tourAttention">
+      <div class="pt-card-title">${ICONS.search} What needs your attention</div>
+      <ul>${items.slice(0, 4).map(i => `<li><span class="dot" style="background:${i.c}"></span><span>${i.html}</span></li>`).join('')}</ul>
+    </div>`;
+  }
+
+  function schoolTilesHtml(list) {
+    return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourSchools">
+      <div class="pt-card-title">${ICONS.roster} Your Schools<span class="pt-card-title-note">Click a school for its full view</span></div>
+      <div class="pt-schools">
+        ${list.map(x => `<button type="button" class="pt-school-tile" style="--tile-c:${rateColor(x.rate)}" data-school="${esc(x.name).replace(/"/g, '&quot;')}" onclick="NJTCPartnerNav.openSchool(this.dataset.school)">
+          <div class="pt-school-name">${esc(x.name)}</div>
+          <div class="pt-school-rate">${x.rate == null ? '—' : x.rate + '%'}<span>attendance</span></div>
+          <div class="pt-school-stats">
+            <div><b>${x.served.toLocaleString()}</b> scholars</div>
+            <div><b>${x.checkIns}</b> to check in</div>
+            <div><b>${x.loving == null ? '—' : x.loving + '%'}</b> loving sessions</div>
+            <div><b>${x.kept}</b> kept in class</div>
+          </div>
+          <div class="pt-school-go">View school &rarr;</div>
+        </button>`).join('')}
+      </div>
+    </div>`;
+  }
+
   function renderAll() {
     document.getElementById('ptMain').innerHTML = `
       <div id="view-summary" class="pt-view active"></div>
@@ -912,10 +1037,7 @@
     // welcome banner when there's no data yet). Full scope, not drill-down.
     const yoy = trendCardHtml();
     const sum = document.getElementById('view-summary');
-    if (yoy && sum) {
-      const anchor = sum.querySelector('#tourKpis') || sum.querySelector('.pt-hero');
-      if (anchor) anchor.insertAdjacentHTML('afterend', yoy); else sum.insertAdjacentHTML('afterbegin', yoy);
-    }
+    if (yoy && sum) sum.insertAdjacentHTML('beforeend', yoy);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -966,8 +1088,8 @@
         totalScholarMinutes += durMap[sessionDurationKey(r)] || 0;
       });
       minutesCard = `
-        <div class="pt-card" style="margin-top:1.1rem">
-          <div class="pt-card-title">${ICONS.trend} Tutoring Time Delivered</div>
+        <details class="pt-card pt-fold">
+          <summary>Tutoring Time Delivered</summary>
           <div style="display:flex;gap:2.2rem;flex-wrap:wrap">
             <div>
               <div class="pt-kpi-val">${totalSessionMinutes.toLocaleString()}<span style="font-size:.9rem;font-weight:600;color:var(--muted)"> min</span></div>
@@ -979,22 +1101,28 @@
             </div>
           </div>
           <p style="font-size:.72rem;color:var(--muted);margin-top:.7rem">Session Minutes counts each delivered session once. Scholar-Attended Minutes is every minute a scholar personally attended, summed across all scholars.</p>
-        </div>`;
+        </details>`;
     }
 
-    el.innerHTML = heroHtml(id) + `
+    const district = isDistrictLens();
+    const schoolList = district ? bundleSchools().map(schoolMetrics).sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101)) : null;
+    const HL_SHOW = 3;
+    const hlItem = c => `<div class="pt-quote">"${esc(c.text)}"<div class="pt-quote-meta">— ${c.who}</div></div>`;
+
+    el.innerHTML = heroHtml(id) + attentionHtml(schoolList) + `
       <div class="pt-grid pt-grid-4" style="margin-bottom:1.1rem" id="tourKpis">
         ${kpiCard(ICONS.check, BRAND.pos, stats.rate == null ? '—' : stats.rate + '%', 'Scholar Attendance Rate')}
         ${kpiCard(ICONS.users, BRAND.blue, uniqueScholars.toLocaleString(), 'Scholars Served')}
         ${kpiCard(ICONS.handshake, BRAND.gold, checkIns.length.toLocaleString(), 'Scholars to Check In With')}
         ${kpiCard(ICONS.heart, '#c0367a', scholarScored ? pct(scholarPos, scholarScored) + '%' : '—', 'Scholars Loving Their Sessions')}
       </div>
+      ${district ? schoolTilesHtml(schoolList) : ''}
       <div class="pt-grid pt-grid-2">
         <div class="pt-card" id="tourHighlights">
           <div class="pt-card-title">${ICONS.sparkle} Session Highlights${highlights.weekLabel ? `<span class="pt-card-title-note">Week of ${esc(highlights.weekLabel)}</span>` : ''}</div>
-          ${highlights.items.length ? highlights.items.map(c => `
-            <div class="pt-quote">"${esc(c.text)}"<div class="pt-quote-meta">— ${c.who}</div></div>
-          `).join('') : `<p style="color:var(--muted);font-size:.85rem">No highlighted comments yet this period.</p>`}
+          ${highlights.items.length ? highlights.items.slice(0, HL_SHOW).map(hlItem).join('') +
+            (highlights.items.length > HL_SHOW ? `<details><summary class="pt-more">Show ${highlights.items.length - HL_SHOW} more</summary>${highlights.items.slice(HL_SHOW).map(hlItem).join('')}</details>` : '')
+            : `<p style="color:var(--muted);font-size:.85rem">No highlighted comments yet this period.</p>`}
         </div>
         <div class="pt-card">
           <div class="pt-card-title">${ICONS.trend} This Year at a Glance</div>
@@ -1011,10 +1139,16 @@
 
   function heroHtml(id) {
     const season = (BUNDLE && BUNDLE.season) ? 'SY ' + BUNDLE.season : 'Current School Year';
-    return `<div class="pt-hero">
-      <h1>Welcome, ${esc(id.name || 'Partner')}</h1>
-      <p>${esc(scopeLabel(id))} — New Jersey Tutoring Corps ${esc(season)}</p>
-    </div>`;
+    const drilled = SCOPE.school !== 'ALL' && multiSchoolAccount();
+    const place = drilled ? SCOPE.school : scopeLabel(id);
+    return `<div class="pt-hero"><div class="pt-hero-row">
+      <div>
+        ${drilled ? `<button type="button" class="pt-crumb" onclick="NJTCPartnerNav.backToAllSchools()">&larr; All schools</button>` : ''}
+        <h1>${drilled ? esc(SCOPE.school) : 'Welcome, ' + esc(id.name || 'Partner')}</h1>
+        <p>${drilled ? 'School view' : esc(place)} — New Jersey Tutoring Corps ${esc(season)}</p>
+      </div>
+      ${contactCardHtml(id)}
+    </div></div>`;
   }
   function kpiCard(iconSvg, color, val, sub) {
     return `<div class="pt-card">
@@ -1044,6 +1178,7 @@
   //  ATTENDANCE TRACKING — scholar-only throughout
   // ══════════════════════════════════════════════════════════════════════
   function renderAttendance() {
+    _ckPage = 0;
     const attAll = scopedAttendance();
     const el = document.getElementById('view-attendance');
     if (!attAll.length) { el.innerHTML = noDataCard(); return; }
@@ -1088,6 +1223,7 @@
         </div>
       </div>
       ${checkinSectionHtml(checkIns)}
+      ${keptInClassHtml(attAll, stats.absent)}
       <div class="pt-grid pt-grid-2" style="margin-bottom:1.1rem">
         <div class="pt-card">
           <div class="pt-card-title">${ICONS.search} Why Scholars Missed a Session</div>
@@ -1118,9 +1254,9 @@
     }
     return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourCheckin">
       <div class="pt-card-title">${ICONS.handshake} Scholars to Check In With</div>
-      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">These scholars have a real pattern of missed sessions. A quick check-in with the scholar, a teacher, or family often turns this around. Click a name for the specific sessions missed.</p>
-      ${checkIns.slice(0, 30).map(s => `
-        <details class="pt-checkin">
+      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">${checkIns.length.toLocaleString()} scholar${checkIns.length !== 1 ? 's have' : ' has'} a real pattern of missed sessions, lowest attendance first. A quick check-in with the scholar, a teacher, or family often turns this around. Click a name for the specific sessions missed.</p>
+      ${checkIns.map((s, i) => `
+        <details class="pt-checkin" data-ck-page="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
           <summary>
             <span class="pt-checkin-id">${esc(s.uid)}</span>
             <span class="pt-checkin-name">${esc(s.name)}</span>
@@ -1135,6 +1271,37 @@
             </tbody></table>
           </div>
         </details>`).join('')}
+      ${checkIns.length > CHECKIN_PAGE ? `<div class="pt-pager" id="ckPager">
+        <button type="button" onclick="NJTCPartnerNav.checkinPage(-1)">&larr; Previous</button>
+        <span id="ckPagerLabel">1–${CHECKIN_PAGE} of ${checkIns.length}</span>
+        <button type="button" onclick="NJTCPartnerNav.checkinPage(1)">Next &rarr;</button>
+      </div>` : ''}
+    </div>`;
+  }
+  const CHECKIN_PAGE = 10;
+  let _ckPage = 0;
+  NJTCPartnerNav.checkinPage = function (delta) {
+    const rows = [...document.querySelectorAll('#tourCheckin [data-ck-page]')];
+    const pages = Math.ceil(rows.length / CHECKIN_PAGE);
+    _ckPage = Math.max(0, Math.min(pages - 1, _ckPage + delta));
+    rows.forEach(r => { r.hidden = Number(r.dataset.ckPage) !== _ckPage; });
+    const lbl = document.getElementById('ckPagerLabel');
+    if (lbl) lbl.textContent = (_ckPage * CHECKIN_PAGE + 1) + '–' + Math.min(rows.length, (_ckPage + 1) * CHECKIN_PAGE) + ' of ' + rows.length;
+    const btns = document.querySelectorAll('#ckPager button');
+    if (btns.length === 2) { btns[0].disabled = _ckPage === 0; btns[1].disabled = _ckPage >= pages - 1; }
+  };
+
+  function keptInClassHtml(attRows, absent) {
+    const k = keptInClass(attRows);
+    if (!k.count) return '';
+    const share = absent ? Math.round(k.count / absent * 100) : 0;
+    return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourKept">
+      <div class="pt-card-title">${ICONS.handshake} Kept in Class During Tutoring<span class="pt-card-title-note">${k.count.toLocaleString()} session${k.count !== 1 ? 's' : ''} · ${share}% of missed sessions</span></div>
+      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">A classroom teacher kept these scholars in class during their tutoring time. Each one counts as a missed tutoring session, so scholars receive less of the tutoring they're scheduled for. A quick word with the teachers about the tutoring schedule usually helps.</p>
+      <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th style="text-align:right">Times kept in class</th></tr></thead><tbody>
+        ${k.scholars.slice(0, 10).map(x => `<tr><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(x.uid || '—')}</td><td>${esc(x.name)}</td><td style="text-align:right;font-weight:700">${x.n}</td></tr>`).join('')}
+      </tbody></table>
+      ${k.scholars.length > 10 ? `<p style="font-size:.75rem;color:var(--muted);margin-top:.5rem">Showing the 10 scholars kept in class most often, of ${k.scholars.length}.</p>` : ''}
     </div>`;
   }
 

@@ -7,16 +7,27 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'njtc_partner_tour_seen_v1';
+  const STORAGE_KEY = 'njtc_partner_tour_seen_v2'; // v2: new district/school tour
 
-  const STEPS = [
-    { tab: 'summary', target: '.pt-hero', title: 'Welcome to your dashboard', text: "This is your school's own view of NJTC tutoring data — attendance and survey results, scoped to your program only. Let's take a quick look around." },
-    { tab: 'summary', target: '#tourKpis', title: 'The four numbers that matter most', text: "Scholar Attendance Rate excludes excused time (school events, testing, staffing gaps) so it's never unfairly pulled down. \"Scholars to Check In With\" flags real patterns worth a conversation." },
-    { tab: 'summary', target: '#tourHighlights', title: 'Session Highlights', text: 'A curated set of positive comments from scholars and tutors — a highlight reel, not a full transcript.' },
-    { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Click any name here to see exactly which sessions were missed and why.' },
-    { tab: 'attendance', target: '.pt-tabs', title: 'Survey details, one tab over', text: 'Scholar Survey Details and Tutor Survey Details break down how sessions actually felt, question by question.' },
-    { tab: 'summary', target: '#glossaryBtn', title: "Not sure what a term means?", text: 'The Glossary explains every metric in plain language, including how it\'s calculated. I can explain any of it too — just ask.' }
+  // Two lenses: district partners (several schools) and school partners.
+  const DISTRICT_STEPS = [
+    { tab: 'summary', target: '.pt-hero', title: 'Welcome to your district view', text: 'This page shows NJTC tutoring across all of your schools. Your NJTC contacts are on the right; click a name to email them.' },
+    { tab: 'summary', target: '#tourAttention', title: 'Start here', text: 'The few things worth your attention right now: schools below the 80% attendance goal, scholars kept in class during tutoring, and scholars to check in with.' },
+    { tab: 'summary', target: '#tourSchools', title: 'Every school at a glance', text: 'One box per school. Click a school to open its full view, then a scholar for their detail. Use "All schools" to come back.' },
+    { tab: 'summary', target: '#tourKpis', title: 'District totals', text: 'Scholar Attendance Rate leaves out excused time (school events, testing, NJTC staffing gaps), so it is never unfairly pulled down.' },
+    { tab: 'summary', target: '#pdfBtn', title: 'Weekly PDF', text: 'Download a printable weekly report for the district or for any one school.' },
+    { tab: 'summary', target: '#glossaryBtn', title: 'Not sure what a term means?', text: 'The Glossary explains every number in plain language. You can also ask me any time.' }
   ];
+  const SCHOOL_STEPS = [
+    { tab: 'summary', target: '.pt-hero', title: 'Welcome to your school view', text: "This is your school's NJTC tutoring data. Your NJTC contacts are on the right; click a name to email them." },
+    { tab: 'summary', target: '#tourAttention', title: 'Start here', text: 'The few things worth your attention right now, with a link straight to the detail.' },
+    { tab: 'summary', target: '#tourKpis', title: 'The four numbers that matter most', text: 'Scholar Attendance Rate leaves out excused time (school events, testing, NJTC staffing gaps), so it is never unfairly pulled down.' },
+    { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Lowest attendance first, 10 at a time. Click a name to see which sessions were missed and why.' },
+    { tab: 'attendance', target: '#tourKept', title: 'Kept in class during tutoring', text: 'Scholars a classroom teacher kept in class during tutoring. Each one is a missed tutoring session.' },
+    { tab: 'summary', target: '#glossaryBtn', title: 'Not sure what a term means?', text: 'The Glossary explains every number in plain language. You can also ask me any time.' }
+  ];
+  let STEPS = SCHOOL_STEPS;
+
 
   let idx = 0;
   let active = false;
@@ -99,6 +110,7 @@
     if (active) return;
     active = true;
     idx = 0;
+    STEPS = (window.NJTCPartnerNav && window.NJTCPartnerNav.isDistrictLens()) ? DISTRICT_STEPS : SCHOOL_STEPS;
     document.getElementById('tourBackdrop').classList.add('open');
     render();
   }

@@ -121,9 +121,15 @@
     };
   }
 
-  const QUICK_CHIPS = [
+  const QUICK_CHIPS_SCHOOL = [
     "What's my attendance rate?",
     'What does "excused time" mean?',
+    'Show me around',
+    "Who do I contact with questions?"
+  ];
+  const QUICK_CHIPS_DISTRICT = [
+    'Which school needs attention?',
+    "What's my attendance rate?",
     'Show me around',
     "Who do I contact with questions?"
   ];
@@ -169,8 +175,26 @@
       const when = s.generatedAt ? new Date(s.generatedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : null;
       return when ? `This data was last refreshed <b>${when}</b>. It updates automatically — you never need to ask anyone to "load" anything.` : `I don't have an exact refresh timestamp handy, but this dashboard updates automatically on its own schedule — no one needs to manually load data for you to see it.`;
     }
-    if (/contact|help|support|program manager|who/.test(q)) {
-      return `For anything specific to your school's tutoring program, your NJTC Program Manager is your best contact. For portal access issues (a login not working, wrong school showing), reach out to the NJTC Data Department.`;
+    if (/which school|school.*(attention|lowest|worst|need)|compare.*school/.test(q)) {
+      const nav = window.NJTCPartnerNav;
+      if (!nav || !nav.isDistrictLens()) return `This view covers one school. Use the "What needs your attention" box at the top of Summary for what to look at first.`;
+      const rows = (window.NJTC_BUNDLE.attendance || []).filter(r => (r[ATT.ROLE] || '').trim() !== 'Instructor');
+      const by = {};
+      rows.forEach(r => { const sc = (r[ATT.SCHOOL] || '').trim(); const c = classifyAtt(r); if (!sc) return; by[sc] = by[sc] || { a: 0, m: 0 }; if (c === 'attended') by[sc].a++; else if (c === 'absent') by[sc].m++; });
+      const list = Object.entries(by).map(([n, v]) => ({ n, r: v.a + v.m ? Math.round(v.a / (v.a + v.m) * 1000) / 10 : null })).filter(x => x.r != null).sort((a, b) => a.r - b.r);
+      const low = list.filter(x => x.r < 80);
+      return low.length
+        ? `${low.length} school${low.length !== 1 ? 's are' : ' is'} below the 80% attendance goal: ${low.slice(0, 4).map(x => `<b>${x.n}</b> (${x.r}%)`).join(', ')}. Click a school's box on Summary to open its full view.`
+        : `Every school is at or above the 80% attendance goal. The lowest right now is <b>${list[0] ? list[0].n + ' (' + list[0].r + '%)' : '—'}</b>. Click any school's box on Summary to open its full view.`;
+    }
+    if (/contact|help|support|program manager|who|email|question/.test(q)) {
+      const CORE = window.NJTCPartnerReport;
+      if (CORE && CORE.contactsFor) {
+        const c = CORE.contactsFor(s.identity || {});
+        const a = (p, subj) => `<a href="${CORE.mailtoHref(p.email, subj)}">${p.name}</a> (${p.email})`;
+        return `For questions about your tutoring program, email NJTC Program Management: ${c.programManagers.map(p => a(p, 'NJTC tutoring question')).join(' or ')}.<br><br>For a question about a number on this dashboard, or a login problem, email the Data team: ${a(c.data, 'NJTC dashboard data question')}.`;
+      }
+      return `For anything specific to your school's tutoring program, your NJTC Program Manager is your best contact. For portal access issues, reach out to the NJTC Data Team.`;
     }
     if (glossaryHits) {
       return glossaryHits.map(g => `<b>${g.term}:</b> ${g.def}`).join('<br><br>');
@@ -216,7 +240,8 @@
 
     function renderChips() {
       chips.innerHTML = '';
-      QUICK_CHIPS.forEach(q => {
+      const district = window.NJTCPartnerNav && window.NJTCPartnerNav.isDistrictLens();
+      (district ? QUICK_CHIPS_DISTRICT : QUICK_CHIPS_SCHOOL).forEach(q => {
         const c = document.createElement('div');
         c.className = 'pie-chip';
         c.textContent = q;
