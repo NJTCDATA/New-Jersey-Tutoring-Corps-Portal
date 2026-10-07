@@ -885,6 +885,24 @@
   // ══════════════════════════════════════════════════════════
   //  HOME PAGE
   // ══════════════════════════════════════════════════════════
+  // Department Updates / leaderboard / pre-meeting quiz process — retired
+  // (Oct 2026): updates return to the Team Meeting agenda. Flip to true to
+  // restore the board, quiz, login welcome pop-up and update notifications.
+  const LB_PROCESS_ENABLED = false;
+
+  // Static "Next Biweekly Meeting" pill in the home header (replaces the
+  // login welcome pop-up). Idempotent — buildHome() can run more than once.
+  function _lbInjectMeetingPill() {
+    if (document.getElementById('lbMeetingPill')) return;
+    const sub = document.getElementById('homeSubtitle');
+    if (!sub || !window._lbNextMeeting) return;
+    const pill = document.createElement('div');
+    pill.id = 'lbMeetingPill';
+    pill.style.cssText = 'display:inline-flex;align-items:center;gap:.4rem;margin-top:.6rem;padding:.3rem .8rem;border-radius:999px;background:#eff6ff;border:1px solid #dbeafe;color:#1e40af;font-size:.78rem;font-weight:700';
+    pill.textContent = '\u{1F4C5} Next Biweekly Meeting \u2014 ' + window._lbNextMeeting.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    sub.insertAdjacentElement('afterend', pill);
+  }
+
   function buildHome(dept) {
     const cfg = DEPT_CONFIG[dept] || DEPT_CONFIG.programming;
 
@@ -893,7 +911,9 @@
 
     // ── First-login welcome modal (once per session per dept) ──────────────
     const _welcomeKey = 'njtc_welcomed_' + dept + '_v1';
-    if (!sessionStorage.getItem(_welcomeKey)) {
+    if (!LB_PROCESS_ENABLED) {
+      setTimeout(_lbInjectMeetingPill, 0);
+    } else if (!sessionStorage.getItem(_welcomeKey)) {
       sessionStorage.setItem(_welcomeKey, '1');
       setTimeout(() => _lbShowWelcomeModal(dept), 600);
     }
@@ -1132,7 +1152,9 @@
     // from overwriting an already-rendered leaderboard with "Loading…" placeholders.
     const LEADERBOARD_EXEC_DEPTS = ['leadership','data','kb'];
     const _lbEl = document.getElementById('homeDeptWidget');
-    if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
+    if (!LB_PROCESS_ENABLED) {
+      // retired — homeDeptWidget keeps whatever the department widget wrote
+    } else if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
       // Exec pill: only inject once — guarded inside _lbInjectExecPill by id check
       setTimeout(() => {
         if (!document.getElementById('lbExecPillTile')) _lbInjectExecPill(dept);
@@ -7447,7 +7469,7 @@
 
   // Rebuild missed-quiz notification cards from localStorage state after _lbNotifPopulate overwrites the body
   function _lbNotifReInjectMissed(body) {
-    if (!body) return;
+    if (!body || !LB_PROCESS_ENABLED) return;
     if (!localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY)) return;
     // Already injected this cycle — rebuild the cards from the stored missed-dept list
     const raw = localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY + '_depts');
@@ -7495,6 +7517,7 @@
 
   async function _lbNotifInit() {
     _lbNotifInjectShell();
+    if (!LB_PROCESS_ENABLED) return; // bell stays for other alerts (BD pipeline); no update items
     const rows = await _lbFetch(false);
     const cutoff = new Date(LB_NEXT_MEETING);
     cutoff.setDate(cutoff.getDate() - LB_NOTIF_LOOKBACK_DAYS);
