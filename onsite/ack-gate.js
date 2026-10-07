@@ -88,6 +88,10 @@ function showAcknowledgementModal(uid, dayKey) {
                                 <li>Implement exit tickets and formative assessments to check for understanding</li>
                                 <li>Differentiate instruction to meet individual scholar needs within your tutoring group</li>
                                 <li>Prepare all materials and technology before each session begins</li>
+                                <li>Log scholar attendance in Pearl at the start of each session</li>
+                                <li>Complete post-session surveys in Pearl with session notes and scholar observations</li>
+                                <li>Maintain 90%+ Pearl completion rate for attendance and surveys</li>
+                                <li>Follow up on absent scholars as directed by your Site Coordinator</li>
                             </ul>
                         </section>
                         <section class="responsibility-section">
@@ -101,16 +105,7 @@ function showAcknowledgementModal(uid, dayKey) {
                             </ul>
                         </section>
                         <section class="responsibility-section">
-                            <h3><span class="section-number">4</span>Attendance & Punctuality</h3>
-                            <ul>
-                                <li>Log scholar attendance in Pearl at the start of each session</li>
-                                <li>Complete post-session surveys in Pearl with session notes and scholar observations</li>
-                                <li>Maintain 90%+ Pearl completion rate for attendance and surveys</li>
-                                <li>Follow up on absent scholars as directed by your Site Coordinator</li>
-                            </ul>
-                        </section>
-                        <section class="responsibility-section">
-                            <h3><span class="section-number">5</span>Communication & Reporting</h3>
+                            <h3><span class="section-number">4</span>Communication & Reporting</h3>
                             <ul>
                                 <li>Check your professional Gmail account daily and respond within 24-48 hours</li>
                                 <li>Submit lesson plans by the deadline set by your Site Coordinator (typically Friday for the following week)</li>
@@ -120,7 +115,7 @@ function showAcknowledgementModal(uid, dayKey) {
                             </ul>
                         </section>
                         <section class="responsibility-section">
-                            <h3><span class="section-number">6</span>Compliance & Ethics</h3>
+                            <h3><span class="section-number">5</span>Compliance & Ethics</h3>
                             <ul>
                                 <li>Adhere to all NJTC policies outlined in the Employee Handbook</li>
                                 <li>Submit accurate timecards in ADP by payroll deadlines (15th and last day of month)</li>
