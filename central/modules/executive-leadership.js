@@ -1400,9 +1400,13 @@
   // ═══════════════════════════════════════════════════════════════════════
   // NJTC APPRENTICE DATA LAYER — SY 2026-2027
   // Single source of truth for all apprentice logic across all departments
-  // Source: live Onsite Tracker (SY 26-27 roster) — "Registered for GAINS Tutoring
-  // Apprentice Program?" = Yes is an active apprentice; Pre-apprentice roles and the
-  // "PACE Cohort summer 2026" column give the pre-apprentice pipeline.
+  // Source: live Onsite Tracker (SY 26-27 roster) + live HR Master List.
+  //   • New SY 26-27 apprentices = "Registered for GAINS Tutoring Apprentice Program?" = Yes
+  //   • Continuing apprentices   = on the SY 26-27 roster and an apprentice on the Master
+  //     List for the current or prior SY (Apprentice Program = "Active") — the tracker only
+  //     holds NEW registrations, prior cohorts are still active apprentices.
+  //   • Prior SY total            = Master List prior-SY rows with Apprentice Program "Active".
+  //   Pre-apprentice roles and "PACE Cohort summer 2026" give the pre-apprentice pipeline.
   // ap_ namespace — no collisions with existing portal functions
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -1427,6 +1431,7 @@
     if (s.includes('vernon'))                                return 'Vernon';
     if (s.includes('lawrence'))                              return 'Lawrence Township';
     if (s.includes('leap'))                                  return 'LEAP Academy';
+    if (s.includes('pemberton'))                             return 'Pemberton Township';
     return 'Other';
   };
   const ap_inferNetwork = ap_deriveNetwork; // alias
@@ -1434,7 +1439,7 @@
   const ap_deriveRegion = (site, district) => {
     const net = ap_deriveNetwork(site, district);
     if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep','Lyndhurst','Vernon'].includes(net)) return 'NE';
-    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy'].includes(net)) return 'SW';
+    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy','Pemberton Township'].includes(net)) return 'SW';
     return 'Unassigned';
   };
 
@@ -1503,8 +1508,11 @@
 
   const ap_buildFromLive = async () => {
     try {
-      // Live Onsite Tracker (roster + Terminations tabs) — shared loader in shared-charts.js
-      if (typeof window.fetchLiveOnsiteData === 'function') await window.fetchLiveOnsiteData();
+      // Live Onsite Tracker (roster + Terminations tabs) + HR Master List — shared loaders
+      await Promise.all([
+        typeof window.fetchLiveOnsiteData === 'function' ? window.fetchLiveOnsiteData() : null,
+        (!window._hrDataFetched && typeof window.fetchLiveHRData === 'function') ? window.fetchLiveHRData() : null,
+      ].map(p => Promise.resolve(p).catch(() => {})));
       const roster = window._njtcOnsiteRoster2627 || [];
       if (!roster.length) throw new Error('Onsite Tracker not loaded');
       const nm = s => (s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
@@ -1520,12 +1528,28 @@
       window.AP_PREAPPS      = syRows.filter(isPreAppRole).map(r => ({ name: r.name, role: r.role, site: r.location, district: r.district }));
       window.AP_PACE_GRADS   = syRows.filter(r => !isPreAppRole(r) && /summer\s*20\d\d/i.test(r.paceCohort || ''))
         .map(r => ({ name: r.name, cohort: r.paceCohort, gains: r.gains }));
+      // Master List apprentice flags by person + SY (current SY = newest Master List year)
+      const CUR  = (typeof window._hrCurSY === 'function' && window._hrCurSY()) || '2026-2027';
+      const PREV = `${parseInt(CUR, 10) - 1}-${parseInt(CUR, 10)}`;
+      const isAp = v => /^(yes|active)$/i.test((v || '').trim());
+      const hk   = s => (s || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(t => t.length > 1).sort().join(' ');
+      const mlAp = {};
+      (window.HR_EMPS || []).forEach(e => {
+        const y = e._byYear || {};
+        const k = hk(e.n);
+        if (k) mlAp[k] = isAp((y[CUR] || {}).apprentice) || isAp((y[PREV] || {}).apprentice);
+      });
+      window.AP_SY = CUR;
+      window.AP_PRIOR_SY = PREV;
+      window.AP_PRIOR_SY_TOTAL = (window.HR_EMPS || []).filter(e => isAp(((e._byYear || {})[PREV] || {}).apprentice)).length;
       // One entry per person (dedupe by name)
       const byName = {};
       syRows.filter(r => !isPreAppRole(r)).forEach(r => { const k = nm(r.name); if (k && !byName[k]) byName[k] = r; });
       window.AP_DATA = Object.values(byName).map(r => {
         const g = (r.gains || '').trim();
-        const ap = /^yes$/i.test(g)          ? 'Yes'
+        const isNew        = /^yes$/i.test(g);
+        const isContinuing = !isNew && !!mlAp[hk(r.name)];
+        const ap = (isNew || isContinuing)   ? 'Yes'
                  : /not eligible/i.test(g)   ? 'Not eligible'
                  : g === '' && /not eligible/i.test(r.paceCohort || '') ? 'Not eligible'
                  : 'No';                     // "Eligible" / "No" / blank = eligible, not enrolled
@@ -1537,6 +1561,7 @@
           network:    ap_deriveNetwork(r.location, r.district),
           region:     ap_deriveRegion(r.location, r.district),
           apprentice: ap,
+          apCohort:   isNew ? 'new' : isContinuing ? 'continuing' : '',
           gains:      g,
           paceGrad:   /summer\s*20\d\d/i.test(r.paceCohort || ''),
           rehire:     /rehire/i.test(r.source || '') ? 'Yes' : 'No',
@@ -1545,11 +1570,13 @@
         };
       });
       console.log('[AP] Live build (Onsite Tracker SY 26-27): ' + window.AP_DATA.length + ' active staff · '
-        + ap_enrolled().length + ' GAINS apprentices · ' + window.AP_PREAPPS.length + ' pre-apprentices · '
+        + ap_enrolled().length + ' active apprentices (' + window.AP_DATA.filter(r => r.apCohort === 'new').length + ' new · '
+        + window.AP_DATA.filter(r => r.apCohort === 'continuing').length + ' continuing) · ' + PREV + ': ' + window.AP_PRIOR_SY_TOTAL + ' · '
+        + window.AP_PREAPPS.length + ' pre-apprentices · '
         + window.AP_PACE_GRADS.length + ' PACE grads on staff');
     } catch (err) {
       console.warn('[AP] Onsite Tracker load failed — AP_DATA empty:', err.message);
-      window.AP_DATA = []; window.AP_PREAPPS = []; window.AP_PACE_GRADS = [];
+      window.AP_DATA = []; window.AP_PREAPPS = []; window.AP_PACE_GRADS = []; window.AP_PRIOR_SY_TOTAL = 0;
     }
   };
 
@@ -1615,7 +1642,8 @@
   // who are NOT in the TAP sheet (supplement). This prevents HR-confirmed apprentices
   // from being silently dropped when the TAP sheet hasn't been updated yet.
   const ap_mergeTAPData = () => {
-    // Enrollment comes from the Onsite Tracker (GAINS = Yes). The Live Apprentice
+    // Enrollment comes from the Onsite Tracker (GAINS = Yes) + continuing Master List
+    // apprentices. The Live Apprentice
     // Tracker (TAP sheet) only adds cohort / registration date / folder link.
     const tapRoster = window.AP_TAP_ROSTER || [];
     const nm  = s => (s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
@@ -1636,9 +1664,9 @@
     const tapOnly = tapRoster.filter(t => !matched.has(t));
     if (tapOnly.length) {
       console.warn('[AP] ' + tapOnly.length + ' Live Apprentice Tracker entr' + (tapOnly.length === 1 ? 'y is' : 'ies are')
-        + ' not GAINS = Yes on the Onsite Tracker (not counted):', tapOnly.map(t => '"' + t.name + '"').join(', '));
+        + ' not active apprentices on the SY roster (not counted):', tapOnly.map(t => '"' + t.name + '"').join(', '));
     }
-    console.log('[AP] Enrolled (Onsite Tracker GAINS = Yes): ' + ap_enrolled().length);
+    console.log('[AP] Active apprentices (new GAINS + continuing): ' + ap_enrolled().length);
     // Sync apprentice status to HR_EMPS so Talent Analytics filter shows correct count
     ap_syncHREmps(new Set(ap_enrolled().map(r => (r.name || '').toLowerCase().replace(/\s+/g, ' ').trim())));
   };
@@ -2287,7 +2315,8 @@
         <!-- Compact KPI strip -->
         <div style="display:flex;flex-wrap:wrap;gap:.375rem;padding-top:.625rem;border-top:1px solid rgba(255,255,255,.08)">
           ${[
-            { v: enrolled.length,  l: 'Enrolled',    sub: networkCount+' networks',  c: '#93c5fd', def: 'TAP participants active in SY 2026–2027' },
+            { v: enrolled.length,  l: 'Active',      sub: enrolled.filter(function(r){return r.apCohort==='new';}).length+' new · '+enrolled.filter(function(r){return r.apCohort==='continuing';}).length+' continuing', c: '#93c5fd', def: 'Active apprentices on the SY 2026–2027 roster: new SY 26-27 GAINS registrations (Onsite Tracker) + continuing apprentices from prior cohorts (HR Master List)' },
+            { v: window.AP_PRIOR_SY_TOTAL || 0, l: 'SY ' + String(window.AP_PRIOR_SY||'2025-2026').replace(/^20(\d\d)-20(\d\d)$/,'$1-$2'), sub: 'apprentices that SY', c: '#a5b4fc', def: 'Apprentice Program = Active on the HR Master List for the prior school year' },
             { v: eligible.length,  l: 'Eligible',    sub: 'not yet enrolled',         c: '#fde68a', def: 'Active tutors who qualify but have not enrolled yet' },
             { v: (window.AP_PREAPPS||[]).length, l: 'Pre-Apprentices', sub: (window.AP_PACE_GRADS||[]).length+' PACE grads on staff', c: '#c4b5fd', def: 'Current pre-apprentice roles on the Onsite Tracker · PACE grads = Summer 2026 PACE cohort now on SY 26-27 staff' },
             { v: totalNE,          l: 'NE',           sub: nePct+'% enrolled',        c: '#6ee7b7', def: 'iLearn, KIPP, Hoboken, Middlesex, Somerset, Bergen' },
