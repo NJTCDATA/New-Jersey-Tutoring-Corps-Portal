@@ -761,6 +761,8 @@
   // staff actually active on the selected roster (same source as Staff by Role), so
   // the table follows the period / hire-date toggle. Vacancies = Positions − Filled
   // (Locations tab), as before.
+  const FRACTION_NOTE = 'Positions and Filled come from the Locations tab and are exact. A staff member shared across schools is entered as a share at each school (a tutor split across 2 schools = 0.5 + 0.5; a site leader covering 4 schools = 0.25 each), so totals can include .5 where a shared position is only partly planned or filled.';
+
   function buildOpeningRows(openings, roles) {
     const byRole = {}; (roles || []).forEach(r => { byRole[r.role] = r; });
     const rows = ROLE_BUCKETS.map(b => {
@@ -803,6 +805,7 @@
         <tbody>${body}</tbody>
       </table>
       ${other ? `<div style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Not a budgeted position on the Locations tab: ${other}</div>` : ''}
+      ${openings && rows.some(r => (r.positions % 1) || (r.filled % 1)) ? `<div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">${FRACTION_NOTE}</div>` : ''}
       ${!openings ? '<div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">Positions / Filled load from the Locations tab (open SY Site Analytics once if blank).</div>' : ''}`;
   }
 
@@ -825,6 +828,7 @@
       rows.push(['Position Group','Roster Roles','Positions','Filled (Locations tab)','Active on Roster','Vacancies']);
       op.rows.forEach(r => rows.push([r.label, r.roles, r.positions == null ? '' : r.positions, r.filled == null ? '' : r.filled, r.active, r.vacancies == null ? '' : r.vacancies]));
       if (op.other) rows.push(['Not a budgeted position', op.other]);
+      if (op.rows.some(r => (r.positions % 1) || (r.filled % 1))) rows.push(['Note', FRACTION_NOTE]);
     }
     const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -948,7 +952,8 @@
     <thead><tr><th>Position Group (roster roles)</th><th style="text-align:center">Positions</th><th style="text-align:center">Filled (Locations tab)</th><th style="text-align:center">Active on Roster</th><th style="text-align:center">Vacancies</th></tr></thead>
     <tbody>${openRows}</tbody>
   </table>
-  ${_op.other ? `<p style="font-size:8pt;color:#64748b">Not a budgeted position on the Locations tab: ${_op.other}</p>` : ''}` : ''}
+  ${_op.other ? `<p style="font-size:8pt;color:#64748b">Not a budgeted position on the Locations tab: ${_op.other}</p>` : ''}
+  ${_op.rows.some(r => (r.positions % 1) || (r.filled % 1)) ? `<p style="font-size:8pt;color:#64748b">${FRACTION_NOTE}</p>` : ''}` : ''}
   <div class="footer">
     NJTC Central Team Portal &bull; Confidential — For internal DOL reporting use only &bull; Impact Solutions Group LLC
   </div>

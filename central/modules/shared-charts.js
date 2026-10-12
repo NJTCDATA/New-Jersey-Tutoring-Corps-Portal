@@ -1897,6 +1897,15 @@
       }
     });
 
+    // ── Internal (central-team) roles are not onsite staff ───────────────────────
+    // Master (Instructional) Trainer is an internal NJTC role: those Master List rows are
+    // kept out of every onsite view/count (profiles, Talent stats, diversity, DOL) and
+    // surfaced on the Central Team card instead. Only the internal-role rows are removed,
+    // so a person's earlier onsite years (e.g. Instructional Coach) stay in history.
+    const _INTERNAL_ROLE_RE = /master\s*(instructional\s*)?trainer/i;
+    window._njtcInternalStaff = liveRows.filter(r => _INTERNAL_ROLE_RE.test(r.role || ''));
+    liveRows = liveRows.filter(r => !_INTERNAL_ROLE_RE.test(r.role || ''));
+
     // ── Reset HR_EMPS to clean base (removes prior-session push()-added entries) ──
     if (HR_EMPS.length > window._HR_BASE_LEN) {
       HR_EMPS.splice(window._HR_BASE_LEN);  // truncate back to embedded snapshot
@@ -2180,6 +2189,11 @@
     window._njtcLiveTerminatedCY   = window._njtcLiveTerminatedByYear[CUR_SY] || [];
 
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
+    // Central Team card lists internal staff from the Master List — refresh it now
+    try {
+      const _ctCard = document.getElementById('centralTeamRaceCard');
+      if (_ctCard && typeof _buildCentralTeamDiversityCard === 'function') _ctCard.innerHTML = _buildCentralTeamDiversityCard();
+    } catch(_ct) {}
     console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' · current SY '+CUR_SY+' · apprentices:', _rawApprSet.size, '· terminated (CY):', window._njtcLiveTerminatedCY.length);
   }
 
@@ -3985,10 +3999,20 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Only Active staff count in diversity stats. Retired members are noted separately.
     const _hrPool = (typeof HR_EMPS !== 'undefined') ? HR_EMPS : [];
     const _normalize = n => (n||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
+    // Internal staff on the HR Master List (e.g. Master Trainer) — current SY rows
+    const _curYr = (typeof window._hrCurSY === 'function') ? window._hrCurSY() : '';
+    const _internal = (window._njtcInternalStaff || []).filter(r => r.yr === _curYr);
+    const _internalPool = _internal.map(r => ({ n: r.name, _race: r.race || '', _ethnicity: r.ethnicity || '' }));
+    const _ctNames = new Set(CENTRAL_TEAM_STAFF.map(ct => _normalize(ct.n)));
+    const _ctList = CENTRAL_TEAM_STAFF.concat(
+      _internal.filter(r => !_ctNames.has(_normalize(r.name)))
+        .map(r => ({ n: r.name, _race: '', _ethnicity: '', s: /^active$/i.test(r.status || '') ? 'Active' : 'Inactive', _note: r.role }))
+    );
 
-    const merged = CENTRAL_TEAM_STAFF.map(ct => {
-      // Look up in HR_EMPS by normalized name for live race/ethnicity overlay
-      const match = _hrPool.find(e => _normalize(e.n) === _normalize(ct.n));
+    const merged = _ctList.map(ct => {
+      // Look up in HR_EMPS (or internal Master List rows) by normalized name for live race/ethnicity
+      const match = _hrPool.find(e => _normalize(e.n) === _normalize(ct.n))
+                 || _internalPool.find(e => _normalize(e.n) === _normalize(ct.n));
       const liveRace = (match && match._race  && match._race  !== '') ? match._race  : '';
       const liveEth  = (match && match._ethnicity && match._ethnicity !== '') ? match._ethnicity : '';
       return Object.assign({}, ct, {
