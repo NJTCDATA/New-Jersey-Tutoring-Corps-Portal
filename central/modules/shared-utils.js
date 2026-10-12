@@ -973,7 +973,7 @@
     if (_statsEl) setTimeout(() => {
       _statsEl.innerHTML = `
         <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
-          <div class="st-icon">✅</div><div class="st-value">${met}</div><div class="st-label">Goals Met</div><div class="st-sub">SY 2025–26</div>
+          <div class="st-icon">✅</div><div class="st-value">${met}</div><div class="st-label">Goals Met</div><div class="st-sub">SY ${window.NJTC_KPI_SY || ''}</div>
         </div>
         <div class="stat-tile" style="--accent-color:var(--progress)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('In Progress'),100)">
           <div class="st-icon">🔵</div><div class="st-value">${prog}</div><div class="st-label">In Progress</div><div class="st-sub">Active tracking</div>
@@ -7879,7 +7879,7 @@
   var _history  = [];
   var _panel    = 'home';
   var _dept     = 'leadership';
-  var _cat      = 'Overview';
+  var _cat      = 'Today';     // "Today" (what needs attention) is the first suggestion row
   var _lastQ    = ''; // last routed query — readable by RULES respond functions
   var _pendingQ = null; // {ctx, dir} — awaiting user clarification before answering
 
@@ -7958,13 +7958,13 @@
 
   // ── Dept-specific extras — prepend these category tabs for specific roles ──
   var DEPT_CAT_DEFAULTS = {
-    programming: { extra: ['Support Report', 'My Sites'],                 def: 'Support Report'  },
-    training:    { extra: ['T&D'],                                        def: 'T&D'             },
-    finance:     { extra: ['Finance'],                                    def: 'Finance'         },
-    hr:          { extra: ['Workforce'],                                  def: 'Workforce'       },
-    data:        { extra: ['Support Report','Reports','Demographics'],    def: 'Overview'        },
-    kb:          { extra: ['Grant Reporting','Dept Briefing'],            def: 'Grant Reporting' },
-    leadership:  { extra: ['Grant Reporting','Quarterly','Satisfaction'], def: 'Grant Reporting' },
+    programming: { extra: ['Support Report', 'My Sites'],                 def: 'Today'  },
+    training:    { extra: ['T&D'],                                        def: 'Today'             },
+    finance:     { extra: ['Finance'],                                    def: 'Today'         },
+    hr:          { extra: ['Workforce'],                                  def: 'Today'       },
+    data:        { extra: ['Support Report','Reports','Demographics'],    def: 'Today'        },
+    kb:          { extra: ['Grant Reporting','Dept Briefing'],            def: 'Today' },
+    leadership:  { extra: ['Grant Reporting','Quarterly','Satisfaction'], def: 'Today' },
   };
 
   var PANEL_CATS = {
@@ -9769,6 +9769,119 @@
     return lines.join('\n') + foot;
   }
 
+  // ── PIE "Today" — what needs attention, from the same list Home shows ─────
+  // Each topic: which Home item it reads (match on the item text), the plain
+  // question PIE offers as a button, words that mean the same question, and
+  // which department views have it. Answers are built from njtcHome.attention(),
+  // so PIE and the Home "Needs your attention" box can never disagree.
+  var _PIE_TODAY = [
+    { id: 'sl',      item: /Support Log/i,                 q: 'Which Support Log entries are waiting on HR?',        kw: /support log.{0,30}(open|waiting|unresolved|pending)|(open|unresolved|pending) support log|waiting on hr/, depts: ['hr'], none: 'No Support Log entries are waiting on HR right now.' },
+    { id: 'c3',      item: /3 or more concerns/i,          q: 'Who has 3 or more concerns this year?',               kw: /(3|three)\+?( or more)? concerns|repeat(ed)? concerns|most concerns|multiple concerns/, depts: ['hr'], none: 'No active staff member has 3 or more concerns this school year.' },
+    { id: 'adp',     item: /no ADP hire date/i,            q: 'Who is on the tracker without an ADP hire date?',     kw: /(no|missing|without).{0,15}adp|not (yet )?in adp|adp hire date/, depts: ['hr'], none: 'Everyone on the Onsite Tracker for this school year has an ADP hire date.' },
+    { id: 'notrk',   item: /not on the Onsite Tracker/i,   q: 'Who is in ADP but not on the Onsite Tracker?',        kw: /in adp but|not on the (onsite )?tracker|missing from (the )?(onsite )?tracker/, depts: ['hr'], none: 'Everyone active in ADP this school year is on the Onsite Tracker.' },
+    { id: 'noreas',  item: /no reason recorded/i,          q: 'Which separations are missing a reason?',             kw: /(separation|termination)s?.{0,25}(no|missing|without|blank).{0,10}reason/, depts: ['hr'], none: 'Every separation this school year has a reason recorded.' },
+    { id: 'dol',     item: /DOL numbers are complete/i,    q: "Are last month's DOL numbers ready?",                 kw: /dol.{0,20}(ready|complete|done)|last month.{0,15}dol/, depts: ['hr'], none: 'Last month\'s DOL numbers show up here during the first 10 days of each month — open the DOL Report any time for the latest.' },
+    { id: 'inc',     item: /Incomplete Pearl session/i,    q: 'Who has incomplete sessions?',                        kw: null, depts: ['programming', 'data'] },
+    { id: 'surv',    item: /Missing tutor survey/i,        q: 'Who is missing tutor surveys?',                       kw: null, depts: ['programming', 'data'] },
+    { id: 'blank',   item: /no reason entered/i,           q: 'Which absences have no reason entered?',              kw: null, depts: ['programming', 'data'] },
+    { id: 'low',     item: /below the 80%/i,               q: 'Which campuses are below 80% attendance this week?',  kw: /(below|under).{0,10}80.{0,40}(week|7 days)|(campus|school|site)e?s?.{0,25}(below|under).{0,15}(80|target).{0,30}(week|7 days)|low attendance.{0,20}(this|last) week/, depts: ['programming'], none: 'No campus is below the 80% scholar attendance target in the last 7 days.' },
+    { id: 'load',    item: /didn't load/i,                 q: 'Did any data fail to load?',                          kw: /(fail|failed|didn.?t|did not).{0,10}load|not loading|data.{0,15}(missing|broken)/, depts: ['data'], none: 'All of the portal\'s data sources loaded correctly.' },
+    { id: 'otj',     item: /OTJ follow-up/i,               q: 'Which apprentices need OTJ follow-up?',               kw: /otj.{0,15}(follow|flag)|flagged.{0,15}apprentice|apprentices?.{0,20}(flag|follow.?up)/, depts: ['training', 'leadership', 'kb'], none: 'No apprentices are flagged for OTJ follow-up right now.' },
+    { id: 'elig',    item: /eligible for the apprenticeship/i, q: 'Who is eligible but not enrolled?',               kw: /eligible.{0,25}(not|n.t|aren.?t|isn.?t).{0,5}enrolled|not yet enrolled|eligible tutors/, depts: ['training'], none: 'Everyone eligible for the apprenticeship is enrolled.' },
+    { id: 'wage',    item: /below the wage tier/i,         q: 'Which apprentices are paid below their wage tier?',   kw: /wage tier|pay (rate|change|increase)|paid below|owed a raise/, depts: ['finance'], none: 'Every apprentice\'s pay rate matches the wage tier their OJT hours have reached.' },
+    { id: 'usdol',   item: /USDOL/i,                       q: 'Who is missing a USDOL ID?',                          kw: /(missing|no|without).{0,15}usdol|usdol.{0,15}(missing|id)/, depts: ['finance'], none: 'Every apprentice has a USDOL Apprentice ID on file.' },
+    { id: 'risk',    item: /High-risk district/i,          q: 'Which districts are high risk?',                      kw: /high.?risk district|district.{0,15}(high.?risk|at risk)/, depts: ['finance'], none: 'No districts are rated high risk on Partnership Risk right now.' },
+    { id: 'kpi',     item: /KPI target/i,                  q: 'Which KPI targets are not met?',                      kw: null, depts: ['leadership', 'kb'] },
+    { id: 'formal',  item: /formal HR step/i,              q: 'Who is at a formal HR step this year?',               kw: /formal (hr )?step/, depts: ['leadership', 'kb'], none: 'No active staff member is at a formal HR step (write-up, PGP or recommended termination) this school year.' },
+    { id: 'high',    item: /High support/i,                q: 'Which campuses need high support?',                   kw: /high support|campus(es)?.{0,20}need.{0,10}support/, depts: ['leadership', 'kb'], none: 'No campus is rated High support on the Field Support Report right now.' },
+  ];
+  window.__pieGo = [];
+  var _pieAsked = {};
+  function _pieLens() { return window._currentDept || window.NJTC_VIEW_DEPT || _dept || ''; }
+  function _pieAttn() { return window.njtcHome && window.njtcHome.attention ? window.njtcHome.attention(_pieLens()) : null; }
+  function _pieTodayQs(dept) { return _PIE_TODAY.filter(function(t){ return t.depts.indexOf(dept) >= 0; }); }
+  function _pieAskBtn(q, label) { return ' <span class="pie-action-btn" data-pie-ask="' + String(q).replace(/"/g, '&quot;') + '">' + (label || q) + '</span>'; }
+  function _pieGoBtn(item) {
+    if (!item || !item.go) return '';
+    var i = window.__pieGo.push(item.go) - 1;
+    return ' <span class="pie-action-btn" data-pie-go="' + i + '">→ ' + (item.open || 'Open') + '</span>';
+  }
+  function _pieItemAnswer(item) {
+    var rows = item.rows || [];
+    var lines = ['**' + (item.count != null ? item.count + ' — ' : '') + item.text + '**'];
+    if (rows.length) {
+      lines.push('');
+      rows.slice(0, 40).forEach(function(r){ lines.push('• **' + r.n + '**' + (r.sub ? ' — ' + (r.sub.length > 110 ? r.sub.slice(0, 107) + '…' : r.sub) : '')); });
+      if (rows.length > 40) lines.push('…and ' + (rows.length - 40) + ' more on the page.');
+    }
+    lines.push('\n_This is the same list as **Needs your attention** on Home._' + _pieGoBtn(item));
+    return lines.join('\n');
+  }
+  // The day's list, as a short briefing (used by the welcome and "what needs my attention")
+  function _pieBriefing(withButtons) {
+    var A = _pieAttn();
+    if (!A) return null;
+    var dept = _pieLens(), topics = _pieTodayQs(dept);
+    if (!A.items.length) {
+      return A.loading.length ? null : '✅ **Nothing needs your attention right now.** I check the same things as Home → Needs your attention, so I\'ll flag anything new.';
+    }
+    var lines = ['**Here\'s what needs your attention:**'];
+    A.items.forEach(function(it){
+      var t = topics.filter(function(x){ return x.item.test(it.text); })[0];
+      lines.push('• ' + (it.count != null ? '**' + it.count + '** — ' : '') + it.text + (withButtons && t ? _pieAskBtn(t.q, 'Show me') : ''));
+    });
+    if (A.loading.length) lines.push('_Still loading: ' + A.loading.join(', ') + ' — ask again in a moment for the full list._');
+    return lines.join('\n');
+  }
+  function _pieAttention(q) {
+    var t = String(q || '').toLowerCase();
+    var dept = _pieLens();
+    // "What needs my attention?" / "What should I know today?" / "What's on my plate?"
+    if (/(what|anything).{0,25}(needs?|need) (my |our )?attention|what.{0,15}(should|do) (i|we) (know|focus|look at|do) today|what.?s on my plate|what.?s (urgent|pending) (today|for me)|^today\??$|my to.?do|catch me up on today/.test(t)) {
+      if (!window.njtcHome) return null;
+      var b = _pieBriefing(true);
+      return b || 'I\'m still pulling today\'s data — ask me again in a few seconds.';
+    }
+    var A = null;
+    for (var i = 0; i < _PIE_TODAY.length; i++) {
+      var tp = _PIE_TODAY[i];
+      if (tp.depts.indexOf(dept) < 0) continue;
+      var exact = t.replace(/[?.!\s]+$/, '') === tp.q.toLowerCase().replace(/[?.!\s]+$/, '');
+      if (!exact && !(tp.kw && tp.kw.test(t))) continue;
+      _pieAsked[tp.q.toLowerCase()] = 1;                   // answered, so not offered again as a next question
+      A = A || _pieAttn();
+      if (!A) return null;
+      var item = A.items.filter(function(it){ return tp.item.test(it.text); })[0];
+      if (item) return _pieItemAnswer(item);
+      if (!exact && !tp.none) return null;                 // let the regular answer handle it
+      if (A.loading.length) return 'I\'m still loading ' + A.loading.join(', ') + ' — ask me again in a moment.';
+      if (tp.none) return '✅ ' + tp.none;
+      return null;
+    }
+    return null;
+  }
+  // Two or three next questions after an answer, so the conversation keeps going
+  function _pieFollowups(q) {
+    _pieAsked[String(q || '').toLowerCase().trim()] = 1;
+    var dept = _pieLens(), out = [];
+    var A = _pieAttn();
+    _pieTodayQs(dept).forEach(function(tp){
+      if (out.length >= 2 || _pieAsked[tp.q.toLowerCase()]) return;
+      var live = A && A.items.some(function(it){ return tp.item.test(it.text); });
+      if (live) out.push(tp.q);
+    });
+    var general = { hr: ['How do I read a full concern?', 'Where do I switch the DOL hire dates?'],
+                    programming: ['How do I read a full concern?', 'How do I search for a school?'],
+                    data: ['Did any data fail to load?', 'How do I share a link to a page?'],
+                    training: ['How many apprentices do we have?', 'How do I search for a person?'],
+                    finance: ['Which districts are high risk?', 'How do I report a problem?'],
+                    leadership: ['How are we doing overall?', 'Which KPI targets are not met?'],
+                    kb: ['Give me a full KB executive briefing', 'Which KPI targets are not met?'] }[dept] || ['What can you do?'];
+    general.forEach(function(g){ if (out.length < 3 && !_pieAsked[g.toLowerCase()] && out.indexOf(g) < 0) out.push(g); });
+    if (!out.length) return '';
+    return '\n\n<span class="pie-next">Try next:</span>' + out.map(function(x){ return _pieAskBtn(x); }).join('');
+  }
+
   // ── "Where do I find / how do I…" — portal navigation for everyday tasks ──
   // Checked before name/site detection so "how can Dalitza read a full concern"
   // gets directions, not a staff lookup. Only answers how-to phrasing; data
@@ -9976,7 +10089,8 @@
       respond: function() {
         var d = _kpi();
         if (!d) return 'KPI data is still loading — try again in a moment.';
-        var msg = '**' + d.score + '% — ' + d.health + '** (SY 2025–26 mid-year, ' + d.total + ' targets).\n\n';
+        var _kHasEOY = (window.KPI_DATA || []).some(function(k){ return k.endStatus && k.endStatus.trim(); });
+        var msg = '**' + d.score + '% — ' + d.health + '** (SY ' + (window.NJTC_KPI_SY || '') + ' ' + (_kHasEOY ? 'end of year' : 'mid-year') + ', ' + d.total + ' targets).\n\n';
         msg += d.met + ' Met · ' + d.prog + ' In Progress · ' + d.part + ' Partial · ' + d.nm + ' Not Met · ' + d.pipe + ' Pipeline.\n\n';
         msg += 'Scoring: Met=100pts, Partial=50pts, In Progress=25pts, Pipeline=10pts, Not Met=0pts.';
         if (d.weakest) msg += '\n\nWeakest area: **' + d.weakest[0] + '** at ' + d.weakest[1].score + '%.';
@@ -10355,12 +10469,22 @@
       respond: function() {
         var c = _concerns();
         if (!c.length) return 'No concern records loaded yet. Open Performance Concerns or Talent Analytics to load data.' + _navBtn('Open Talent Analytics', 'talent');
+        // Same labels the concern form uses ("Yes" = On Watch, "No" = No HR action),
+        // and this school year shown first so old records aren't read as current.
+        var lbl = function(a){ a = (a || '').trim(); return !a ? 'Not specified' : /^yes$/i.test(a) ? 'On Watch' : /^no( action)?$/i.test(a) ? 'No HR action' : a; };
+        var sySOf = window._njtcConcernSY || function(){ return ''; };
+        var curSY = typeof window._hrCurSY === 'function' ? window._hrCurSY() : '';
+        var fmtSY = function(y){ return y ? 'SY ' + y.slice(2,4) + '-' + y.slice(7,9) : 'this school year'; };
+        var cur = c.filter(function(r){ return sySOf(r) === curSY; });
         var byAction = {};
-        c.forEach(function(r){ var a=r.hr_action||'Unspecified'; byAction[a]=(byAction[a]||0)+1; });
+        (cur.length ? cur : c).forEach(function(r){ var a=lbl(r.hr_action); byAction[a]=(byAction[a]||0)+1; });
         var breakdown = Object.entries(byAction).sort(function(a,b){return b[1]-a[1];})
-          .slice(0,4).map(function(e){ return '• ' + e[0] + ': ' + e[1]; }).join('\n');
+          .slice(0,5).map(function(e){ return '• ' + e[0] + ': ' + e[1]; }).join('\n');
         _ctxPush('concerns', { total: c.length, byAction: byAction });
-        return '**' + c.length + ' documented concerns** in the current dataset.\n\n' + breakdown + '\n\nAsk "who has a concern" for names, or "concern type breakdown" for detail.';
+        return (cur.length
+            ? '**' + cur.length + ' concern' + (cur.length === 1 ? '' : 's') + ' filed in ' + fmtSY(curSY) + '** (' + c.length + ' on file in all years).\n\nHR action, ' + fmtSY(curSY) + ':\n'
+            : '**No concerns filed yet in ' + fmtSY(curSY) + '.** ' + c.length + ' are on file from earlier years.\n\nHR action, all years:\n')
+          + breakdown + '\n\nAsk "who is on watch" for names by school year, or "concern type breakdown" for detail.';
       }
     },
 
@@ -10502,18 +10626,34 @@
         if (!_deptCan('hr_concerns')) return _deptDenied('hr_concerns');
         var c = _concerns();
         if (!c.length) return 'Concern data not loaded — open Performance Concerns to load HR data.';
+        // Grouped by school year (from each concern's date) so last year's actions
+        // are never shown as current. Names list everyone, newest action per person.
         var actionPriority = ['Termination','Write Up','PGP','On Watch'];
-        var serious = c.filter(function(r){ return actionPriority.indexOf(r.hr_action)>=0; });
-        if (!serious.length) return 'No terminations, write-ups, PGPs, or watch designations currently on file.';
-        var byAction = {};
-        serious.forEach(function(r){ var a=r.hr_action||'Other'; if(!byAction[a]) byAction[a]=[]; byAction[a].push(r.emp); });
-        var msg = '**Active HR Actions (' + serious.length + ' records):**\n\n';
-        actionPriority.forEach(function(a) {
-          if (byAction[a] && byAction[a].length) {
-            var names = [...new Set(byAction[a])];
-            msg += '**' + a + '** (' + names.length + '): ' + names.slice(0,4).join(', ') + (names.length>4?', +more':'') + '\n';
-          }
-        });
+        var label = { 'Termination': 'Recommended termination', 'Write Up': 'Write-up', 'PGP': 'PGP', 'On Watch': 'On watch' };
+        var sySOf = window._njtcConcernSY || function(){ return ''; };
+        var curSY = typeof window._hrCurSY === 'function' ? window._hrCurSY() : '';
+        var fmtSY = function(y){ return y ? 'SY ' + y.slice(2,4) + '-' + y.slice(7,9) : 'undated'; };
+        var serious = c.filter(function(r){ return actionPriority.indexOf(_normHrAction(r.hr_action)) >= 0; });
+        if (!serious.length) return 'No recommended terminations, write-ups, PGPs or on-watch designations are on file.';
+        var summarize = function(rows) {
+          var latest = {};
+          rows.slice().sort(function(x,y){ return new Date(x.ts) - new Date(y.ts); }).forEach(function(r){ latest[r.emp] = _normHrAction(r.hr_action); });
+          var out = '';
+          actionPriority.forEach(function(a) {
+            var names = Object.keys(latest).filter(function(n){ return latest[n] === a; }).sort();
+            if (names.length) out += '**' + label[a] + '** (' + names.length + '): ' + names.join(', ') + '\n';
+          });
+          return out;
+        };
+        var cur = serious.filter(function(r){ return sySOf(r) === curSY; });
+        var msg = '';
+        msg += '**HR actions this school year (' + fmtSY(curSY) + '):**\n' + (cur.length ? summarize(cur) : '✅ None so far this school year.\n');
+        var prevYears = Object.keys(serious.reduce(function(m, r){ var y = sySOf(r); if (y && y !== curSY) m[y] = 1; return m; }, {})).sort().reverse();
+        if (prevYears.length) {
+          var py = prevYears[0];
+          msg += '\n**Earlier — ' + fmtSY(py) + ':**\n' + summarize(serious.filter(function(r){ return sySOf(r) === py; }));
+        }
+        msg += '\n_Each person is listed under their most recent action. Open a profile → 📄 Read full entry for details._';
         return msg.trim();
       }
     },
@@ -14335,8 +14475,10 @@
     if (deptOvr.extra) {
       deptOvr.extra.forEach(function(c) { if (order.indexOf(c) < 0) order.unshift(c); });
     }
+    // "Today" (what needs attention) leads on every page
+    if (order.indexOf('Today') < 0) order.unshift('Today');
     // Only show categories that exist in CATEGORIES
-    order = order.filter(function(c){ return !!CATEGORIES[c]; });
+    order = order.filter(function(c){ return c === 'Today' || !!CATEGORIES[c]; });
     if (!order.length) order = CAT_ORDER.slice();
 
     // If current _cat is not in this panel's list, reset to panel/dept default
@@ -14349,7 +14491,10 @@
       var esc = cat.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
       return '<button class="pie-chip pie-cat' + active + '" data-pie-cat="' + esc + '">' + cat + '</button>';
     }).join('');
-    var chips = (CATEGORIES[_cat] || CATEGORIES['Overview']).map(function(s) {
+    var _qs = _cat === 'Today'
+      ? ['What needs my attention today?'].concat(_pieTodayQs(_pieLens()).map(function(t){ return t.q; })).slice(0, 5)
+      : (CATEGORIES[_cat] || CATEGORIES['Overview']);
+    var chips = _qs.map(function(s) {
       var esc = s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
       return '<button class="pie-chip pie-q" data-pie-ask="' + esc + '">' + s + '</button>';
     }).join('');
@@ -14386,7 +14531,7 @@
   function _respond(text) {
     var typing = document.getElementById('pieTyping');
     if (typing) typing.style.display = 'flex';
-    var delay = 280 + Math.random() * 200;
+    var delay = Math.min(1100, 320 + String(text || '').length * 0.35) + Math.random() * 180;
     setTimeout(function() {
       if (typing) typing.style.display = 'none';
       _addMsg('pie', text);
@@ -14645,6 +14790,10 @@
     var _how = _pieHowTo(qt);
     if (_how) return _how;
 
+    // 0.95. Today's list — the same "Needs your attention" items as Home
+    var _today = _pieAttention(qt);
+    if (_today) return _today;
+
     // 1. Entity-first: detect a person name before rule scan
     //    Skip entity extraction when query is clearly about aggregate/program data
     var _skipEntity = /\b(aggregate|average|avg|overall|all (scholar|tutor|staff|site|district)|scholars.{1,10}tutor|tutor.{1,10}scholar|everyone|all site|all district|how many|org.?wide|program.?wide|cmo|network)\b/i.test(qt) ||
@@ -14806,6 +14955,10 @@
     if (msgs && !msgs._pieNavBound) {
       msgs._pieNavBound = true;
       msgs.addEventListener('click', function(ev) {
+        var ask = ev.target.closest('[data-pie-ask]');
+        if (ask) { window.pieAsk(ask.dataset.pieAsk); return; }
+        var go = ev.target.closest('[data-pie-go]');
+        if (go) { var fn = window.__pieGo[+go.dataset.pieGo]; if (typeof fn === 'function') fn(); return; }
         var btn = ev.target.closest('[data-pie-nav]');
         if (!btn) return;
         var panel = btn.dataset.pieNav;
@@ -14861,8 +15014,7 @@
           +(_wKpiMet?'KPI status: **'+_wKpiMet+'**. ':'')+(_wSchAtt?'Scholar attendance: **'+_wSchAtt+'**. ':'')
           +'Live diagnostics, iReady growth, or staff profiles — what do you need?',
         hr: 'I\'m **PIE**, your PEI contact. '+shiftLine
-          +(_wConcernCt>0?'⚠️ **'+_wConcernCt+' concern record'+(+_wConcernCt===1?'':'s')+'** on file'+(_wEscCt>0?' · '+_wEscCt+' escalated':'')+'.' : (_wConcernCt===0?'✅ No concerns on file.':''))
-          +(Array.isArray(_wH)&&_wH.length?' Active workforce: **'+_wH.length+'** personnel. ':'')
+          +(Array.isArray(_wH)&&_wH.length?'Active staff: **'+_wH.length+'**. ':'')
           +' Workforce risk, concern details, retention — what do you need?',
         programming: 'I\'m **PIE**, PEI office. '+shiftLine
           +(_wReach?_wReach+'. ':'')+(_wSchAtt?'Scholar attendance: **'+_wSchAtt+'**. ':'')+(_wNps!=null?'Partner NPS: **'+_wNps+'**. ':'')
@@ -14871,19 +15023,33 @@
           +(_wApp>0?'Educator pipeline: **'+_wApp+'/40 apprentices**'+(_wApp>=40?' ✅':_wApp>=25?' 🟡':' 🔴')+'. ':'')
           +'PD data, OTJ progress, observation coverage, KPI context — what do you need?',
         finance: 'I\'m **PIE**, PEI office. '+shiftLine
-          +(_wConcernCt>0?'**'+_wConcernCt+' concern record'+(+_wConcernCt===1?'':'s')+'** on file. ':'')+(_wReach?_wReach+' currently enrolled. ':'')
+          +(_wReach?_wReach+' currently enrolled. ':'')
           +'Concern pipeline, attendance risk, program cost signals — what do you need?',
       };
-      _addMsg('pie', deptLines[_dept] || deptLines.leadership);
+      // Personal welcome: greeting, today's list (same as Home → Needs your attention),
+      // then questions to try. The department line above stays as the fallback.
+      var _first = String((window.NJTC_SESSION || {}).name || '').trim().split(/\s+/)[0];
+      if (/^(test|user|admin)$/i.test(_first)) _first = '';
+      var _hr = new Date().getHours();
+      var _hello = (_hr < 12 ? 'Good morning' : _hr < 17 ? 'Good afternoon' : 'Good evening') + (_first ? ', ' + _first : '') + '.';
+      var _brief = (function(){ try { return _pieBriefing(true); } catch(e) { return null; } })();
+      var _tryQs = _pieTodayQs(_pieLens()).map(function(t){ return t.q; }).slice(0, 2);
+      _tryQs.push('How do I read a full concern?');
+      if (_pieLens() === 'leadership' || _pieLens() === 'kb') _tryQs[2] = 'How are we doing overall?';
+      var _tryLine = '\n\n<span class="pie-next">Try asking:</span>' + _tryQs.map(function(x){ return _pieAskBtn(x); }).join('');
+      if (_brief) {
+        _addMsg('pie', _hello + ' I\'m **PIE**. ' + shiftLine + '\n\n' + _brief + _tryLine);
+      } else {
+        _addMsg('pie', _hello + ' ' + (deptLines[_dept] || deptLines.leadership) + '\n\n_I\'m pulling today\'s data — I\'ll post what needs your attention here in a moment._' + _tryLine);
+        // Post the list once the data arrives (checks for up to 90 seconds)
+        var _t0 = Date.now();
+        (function _waitBrief() {
+          var b = null; try { b = _pieBriefing(true); } catch(e) {}
+          if (b) { if (_open) _addMsg('pie', b); return; }
+          if (Date.now() - _t0 < 90000) setTimeout(_waitBrief, 2500);
+        })();
+      }
       _renderChips();
-
-      // Proactive alert — if data is already loaded, surface critical flags automatically
-      // after a short delay so welcome message reads first
-      setTimeout(function() {
-        if (!_open) return;
-        var alert = _quickAlert();
-        if (alert) _addMsg('pie', alert);
-      }, 900);
     }
   };
 
@@ -14902,7 +15068,7 @@
     _addMsg('user', q);
     _history.push({ role:'user', text:q });
     var answer = _route(q);
-    _respond(answer);
+    _respond(answer ? answer + _pieFollowups(q) : answer);
   };
 
   window.pieAsk = function(q) {
@@ -14911,7 +15077,7 @@
     _addMsg('user', q);
     _history.push({ role:'user', text:q });
     var answer = _route(q);
-    _respond(answer);
+    _respond(answer ? answer + _pieFollowups(q) : answer);
   };
 
   window.pieInit = function(dept) {
@@ -14949,7 +15115,7 @@
         var _pApp=Array.isArray(_pH)?_pH.filter(function(e){return e._apprentice==='Yes';}).length:0;
         var _pAtt=_pP&&_pP.scholAttPct!=null?Math.round(_pP.scholAttPct)+'%':null;
         var _pOC=Array.isArray(_pC)?_pC.length:0;
-        var _pKpiMet=_pK&&_pK.met!=null&&_pK.total?_pK.met+'/'+_pK.total+' KPIs on track':null;
+        var _pKpiMet=_pK&&_pK.met!=null&&_pK.total?_pK.met+'/'+_pK.total+' KPIs met':null;
         var peekMsgs = {
           kb:          (_pKpiMet?_pKpiMet+'. ':'')+'Grant reporting, exec briefing, live data — Ask PIE.',
           leadership:  (_pKpiMet?_pKpiMet+'. ':'')+'Program intel on demand — Ask PIE before reaching out.',
@@ -14960,7 +15126,12 @@
           finance:     (_pOC>0?_pOC+' concern'+(+_pOC===1?'':'s')+' flagged. ':'')+'Cost signals, attendance risk — Ask PIE.',
         };
         var pt = document.getElementById('piePeekText');
-        if (pt) pt.textContent = peekMsgs[_dept] || peekMsgs.leadership;
+        var _pA = (function(){ try { return _pieAttn(); } catch(e) { return null; } })();
+        var _pN = _pA && !_pA.loading.length ? _pA.items.length : null;
+        var _pTxt = _pN ? _pN + (_pN === 1 ? ' thing needs' : ' things need') + ' your attention today — tap and I\'ll walk you through ' + (_pN === 1 ? 'it' : 'them') + '.'
+                  : _pN === 0 ? '✅ Nothing needs your attention right now. Ask me anything about the portal.'
+                  : (peekMsgs[_dept] || peekMsgs.leadership);
+        if (pt) pt.textContent = _pTxt;
         peek.style.display = '';
         // Auto-dismiss after 7s
         setTimeout(function() { window.piePeekDismiss && window.piePeekDismiss(); }, 7000);
