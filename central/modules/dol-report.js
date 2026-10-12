@@ -453,49 +453,53 @@
   // For 26-27 / Summer periods: when a site's status is "Wrapped" and endpoint
   // falls in the current month, count active (non-personally-terminated) tracker
   // staff at that location as program completion separations for that month.
-  function computeProgEndFromTracker(cycleMatch, mk) {
-    const locRows  = window.NJTC_LOCATIONS;
-    const tracker  = window.NJTC_ONSITE_TRACKER;
-    if (!locRows || !locRows.length || !tracker || !tracker.length) return 0;
-
-    const [yr, mo] = mk.split('-').map(Number);
-    const firstDay = new Date(yr, mo - 1, 1);
-    const lastDay  = new Date(yr, mo, 0);
-
-    // Find locations whose endpoint falls in this month and status = Wrapped
-    const wrappedSites = locRows.filter(r => {
-      if ((r.cycle || '').toLowerCase().includes(cycleMatch) === false) return false;
-      const endDt = parseDate(r.endpoint);
-      if (!endDt) return false;
-      const st = (r.status || '').toLowerCase();
-      if (!st.includes('wrap') && !st.includes('ended') && !st.includes('complete')) return false;
-      return endDt >= firstDay && endDt <= lastDay;
+  // ── Program completions for live (tracker / census) periods ──────────────
+  // A person's program completion date = the End Date of THEIR site on the Locations
+  // tab, once that site is marked wrapped/ended/complete. Sites are matched per person:
+  // district word overlap (tracker "iLearn Charter Network" ↔ Locations "iLearn Charter
+  // School"), then school-name word overlap; if no school matches, the district's end
+  // date is used only when every site in that district shares it. Sets e.progEndDate,
+  // so the monthly table and Staff by Role count the same people.
+  const _SITE_STOP = new Set(['school','schools','elementary','elem','middle','high','charter',
+    'academy','district','township','twp','boro','borough','sd','the','of','and','campus','network','community',
+    'county','public','primary','intermediate','center','k']);
+  const _siteToks = s => new Set((s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)
+    .filter(t => t.length > 1 && !_SITE_STOP.has(t)));
+  // Same word, or a one-letter spelling slip on longer words ("Carlton" ↔ "Carleton").
+  const _tokSame = (x, y) => {
+    if (x === y) return true;
+    if (x.length < 5 || y.length < 5 || Math.abs(x.length - y.length) > 1) return false;
+    let i = 0, j = 0, edits = 0;
+    while (i < x.length && j < y.length) {
+      if (x[i] === y[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (x.length > y.length) i++; else if (y.length > x.length) j++; else { i++; j++; }
+    }
+    return edits + (x.length - i) + (y.length - j) <= 1;
+  };
+  const _overlap = (a, b) => { let n = 0; a.forEach(t => { if (b.has(t) || [...b].some(u => _tokSame(t, u))) n++; }); return n; };
+  const cycleMatchOf = p => (p.cycleKey || '').toLowerCase();
+  function assignSiteProgramEnds(employees, cycleMatch, periodStart) {
+    const sites = (window.NJTC_LOCATIONS || []).filter(r => (r.cycle || '').toLowerCase().includes(cycleMatch))
+      .map(r => ({ d: _siteToks(r.district), sc: _siteToks(r.school), end: parseDate(r.endpoint),
+                   done: /wrap|ended|complete/i.test(r.status || '') }));
+    if (!sites.length) return;
+    employees.forEach(e => {
+      if (e.terminated) return;
+      const ed = _siteToks(e.district), el = _siteToks(e.location);
+      const inDist = sites.filter(x => _overlap(ed, x.d) > 0 || (ed.size === 0 && _overlap(el, x.d) > 0));
+      if (!inDist.length) return;
+      let best = null, bestN = 0;
+      inDist.forEach(x => { const n = _overlap(el, x.sc); if (n > bestN) { best = x; bestN = n; } });
+      if (!best) {
+        const ends = new Set(inDist.map(x => x.end ? x.end.getTime() : 'none'));
+        const allDone = inDist.every(x => x.done);
+        if (ends.size === 1 && allDone) best = inDist[0];
+      }
+      // Ignore end dates before the period / the person's start (data-entry errors).
+      if (best && best.done && best.end && (!periodStart || best.end >= periodStart)
+          && (!e.startDate || best.end >= e.startDate)) e.progEndDate = best.end;
     });
-    if (!wrappedSites.length) return 0;
-
-    // Normalise location keys for matching
-    const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    // Build set of (district, school) pairs for wrapped sites
-    const wrappedKeys = new Set(wrappedSites.map(r => norm(r.district) + '|' + norm(r.school)));
-    const wrappedDistrics = new Set(wrappedSites.map(r => norm(r.district)));
-
-    let count = 0;
-    // Deduplicate by name — one person counts once even if they served multiple wrapping sites
-    const counted = new Set();
-    tracker
-      .filter(r => (r.cycle || '').toLowerCase().includes(cycleMatch))
-      .filter(r => r.isActive && !r.isTerminated && !r.isPreApp)
-      .forEach(r => {
-        const locKey  = norm(r.district) + '|' + norm(r.location);
-        const distKey = norm(r.district);
-        // Match by full district|location OR by district alone (when location name varies)
-        const matched = wrappedKeys.has(locKey) || wrappedDistrics.has(distKey);
-        if (matched && !counted.has((r.fullName || '').toLowerCase())) {
-          counted.add((r.fullName || '').toLowerCase());
-          count++;
-        }
-      });
-    return count;
   }
 
   // ── Stats computation ────────────────────────────────────────────────────────
@@ -507,8 +511,9 @@
     const active = employees.filter(e => {
       if (e.startDate > lastDay) return false;
       if (e.termDate && e.termDate < firstDay) return false;
-      // Summer snapshot: staff whose site's program ended before this month are gone
-      if (period && period.source === 'snapshot' && e.progEndDate && e.progEndDate < firstDay) return false;
+      // Snapshot / live periods: staff whose site's program ended before this month are gone
+      // (SY 25-26 keeps its original reporting behavior).
+      if (period && period.source !== 'hr_emps' && e.progEndDate && e.progEndDate < firstDay) return false;
       // Active staff whose program ends this month are still active during the month
       return true;
     });
@@ -537,20 +542,16 @@
     );
 
     // ── Program Completion Separations ──────────────────────────────────────
-    // SY 25-26: driven by SY2526_PROGRAM_END_DATES (Pearl last-session → SY DB end dates)
-    // 26-27+:   driven by live NJTC_LOCATIONS wrapped sites vs. NJTC_ONSITE_TRACKER
+    // Each employee's progEndDate: SY 25-26 → SY2526_PROGRAM_END_DATES; Summer 2026 →
+    // snapshot site End Dates; SY 26-27 → their wrapped site's End Date (assignSiteProgramEnds).
     let programEnd = 0;
-    if (period && (period.source === 'hr_emps' || period.source === 'snapshot')) {
-      // SY 25-26 path: count Active employees whose program ended this month
-      // Active = no personal termination (not in vol/invol buckets)
+    if (period) {
+      // Count staff with no personal termination whose program ended this month
       programEnd = employees.filter(e => {
         if (!e.progEndDate) return false;
         if (e.terminated) return false;  // already counted in vol/invol if they have a termDate
         return e.progEndDate >= firstDay && e.progEndDate <= lastDay;
       }).length;
-    } else if (period) {
-      // 26-27/Summer path: live location data
-      programEnd = computeProgEndFromTracker(period.cycleKey.toLowerCase(), mk);
     }
 
     const byRole = {};
@@ -708,8 +709,7 @@
           if (t === 'voluntary' || t.startsWith('voluntary')) r.voluntary++;
           else if (t !== '') r.involuntary++;
         }
-        const progEnded = (p.source === 'hr_emps' || p.source === 'snapshot') && !e.terminated
-          && e.progEndDate && e.progEndDate >= p.start && e.progEndDate <= end;
+        const progEnded = !e.terminated && e.progEndDate && e.progEndDate >= p.start && e.progEndDate <= end;
         if (progEnded) r.programEnd++;
         const gone = (e.terminated && e.termDate && e.termDate <= end) || (e.progEndDate && e.progEndDate <= end && !e.terminated);
         if (!gone) r.activeEnd++;
@@ -761,6 +761,8 @@
   // staff actually active on the selected roster (same source as Staff by Role), so
   // the table follows the period / hire-date toggle. Vacancies = Positions − Filled
   // (Locations tab), as before.
+  const FRACTION_NOTE = 'Positions and Filled come from the Locations tab and are exact. A staff member shared across schools is entered as a share at each school (a tutor split across 2 schools = 0.5 + 0.5; a site leader covering 4 schools = 0.25 each), so totals can include .5 where a shared position is only partly planned or filled.';
+
   function buildOpeningRows(openings, roles) {
     const byRole = {}; (roles || []).forEach(r => { byRole[r.role] = r; });
     const rows = ROLE_BUCKETS.map(b => {
@@ -803,6 +805,7 @@
         <tbody>${body}</tbody>
       </table>
       ${other ? `<div style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Not a budgeted position on the Locations tab: ${other}</div>` : ''}
+      ${openings && rows.some(r => (r.positions % 1) || (r.filled % 1)) ? `<div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">${FRACTION_NOTE}</div>` : ''}
       ${!openings ? '<div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">Positions / Filled load from the Locations tab (open SY Site Analytics once if blank).</div>' : ''}`;
   }
 
@@ -825,6 +828,7 @@
       rows.push(['Position Group','Roster Roles','Positions','Filled (Locations tab)','Active on Roster','Vacancies']);
       op.rows.forEach(r => rows.push([r.label, r.roles, r.positions == null ? '' : r.positions, r.filled == null ? '' : r.filled, r.active, r.vacancies == null ? '' : r.vacancies]));
       if (op.other) rows.push(['Not a budgeted position', op.other]);
+      if (op.rows.some(r => (r.positions % 1) || (r.filled % 1))) rows.push(['Note', FRACTION_NOTE]);
     }
     const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -948,7 +952,8 @@
     <thead><tr><th>Position Group (roster roles)</th><th style="text-align:center">Positions</th><th style="text-align:center">Filled (Locations tab)</th><th style="text-align:center">Active on Roster</th><th style="text-align:center">Vacancies</th></tr></thead>
     <tbody>${openRows}</tbody>
   </table>
-  ${_op.other ? `<p style="font-size:8pt;color:#64748b">Not a budgeted position on the Locations tab: ${_op.other}</p>` : ''}` : ''}
+  ${_op.other ? `<p style="font-size:8pt;color:#64748b">Not a budgeted position on the Locations tab: ${_op.other}</p>` : ''}
+  ${_op.rows.some(r => (r.positions % 1) || (r.filled % 1)) ? `<p style="font-size:8pt;color:#64748b">${FRACTION_NOTE}</p>` : ''}` : ''}
   <div class="footer">
     NJTC Central Team Portal &bull; Confidential — For internal DOL reporting use only &bull; Impact Solutions Group LLC
   </div>
@@ -987,6 +992,8 @@
         role:          r.role,
         fullName:      r.name,
         offerAccepted: r.offerAccepted,
+        location:      r.location || '',
+        district:      r.district || '',
         isPreApp:      /pre-?apprentice|\bpace\b/i.test(r.role || ''),
         isTerminated:  (r.terminated || '').toLowerCase() === 'yes',
         termDate:      r.termDate,
@@ -1020,6 +1027,11 @@
       if (period.hrYear && _hireSource === 'census') {
         const c = normalizeCensusEmps(period);
         _censusPending = c.pending;
+        // Site for program completions comes from the Onsite Tracker (same names as Locations)
+        const nkT = n => (n || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(t => t.length > 1).sort().join(' ');
+        const siteBy = new Map(trackerRows().map(r => [nkT(r.fullName), r]));
+        c.employees.forEach(e => { const t = siteBy.get(nkT(e.name)); if (t) { e.location = t.location || ''; e.district = t.district || ''; } });
+        assignSiteProgramEnds(c.employees, cycleMatchOf(period), period.start);
         return c.employees;
       }
       const cycleMatch = period.cycleKey.toLowerCase();
@@ -1049,6 +1061,7 @@
             byName.set(nk(t.name), t);
           }
         });
+      assignSiteProgramEnds(employees, cycleMatch, period.start);
       return employees;
     }
 
@@ -1215,8 +1228,9 @@
         .then(() => { _loading = false; if (container.isConnected) render(); });
     }
 
-    // HR Census mode reads the Master List — load it if Talent Analytics hasn't yet.
-    if (_hireSource === 'census' && !window._hrDataFetched && typeof window.fetchLiveHRData === 'function') {
+    // SY 25-26 and HR Census mode read the live HR Master List — load it if Talent
+    // Analytics hasn't yet, so numbers never depend on which tab was opened first.
+    if (!window._hrDataFetched && typeof window.fetchLiveHRData === 'function') {
       Promise.resolve(window.fetchLiveHRData()).catch(() => {}).then(() => { if (container.isConnected) render(); });
     }
 

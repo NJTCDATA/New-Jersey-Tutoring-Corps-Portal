@@ -29,13 +29,14 @@
   }
   function renderTalentLog() {
     const esc = s => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const qa  = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const data=_filteredConcerns.slice().sort((a,b)=>new Date(b.ts)-new Date(a.ts));
     if (!data.length) return '<div style="padding:3rem;text-align:center;color:var(--muted)">No records match filters.</div>';
     const hasFollowup = data.some(r=>r.hr_followup);
     return `<div class="ta-card">
       <div class="ta-card-title">📋 Full Concern Log (${data.length} records)</div>
       <div style="overflow-x:auto"><table class="ta-table">
-        <thead><tr><th>Date</th><th>Employee</th><th>Role</th><th>District</th><th>Concern</th><th>Detail</th><th>Support</th><th>HR Action</th><th>First?</th>${hasFollowup?'<th>HR Follow-Up</th>':''}</tr></thead>
+        <thead><tr><th>Date</th><th>Employee</th><th>Role</th><th>District</th><th>Concern</th><th>Detail</th><th>Support</th><th>HR Action</th><th>First?</th>${hasFollowup?'<th>HR Follow-Up</th>':''}<th>Full Entry</th></tr></thead>
         <tbody>${data.map(r=>`<tr>
           <td style="font-size:.72rem;white-space:nowrap">${r.ts.split(' ')[0]}</td>
           <td><strong style="font-size:.78rem">${r.emp||'—'}</strong></td>
@@ -47,6 +48,7 @@
           <td><span class="concern-pill ${hrActionClass(r.hr_action)}" style="font-size:.65rem">${r.hr_action||'—'}</span></td>
           <td style="font-size:.72rem">${r.first_time||'—'}</td>
           ${hasFollowup?`<td style="font-size:.72rem;max-width:200px;color:${r.hr_followup?'#1e40af':'var(--muted)'}">${r.hr_followup?esc(r.hr_followup.substring(0,80))+(r.hr_followup.length>80?'…':''):'—'}</td>`:''}
+          <td><button data-ts="${qa(r.ts)}" data-emp="${qa(r.emp)}" onclick="window._njtcShowConcernEntry&&window._njtcShowConcernEntry(this.dataset.ts,this.dataset.emp)" title="Read the full concern entry" style="padding:.15rem .45rem;border-radius:6px;border:1px solid #fdba74;background:#fff7ed;color:#9a3412;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap">📄 Read</button></td>
         </tr>`).join('')}</tbody>
       </table></div>
     </div>`;

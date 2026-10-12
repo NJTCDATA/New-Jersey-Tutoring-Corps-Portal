@@ -81,7 +81,6 @@
       quickLinks: [
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Funding & financial goals', panel: 'kpi' },
         { icon: '📚', label: 'Finance Policies', bg: '#e6f5ed', desc: 'Budget & financial guidelines', panel: 'policies' },
-        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log a support conversation or context note', panel: 'concern' },
       ],
       financeLinks: true,
     },
@@ -91,7 +90,6 @@
       goalPct: '71%',
       connections: ['hr','data','training','finance'],
       quickLinks: [
-        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log site-level support conversations', panel: 'concern' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Scholar impact goals', panel: 'kpi' },
         { icon: '📚', label: 'Site Policies', bg: '#e0f0ff', desc: 'Program procedures', panel: 'policies' },
       ],
@@ -118,7 +116,6 @@
       quickLinks: [
         { icon: '📚', label: 'Training Materials', bg: '#fff0e0', desc: 'PD policies & procedures', panel: 'policies' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Pipeline & apprenticeship goals', panel: 'kpi' },
-        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log training support conversations', panel: 'concern' },
       ]
     },
     leadership: {
@@ -130,7 +127,6 @@
         { icon: '📊', label: 'KPI Targets', bg: '#fff7e0', desc: 'Full organizational overview', panel: 'kpi' },
         { icon: '🔍', label: 'KPI Analytics', bg: '#fef3c7', desc: 'Goal health & performance breakdown', panel: 'kpi-analytics' },
         { icon: '📚', label: 'All Policies', bg: '#f6f8fc', desc: 'Organization-wide library', panel: 'policies' },
-        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'All support context submissions', panel: 'concern' },
         { icon: '☁️', label: 'Drive Center', bg: '#f6f8fc', desc: 'Document management', panel: 'upload' },
       ],
       financeLinks: true,
@@ -822,6 +818,17 @@
       }
     }
     if (id === "concern") {
+      // Support Log is HR + Data only — any other lens goes back to Home.
+      const _slLens = window._currentDept || window.NJTC_VIEW_DEPT || (window.NJTC_SESSION||{}).dept || '';
+      if (window.SUPPORT_LOG_DEPTS && _slLens && !window.SUPPORT_LOG_DEPTS.includes(_slLens)) {
+        if (prevPanel) prevPanel.classList.remove('active');
+        const _home = document.getElementById('panel-home');
+        if (_home) _home.classList.add('active');
+        if (_eLink) _eLink.classList.remove('active');
+        const _homeLink = document.querySelector('.sidebar-link[data-panel="home"]');
+        if (_homeLink) _homeLink.classList.add('active');
+        return;
+      }
       // Mark Support Log as seen for Programming/Data — clears glow
       const _slDept = (window.NJTC_SESSION||{}).dept||'';
       if (['programming','data'].includes(_slDept)) {
@@ -917,6 +924,9 @@
       sessionStorage.setItem(_welcomeKey, '1');
       setTimeout(() => _lbShowWelcomeModal(dept), 600);
     }
+
+    // Shortcut row + "Needs your attention" (modules/home-shortcuts.js)
+    try { if (window.njtcHome) window.njtcHome.render(dept); } catch(_e) { console.warn('[Home] shortcuts:', _e); }
 
     // Update header
     document.getElementById('homeEyebrow').textContent = cfg.label;
@@ -5487,6 +5497,7 @@
   }
   // ── Talent live-data status ─────────────────────────────────────────────────
   let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
+  window._njtcConcernsStatus = () => _talentLiveStatus;   // read by Home → Needs attention (Data)
 
   // Published CSV URL — must use pub?output=csv (not /export which requires login)
   // Base URL targets Form Responses tab via gid=274671201
@@ -5679,6 +5690,23 @@
     return 'Week of ' + fmt(mon) + ' – ' + fmt(sun) + ', ' + mon.getFullYear();
   }
 
+  // Merge local optimistic resolutions with fetched ones
+  function _slMergedResolutions(fetched) {
+    const map = {};
+    (fetched || []).forEach(r => { map[r.concern_ts] = r; });
+    try {
+      const local = JSON.parse(localStorage.getItem(_SL_LOCAL_KEY) || '{}');
+      Object.keys(local).forEach(ts => { if (!map[ts]) map[ts] = local[ts]; });
+    } catch(e) {}
+    return map;
+  }
+  // Open (unresolved) Support Log entries — the same count as the Support Log's "Open" card.
+  window._njtcSupportLogOpen = async function () {
+    const [concerns, resolutions] = await Promise.all([fetchLiveConcerns(), fetchLiveResolutions()]);
+    const resMap = _slMergedResolutions(resolutions);
+    return (concerns || []).filter(c => !resMap[c.ts]);
+  };
+
   function renderSupportLog() {
     const container = document.getElementById('slIndex');
     if (!container) return;
@@ -5699,19 +5727,8 @@
       if (banner) banner.style.display = 'none';
     }
 
-    // Merge local optimistic resolutions with fetched ones
-    function mergedResolutions(fetched) {
-      const map = {};
-      fetched.forEach(r => { map[r.concern_ts] = r; });
-      try {
-        const local = JSON.parse(localStorage.getItem(_SL_LOCAL_KEY) || '{}');
-        Object.keys(local).forEach(ts => { if (!map[ts]) map[ts] = local[ts]; });
-      } catch(e) {}
-      return map;
-    }
-
     Promise.all([fetchLiveConcerns(), fetchLiveResolutions()]).then(([concerns, resolutions]) => {
-      const resMap = mergedResolutions(resolutions);
+      const resMap = _slMergedResolutions(resolutions);
 
       // Stats
       const total    = concerns.length;
@@ -9748,6 +9765,98 @@
     return lines.join('\n') + foot;
   }
 
+  // ── "Where do I find / how do I…" — portal navigation for everyday tasks ──
+  // Checked before name/site detection so "how can Dalitza read a full concern"
+  // gets directions, not a staff lookup. Only answers how-to phrasing; data
+  // questions ("how many concerns…") fall through to the normal rules.
+  function _pieHowTo(q) {
+    var t = String(q || '').toLowerCase();
+    var howTo = /\b(how (do|can|would|should|to)|where (do|can|would|should|to|is|are|'?s)|where'?s|can'?t (see|find|read|open)|cannot (see|find|read|open)|unable to|is there a way|show me where|how come i can'?t|i can'?t)\b/.test(t)
+             || /\b(cut off|truncated|toggle|switch (to|between)|selector)\b/.test(t)
+             || /\bwhy\b.{0,50}(\.5|half|fraction|decimal)/.test(t);
+    if (!howTo || /\bhow (many|much)\b/.test(t)) return null;
+    var NAV = _navBtn;
+    // What this department's view can open (matches the sidebar and Talent tabs).
+    var _lens = window._currentDept || window.NJTC_VIEW_DEPT || (window.NJTC_SESSION || {}).dept || '';
+    var _can = {
+      sl:       (window.SUPPORT_LOG_DEPTS || ['hr', 'data']).indexOf(_lens) >= 0,
+      perf:     (window.TALENT_FULL_DEPTS || []).indexOf(_lens) >= 0,
+      profiles: _lens !== 'leadership',
+      dol:      _lens === 'hr' || _lens === 'data',
+    };
+
+    // Logging a new concern
+    if (/concern|write.?up|support (entry|note|conversation)/.test(t) && /\b(submit|file|add|create|enter|document|log (a|an|new)|report (a|an)|start (a|an))\b/.test(t)) {
+      if (!_can.perf) return 'Concerns are logged by HR, Programming, Data and Leadership. Ask your manager or HR to log it.';
+      return '**Logging a concern**\n\n' +
+        '• Sidebar → **👤 Performance Concerns** opens the form.' + (_can.sl ? ' You can also use **+ Log New Concern** in the **📝 Support Log**, which opens the same form.' : '') + '\n' +
+        '• It has four short steps: Submitter → Employee → Concern → Next Steps.\n\n' +
+        '_Once submitted, the entry is saved to the person\'s record' + (_can.profiles ? ' and shows on their Talent Analytics profile, where the full write-up opens with **📄 Read full entry**' : '') + '._' +
+        NAV('Open Performance Concerns', 'perf') + (_can.sl ? NAV('Open Support Log', 'concern') : '');
+    }
+
+    // Full concern write-up
+    if (/concern|write.?up|support log|support entr|full entry|whole entry|performance (issue|entry)/.test(t)
+        && /read|see|view|open|find|full|whole|entire|complete|cut off|truncat|display|detail|look|pop.?up/.test(t)
+        && !/\b(submit|file|add|create|enter|resolve|log a|report a|start a)\b/.test(t)) {
+      var _where = [];
+      if (_can.profiles) {
+        _where.push('**Talent Analytics → 👤 Profiles** — on a staff card, click the orange **⚠️ concern** badge (it says **read entry**) to open their most recent concern.');
+        _where.push('**Open the person\'s profile** (click their card) → **⚠️ Performance Concern** section → **📄 Read full entry** under any concern.');
+      }
+      if (_can.sl) {
+        _where.push('**Talent Analytics → 📋 Full Log** — every concern is listed; click **📄 Read** on the row.');
+        _where.push('**📝 Support Log** (sidebar) — click the blue, underlined **concern text** in any row.');
+      }
+      if (!_where.length) return 'Full concern entries are on staff profiles, which aren\'t part of the Leadership view. Switch to the HR view (top bar) to open them, or ask HR.';
+      return '**Reading a full performance concern** — the whole write-up opens in a pop-up from ' + (_where.length > 1 ? 'any of these places' : 'here') + ':\n\n' +
+        _where.map(function(w, i){ return (i + 1) + '. ' + w; }).join('\n') + '\n\n' +
+        '_Profiles show concerns for the School Year you pick at the top of the Profiles tab' + (_can.sl ? '; the Full Log and Support Log show every entry' : '') + '._' +
+        NAV('Open Talent Analytics', 'talent') + (_can.sl ? NAV('Open Support Log', 'concern') : '');
+    }
+
+    // DOL report
+    if (/\bdol\b|department of labor|hire.?date|offer accepted|adp|census|open positions?|staff by role|\.5\b|half.{0,10}position|fraction/.test(t)) {
+      if (!_can.dol) return 'The DOL Report is in Talent Analytics for the HR and Data teams. Ask either team for the numbers you need.';
+      return '**DOL Report** — Talent Analytics → **📊 DOL Report** tab.\n\n' +
+        '• **Period** — SY 25-26, Summer 2026 (fixed snapshot), SY 26-27, or All Time.\n' +
+        '• **Hire dates** — **Onsite Tracker** (month the offer was accepted) or **HR Employee Census** (ADP hire date from the HR Master List). Pick which one counts the hires.\n' +
+        '• **Staff by Role** — hires, separations, and active staff by role (Onsite Tracker column B or HR Master List column D).\n' +
+        '• **Open Positions** — positions and filled seats come from the Locations tab. A person shared across schools counts as a share at each school (2 schools = 0.5 + 0.5), so totals can include **.5**.\n' +
+        '• **⬇ CSV** / **🖨 PDF Report** — the downloads show **counts only**. Source notes and names that weren\'t counted stay on the portal screen and never go to DOL.\n\n' +
+        '_Pre-apprentices are not counted, and staff whose program ended are reported as Program Completion separations._' +
+        NAV('Open Talent Analytics', 'talent');
+    }
+
+    // Profiles — school year / Pearl
+    var _yr = /(school year|\bsy\b|year|25.?26|26.?27)/.test(t);
+    if ((/profile|staff card/.test(t) && (_yr || /pearl|attendance|survey/.test(t)))
+        || (_yr && /(pearl|attendance|survey|staff|tutor)/.test(t) && !/talent/.test(t))) {
+      if (!_can.profiles) return 'Staff profiles aren\'t part of the Leadership view. Switch to the HR or Programming view (top bar), or ask HR.';
+      return '**Staff Profiles by School Year** — Talent Analytics → **👤 Profiles**.\n\n' +
+        '• Use the **School Year** dropdown at the top of Profiles to switch between **SY 26-27** (current) and earlier years. A finished year opens on the **📁 Inactive** tab, because everyone from that year has been closed out.\n' +
+        '• Each year shows that year\'s role, site, status, Pearl attendance and surveys, and concerns (dated by when they were filed).\n' +
+        '• Pearl details are saved for each school year, so SY 25-26 attendance stays visible after the new year starts. The first time you open SY 25-26, it can take a minute to load in the background.\n' +
+        '• Click any card for the full profile. To read a concern in full, use **📄 Read full entry**.' +
+        NAV('Open Talent Analytics', 'talent');
+    }
+
+    // Talent Analytics year bar
+    if (/talent/.test(t) && /(year|filter|sy\b)/.test(t)) {
+      return '**Talent Analytics School Year filter** — the year buttons above the dashboards. The current School Year is selected by default, and each concern counts toward the School Year of the date it was filed (August through July). The Profiles and DOL tabs have their own year selectors.' +
+        NAV('Open Talent Analytics', 'talent');
+    }
+
+    // Apprentices by SY
+    if (/apprentice|\btap\b|gains/.test(t)) {
+      return '**Apprentices by School Year** — the **Tutor Apprenticeship Program** card (Home page in the Leadership view; Talent Analytics in the Programming view). Click it for the roster.\n\n' +
+        '• **Active** = new this year (Onsite Tracker **GAINS = Yes**) + continuing (marked apprentice on the HR Master List for the current or prior SY).\n' +
+        '• The **prior-SY tile** shows last year\'s apprentice total. The **Pre-Apprentices** tile shows current pre-apprentices and PACE grads on staff.\n\n' +
+        '_Ask me "how many apprentices do we have?" for the live numbers._';
+    }
+    return null;
+  }
+
   var RULES = [
 
     // Greeting
@@ -9816,6 +9925,12 @@
         lines.push('- "Give me a full KB executive briefing"');
         lines.push('- "What does leadership need to know today?"');
         lines.push('- "Catch me up"');
+        lines.push('\n### 🧭 Where do I find it?');
+        lines.push('- "How do I read a full concern?"');
+        lines.push('- "How do I see last year on a profile?"');
+        lines.push('- "Where do I switch the DOL hire dates?"');
+        lines.push('- "Why are there .5 open positions on the DOL report?"');
+        lines.push('- "Where do I see apprentices by school year?"');
         lines.push('\n### 💾 Data Sources & Governance');
         lines.push('- "Where does this data come from?"');
         lines.push('- "What data is loaded right now?"');
@@ -10381,7 +10496,12 @@
         var apEnrolled = (window.AP_DATA||[]).filter(function(r){ return r.apprentice==='Yes'; });
         if (!apEnrolled.length) return 'Apprentice data not yet loaded. Open the Apprentice Tracker to load it.';
         var count = apEnrolled.length;
-        var msg = '**' + count + ' active TAP apprentices** (from Live Tracker).\n\n';
+        var _syl = function(y){ return String(y||'').replace(/^20(\d\d)-20(\d\d)$/,'$1-$2'); };
+        var nNew = apEnrolled.filter(function(r){ return r.apCohort === 'new'; }).length;
+        var nCont = apEnrolled.filter(function(r){ return r.apCohort === 'continuing'; }).length;
+        var msg = '**' + count + ' active TAP apprentices' + (window.AP_SY ? ' in SY ' + _syl(window.AP_SY) : '') + '** — ' + nNew + ' new (Onsite Tracker GAINS = Yes) · ' + nCont + ' continuing from earlier cohorts (HR Master List).\n';
+        if (window.AP_PRIOR_SY) msg += 'SY ' + _syl(window.AP_PRIOR_SY) + ': **' + (window.AP_PRIOR_SY_TOTAL || 0) + '** apprentices. ';
+        msg += 'Pre-apprentices on staff now: **' + (window.AP_PREAPPS || []).length + '** (not counted as apprentices).\n\n';
         // Race/ethnicity: cross-reference HR_EMPS records (which carry _race/_ethnicity fields)
         var hrByName = {};
         _hrActive().forEach(function(e){ hrByName[((e.n||e.name||'').toLowerCase().replace(/\s+/g,' ').trim())] = e; });
@@ -13341,6 +13461,8 @@
         }
         return '**NJTC Data Source Map — Validation Reference**\n\n' +
           '👔 **HR Components**\n' +
+          '• **HR Master List** — Staff roster, one row per person per Academic Year (role, site, status, demographics), including the ADP census Hire Date and Termination Date columns used by the DOL report\'s HR Employee Census option\n' +
+          '• **Onsite Tracker** — Onsite staff roster (role, location, Offer Accepted date, GAINS apprentice flag) and its Terminations tab. Used by Talent Analytics, the DOL report\'s Onsite Tracker option, and apprentice counts\n' +
           '• **ADP WFN Report** — Active/inactive employee roster, pay classifications, hire/term dates\n' +
           '• **SY Database Terminations** — Current school year terminations and termination reason codes\n\n' +
 
@@ -14489,6 +14611,10 @@
       var ctxAns = _resolveCtxFollowup(qt, _ctxTop());
       if (ctxAns) return ctxAns;
     }
+
+    // 0.9. How-to / where-to-find questions (navigation help for everyday tasks)
+    var _how = _pieHowTo(qt);
+    if (_how) return _how;
 
     // 1. Entity-first: detect a person name before rule scan
     //    Skip entity extraction when query is clearly about aggregate/program data

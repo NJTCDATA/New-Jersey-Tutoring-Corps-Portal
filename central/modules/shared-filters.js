@@ -1,5 +1,8 @@
 (function() {
 
+  const SUPPORT_LOG_DEPTS = ['hr','data'];
+  window.SUPPORT_LOG_DEPTS = SUPPORT_LOG_DEPTS;
+
   function initDeptNav(dept) {
     // Show/hide perf + talent + concern nav based on dept
     const perfBtns    = document.querySelectorAll('.dept-nav-perf');
@@ -8,8 +11,10 @@
     const label       = document.getElementById('talentNavLabel');
 
     const showPerf    = TALENT_FULL_DEPTS.includes(dept);
-    const showConcern = ['hr','programming','data'].includes(dept);
-    const showTalent  = TALENT_FULL_DEPTS.includes(dept) || TALENT_FINANCE_DEPT.includes(dept) || TALENT_TRAINING_DEPT.includes(dept);
+    const showConcern = SUPPORT_LOG_DEPTS.includes(dept);   // Support Log: HR + Data only
+    // Training reaches T&D Analytics through its own sidebar link (dept-nav-td-data),
+    // so the Talent slot stays hidden there instead of listing T&D Analytics twice.
+    const showTalent  = TALENT_FULL_DEPTS.includes(dept) || TALENT_FINANCE_DEPT.includes(dept);
 
     perfBtns.forEach(b    => b.style.display = showPerf    ? '' : 'none');
     concernBtns.forEach(b => b.style.display = showConcern ? '' : 'none');
@@ -134,6 +139,16 @@
     document.querySelectorAll('.dept-nav-data-cabinet').forEach(b =>
       b.style.display = (dept === 'data') ? '' : 'none'
     );
+
+    // Hide a sidebar heading when nothing under it is visible for this department
+    // (e.g. "Advocacy" outside Leadership/KB), and bring it back when switching views.
+    document.querySelectorAll('.ct-sidebar .sidebar-group').forEach(g => {
+      const links = g.querySelectorAll('.sidebar-link');
+      if (!links.length) return;
+      const anyShown = [...links].some(l => l.style.display !== 'none');
+      if (!anyShown) { if (g.style.display !== 'none') { g.style.display = 'none'; g.dataset.autoHidden = '1'; } }
+      else if (g.dataset.autoHidden) { g.style.display = ''; delete g.dataset.autoHidden; }
+    });
 
   }
 

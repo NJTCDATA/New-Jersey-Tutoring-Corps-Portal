@@ -6,8 +6,9 @@
   //                window.CONCERNS (HR concerns log)
   // ════════════════════════════════════════════════════════════════
 
-  function renderFinanceAnalytics() {
-
+  // Partnership & Workforce Risk numbers — shared by this page and the Finance
+  // Home "Needs attention" box so both always show the same counts.
+  function computeFinanceRisk() {
     // ── Live data sources ────────────────────────────────────────
     var emps       = (window.HR_EMPS || []).filter(function(e){ return e.s === 'Active'; });
     var allConc    = window.CONCERNS || [];
@@ -89,6 +90,30 @@
       .sort(function(a, b){ return b.riskScore - a.riskScore; });
 
     var highRiskCount = distMatrix.filter(function(d){ return d.riskScore >= 4; }).length;
+    return { emps: emps, allConc: allConc, po: po, poStats: poStats, poData: poData, yr: yr, concerns: concerns, withAction: withAction, lowAtt70: lowAtt70, multiConcern: multiConcern, deepReview: deepReview, byDistrict: byDistrict, poDistricts: poDistricts, tutorAtRisk: tutorAtRisk, sepRisk: sepRisk, estTurnover: estTurnover, distMatrix: distMatrix, highRiskCount: highRiskCount };
+  }
+
+  function renderFinanceAnalytics() {
+
+    var R = computeFinanceRisk();
+    var emps = R.emps;
+    var allConc = R.allConc;
+    var po = R.po;
+    var poStats = R.poStats;
+    var poData = R.poData;
+    var yr = R.yr;
+    var concerns = R.concerns;
+    var withAction = R.withAction;
+    var lowAtt70 = R.lowAtt70;
+    var multiConcern = R.multiConcern;
+    var deepReview = R.deepReview;
+    var byDistrict = R.byDistrict;
+    var poDistricts = R.poDistricts;
+    var tutorAtRisk = R.tutorAtRisk;
+    var sepRisk = R.sepRisk;
+    var estTurnover = R.estTurnover;
+    var distMatrix = R.distMatrix;
+    var highRiskCount = R.highRiskCount;
 
     // ════════════════════════════════════════════════════════════
     //  RENDER
@@ -490,6 +515,7 @@
 
   // ── Expose to global scope ────────────────────────────────────────
   window.renderFinanceAnalytics = renderFinanceAnalytics;
+  window.njtcFinanceRisk        = computeFinanceRisk;
   window.buildFinanceAnalytics  = buildFinanceAnalytics;
 
   // ── Hook into showPanel ──────────────────────────────────────────

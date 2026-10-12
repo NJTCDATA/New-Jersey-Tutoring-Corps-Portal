@@ -26,7 +26,7 @@
   //    appended at the end, so a new section is never left out) ───────────
   const ORDER = {
     hr:          ['home', 'talent', 'concern', 'perf', 'tap-standalone', 'training-analytics', 'pearl-ops', 'sy-analytics', 'kpi', 'kpi-analytics', 'policies', 'iready-lab', 'knowtion'],
-    programming: ['home', 'pearl-ops', 'sy-analytics', 'concern', 'perf', 'talent', 'onsite-feedback', 'scholar-feedback', 'survey-feedback', 'annual-report', 'tap-standalone', 'training-analytics', 'kpi', 'kpi-analytics', 'iready-lab', 'policies', 'knowtion'],
+    programming: ['home', 'pearl-ops', 'sy-analytics', 'perf', 'talent', 'onsite-feedback', 'scholar-feedback', 'survey-feedback', 'annual-report', 'tap-standalone', 'training-analytics', 'kpi', 'kpi-analytics', 'iready-lab', 'policies', 'knowtion'],
     finance:     ['home', 'finance-analytics', 'kpi', 'kpi-analytics', 'tap-standalone', 'pearl-ops', 'sy-analytics', 'training-analytics', 'iready-lab', 'policies', 'knowtion'],
     data:        ['home', 'pearl-ops', 'data-cabinet', 'upload', 'impact-report', 'apprentice-impact', 'iready-lab', 'sy-analytics', 'talent', 'concern', 'perf', 'tap-standalone', 'training-analytics', 'kpi', 'kpi-analytics', 'annual-report', 'survey-feedback', 'onsite-feedback', 'scholar-feedback', 'policies', 'knowtion'],
     training:    ['home', 'training-analytics', 'tap-standalone', 'pearl-ops', 'sy-analytics', 'kpi', 'kpi-analytics', 'iready-lab', 'policies', 'knowtion'],
@@ -46,6 +46,8 @@
         { t: ['#homeTitle'], title: 'Your department home', text: d => isExec(d)
             ? 'This is your home base. Everything here is live, and it refreshes on its own.'
             : 'This is your home base: your department\'s goals, shortcuts and next meeting, all in one place.' },
+        { t: ['#homeShortcuts .hs-row'], title: 'Your shortcuts', text: 'One click to the pages your team uses every day.' },
+        { t: ['#homeShortcuts .hs-att'], title: 'Needs your attention', text: 'Anything waiting on you, with a count. "Show list" lists the names (click one to open their profile), and the dark button opens the page where you fix it. It updates on its own as data loads.' },
         { t: ['#lbMeetingPill'], title: 'Next team meeting', text: 'The next biweekly team meeting is always shown here, so you never have to look it up.' },
         { t: ['#execDashboard'], only: EXEC, title: 'Executive Command Center', text: 'The whole program at a glance. Use the school-year buttons to compare SY 25-26, Summer 2026 and SY 26-27, and ↺ Refresh to pull the latest data.' },
         { t: ['#homeDeptWidget'], only: ['hr', 'leadership', 'data', 'kb'], title: 'Staff attrition & onboarding', text: 'HR & Data termination analytics and the onsite onboarding tracker: who has left, why, and how new staff are moving through onboarding.' },
@@ -87,6 +89,7 @@
         { t: ['#panel-concern .ph-title'], title: 'Support Log', text: 'Every documented support conversation, coaching note and HR step, newest first.' },
         { t: ['#slLogBtnWrap'], title: 'Log a new concern', text: '"+ Log New Concern" opens the form. Each entry builds the record that formal next steps rely on.' },
         { t: ['#slIndex'], title: 'Open, resolved and this week', text: 'Totals at the top, then each entry by week. Repeat concerns for the same person show in red.' },
+        { t: ['#slIndex [title^="Read full entry"]', '#slIndex'], title: 'Read the full entry', text: 'Click the blue, underlined concern text on any row to open the complete write-up, with every answer from the form.' },
       ],
     },
     perf: {
@@ -103,8 +106,12 @@
         { t: ['#panel-talent .ph-title'], title: 'Talent Analytics', text: 'Your staff picture: profiles, attrition, hiring and apprenticeship, live from the HR Master List. ADP status is the source of truth.' },
         { t: ['#ap-prog-panel'], title: 'Tutor Apprenticeship at a glance', text: 'TAP enrollment and OTJ flags by network. "Breakdown" expands the detail.' },
         { t: ['#ap-hr-filter-bar'], title: 'Filter by apprentice status', text: 'Show all staff, or only Enrolled, Eligible or Not Eligible apprentices.' },
+        { t: ['#talentYearBar'], title: 'School Year filter', text: 'The dashboards open on the current School Year. Concerns count toward the School Year of the date they were filed.' },
         { t: ['#talentTab-profiles'], title: 'Profiles', text: 'Search any staff member to see attendance, Pearl performance tier, support history and apprenticeship status.' },
-        { t: ['#talentTab-dol'], title: 'DOL Report', text: 'Monthly headcount, new hires and separations by type, ready for Department of Labor reporting.' },
+        { t: ['select[onchange^="_hrSetSY"]', '#talentTab-profiles'], title: 'Profiles by School Year', text: 'The School Year dropdown on Profiles switches every card between SY 26-27 and earlier years, including that year\'s role, site, Pearl attendance and concerns.' },
+        { t: ['[title="Read the full concern entry"]', '#talentTab-profiles'], title: 'Read a full concern', text: 'On a staff card, click the orange ⚠️ concern badge ("read entry") to open the complete write-up. Inside a profile, use 📄 Read full entry. The Full Log tab and the Support Log open them too.' },
+        { t: ['#talentTab-log'], title: 'Full Log', text: 'Every concern on record, newest first. Click 📄 Read on any row to open the full entry.' },
+        { t: ['#talentTab-dol'], title: 'DOL Report', text: 'Monthly headcount, hires and separations by period (SY 25-26, Summer 2026, SY 26-27 or All Time). Choose whether hires count by Onsite Tracker offer date or ADP hire date. Staff by Role and Open Positions are below. CSV and PDF downloads show counts only.' },
         { t: ['#talentTab-definitions'], title: 'Definitions', text: 'How every Talent number is calculated, in plain language.' },
       ],
     },
