@@ -141,7 +141,8 @@ html, body { overflow-x: clip; }
   .nav-right { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: .4rem; min-width: 0; }
   /* Compact header controls so Tutorial · department · alerts · Sign Out fit on one line */
   .nav-right .ct-tour-btn { padding: .3rem .65rem; font-size: .75rem; }
-  .nav-right .dept-pill { display: inline-block; max-width: 30vw; }
+  /* The page title already names the department — the badge would push Sign Out to a third line */
+  .nav-right .dept-pill { display: none; }
   .nav-right .btn-signout { padding: .3rem .65rem; font-size: .75rem; margin-left: auto; }
 
   /* PIE: compact round button; the speech-bubble tip would cover the page */

@@ -9814,7 +9814,7 @@
       rows.slice(0, 40).forEach(function(r){ lines.push('• **' + r.n + '**' + (r.sub ? ' — ' + (r.sub.length > 110 ? r.sub.slice(0, 107) + '…' : r.sub) : '')); });
       if (rows.length > 40) lines.push('…and ' + (rows.length - 40) + ' more on the page.');
     }
-    lines.push('\n_This is the same list as **Needs your attention** on Home._' + _pieGoBtn(item));
+    lines.push('\n_This is the same list as Needs your attention on Home._' + _pieGoBtn(item));
     return lines.join('\n');
   }
   // The day's list, as a short briefing (used by the welcome and "what needs my attention")
@@ -14457,7 +14457,10 @@
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
   function _fmt(txt) {
-    return txt.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+    return txt.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // _italic_ notes — only when the underscores wrap words (not inside names or attributes)
+      .replace(/(^|[\s(>])_([^_\n<>]+?)_(?=[\s.,;:!?)<]|$)/gm, '$1<em>$2</em>')
+      .replace(/\n/g, '<br>');
   }
 
   // ── Chips — panel/dept-aware category tabs + question chips ────────────────
