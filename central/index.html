@@ -4,11 +4,78 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NJTC Central Team Portal</title>
+  <!-- Add to Home Screen (phones/tablets): app name, icon and full-screen launch -->
+  <link rel="manifest" href="app.webmanifest">
+  <meta name="theme-color" content="#0a1628">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="NJTC Portal">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <!-- Open connections to the data hosts early (saves a round trip on phones) -->
+  <link rel="preconnect" href="https://docs.google.com">
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <script>
+  /* (1) A page link opened before signing in (#/talent/dol, #/profile/…) is kept for after
+         sign-in — modules/portal-links.js reads it. "#t=" is the sign-in token, never saved.
+     (2) Records when each core dataset was last pulled, for the "Updated 9:42 AM" line
+         under each page title (modules/portal-status.js). Nothing else about requests changes. */
+  (function () {
+    try { if (location.hash.indexOf('#/') === 0) sessionStorage.setItem('njtc_deeplink_v1', JSON.stringify({ h: location.hash, ts: Date.now() })); } catch (e) {}
+    var SRC = [
+      ['hr',       /1nH7O3NICIju_7ENR6DOG9mZWb_VGriS89VTVvGY2-gk|2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8/],
+      ['onsite',   /1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU/],
+      ['concerns', /AKfycbyw8E92X2mWfxI8EQ5w8Wx7a-nPO9cmBWl12FWCvQD_Co-Z-8Izj6XVb7ErlNhu2qtkUw/],
+      ['pearl',    /2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K|2PACX-1vQ6lavExR5j-WAPd9ROXLykTQvA2j1rJjMoSWpTGOYj-ni0OJrfwMo-aQWq8zNVwbVon6pioe-8BHuA|1y_g5cl4qT2qeUmuO0aeBhURAbXsuGIusgqLiBWOUDLM/],
+      ['tap',      /14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/],
+      ['kpi',      /2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd|2PACX-1vSH88ac43jB272UDV6_UIwvEYGFvEOVIELaIEmM1kDtI4VreyCUoxDI8ls42ieNOYwOi4ggJCyIq6s6/]
+    ];
+    var net = window.__njtcNet = {};
+    var f = window.fetch;
+    if (!f) return;
+    window.fetch = function (input) {
+      var p = f.apply(this, arguments);
+      try {
+        var u = typeof input === 'string' ? input : (input && input.url) || '';
+        if (u.indexOf('pubhtml') >= 0) return p;            // tab-discovery probes — not data
+        for (var i = 0; i < SRC.length; i++) {
+          if (SRC[i][1].test(u)) {
+            var e = net[SRC[i][0]] || (net[SRC[i][0]] = { ok: 0, fail: 0, pending: 0 });
+            e.pending++;
+            p.then(function (r) { e.pending--; if (r && r.ok) e.ok = Date.now(); else e.fail = Date.now(); },
+                   function () { e.pending--; e.fail = Date.now(); });
+            break;
+          }
+        }
+      } catch (err) {}
+      return p;
+    };
+  })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <!-- Excel export/import library: only used on user action, so it never blocks first paint -->
-  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Excel export library: only used when someone clicks an Excel download, so it loads
+       after the page is up instead of competing with the first load (~300 KB on phones). -->
+  <script>
+  (function () {
+    var started = false;
+    function load() {
+      if (started || window.XLSX) return; started = true;
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      document.head.appendChild(s);
+    }
+    window.addEventListener('load', function () { setTimeout(load, 1500); });
+    // Anyone heading for a download before then gets it right away
+    document.addEventListener('pointerdown', function (e) {
+      var t = e.target && e.target.closest && e.target.closest('button,a,[onclick]');
+      if (t && /xlsx|excel|export|download/i.test((t.textContent || '') + ' ' + (t.getAttribute('onclick') || ''))) load();
+    }, true);
+  })();
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -6861,8 +6928,8 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=38"></script>
-<script src="modules/shared-charts.js?v=20"></script>
+<script src="modules/shared-utils.js?v=39"></script>
+<script src="modules/shared-charts.js?v=21"></script>
 <script src="modules/shared-filters.js?v=5"></script>
 <script src="modules/home-shortcuts.js?v=2"></script>
 <script src="modules/growth-tree.js?v=1"></script>
@@ -6871,11 +6938,11 @@
 <script src="modules/training-development.js?v=8"></script>
 <script src="modules/data-department.js?v=9"></script>
 <script src="modules/hr-department.js?v=3"></script>
-<script src="modules/dol-report.js?v=10"></script>
+<script src="modules/dol-report.js?v=11"></script>
 <script src="modules/programming.js?v=21"></script>
 <script src="modules/pdf-export.js?v=7"></script>
 <script src="modules/field-support.js?v=3"></script>
-<script src="modules/portal-tour.js?v=4"></script>
+<script src="modules/portal-tour.js?v=5"></script>
 <script src="../partner/partner-report.js?v=3"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=2"></script>
@@ -8845,7 +8912,10 @@
   <div id="changeNotifContainer"></div>
   <!-- ── END CHANGE NOTIFICATION TOASTS ───────────────────────────── -->
 
-<link rel="stylesheet" href="responsive.css?v=2">
+<link rel="stylesheet" href="responsive.css?v=4">
 <script src="modules/responsive-nav.js?v=1"></script>
+<script src="modules/portal-links.js?v=1"></script>
+<script src="modules/portal-search.js?v=1"></script>
+<script src="modules/portal-status.js?v=3"></script>
 </body>
 </html>

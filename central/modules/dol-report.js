@@ -623,12 +623,25 @@
   }
 
   // ── Render helpers ───────────────────────────────────────────────────────────
+  // On-screen explanations (ⓘ) — portal only; the CSV/PDF downloads are built separately.
+  const TIPS = {
+    'Total Positions':    'Everyone on staff at any point in this period, each person counted once. Pre-apprentices are not counted. All Time adds the periods together.',
+    'Total New Hires':    'Staff whose hire date falls in this period. For SY 26-27, the Hire dates choice above decides which date is used: offer accepted or ADP hire date.',
+    'Total Voluntary':    'Separations the employee chose, such as a resignation, with a termination date in this period.',
+    'Total Involuntary':  'Separations NJTC initiated, with a termination date in this period.',
+    'Program Completions':'Staff whose job ended because their school\'s program ended on schedule. Not a resignation or a termination.',
+    'Total Employees':    'Everyone employed at any point during this month: hired by the end of the month and not separated before it began.',
+    'New Hires':          'Staff whose hire date falls in this month.',
+    'Voluntary Terms':    'Resignations and other separations the employee chose, with a termination date in this month.',
+    'Involuntary Terms':  'Separations NJTC initiated, with a termination date in this month.',
+  };
   function statCard(label, value, sub, color) {
     color = color || 'var(--navy)';
+    const tip = TIPS[label] && window.njtcTip ? window.njtcTip(TIPS[label]) : '';
     return `
       <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1.25rem 1rem;text-align:center;min-width:120px;flex:1">
         <div style="font-size:2rem;font-weight:800;color:${color};line-height:1">${value}</div>
-        <div style="font-size:.72rem;font-weight:700;color:var(--navy);margin-top:.35rem;text-transform:uppercase;letter-spacing:.05em">${label}</div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--navy);margin-top:.35rem;text-transform:uppercase;letter-spacing:.05em">${label}${tip}</div>
         ${sub ? `<div style="font-size:.68rem;color:var(--muted);margin-top:.2rem">${sub}</div>` : ''}
       </div>`;
   }

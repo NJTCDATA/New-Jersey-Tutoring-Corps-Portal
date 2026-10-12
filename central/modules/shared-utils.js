@@ -6391,20 +6391,24 @@
     }
   }
 
+  // Dept → which Talent Analytics tabs are visible (strict isolation — only leadership/data
+  // see cross-dept tabs). Shared with the portal search so it never lists a hidden tab.
+  const TALENT_TAB_MAP = {
+    kb:          ['profiles','definitions'],
+    leadership:  ['all','definitions'],
+    data:        ['profiles','all','program','hr','reviews','log','hiring','dol','definitions'],
+    hr:          ['profiles','all','reviews','log','hiring','dol','definitions'],
+    programming: ['profiles','all','reviews','definitions'],
+    finance:     ['profiles','all','definitions'],
+    training:    ['profiles','all','reviews','definitions'],
+  };
+  window.TALENT_TAB_MAP = TALENT_TAB_MAP;
+
   // Update tab labels and layout based on dept
   function initTalentTabsForDept(dept) {
     // Full tab list: profiles, all (concerns), program, hr, reviews, log, hiring, definitions
     const TAB_IDS = ['profiles','all','program','hr','reviews','log','hiring','dol','definitions'];
-    // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
-    const TAB_MAP = {
-      kb:          ['profiles','definitions'],
-      leadership:  ['all','definitions'],
-      data:        ['profiles','all','program','hr','reviews','log','hiring','dol','definitions'],
-      hr:          ['profiles','all','reviews','log','hiring','dol','definitions'],
-      programming: ['profiles','all','reviews','definitions'],
-      finance:     ['profiles','all','definitions'],
-      training:    ['profiles','all','reviews','definitions'],
-    };
+    const TAB_MAP = TALENT_TAB_MAP;
     const allowed = new Set(TAB_MAP[dept] || ['all']);
 
     // Label override for the "all" tab per dept
@@ -9773,7 +9777,8 @@
     var t = String(q || '').toLowerCase();
     var howTo = /\b(how (do|can|would|should|to)|where (do|can|would|should|to|is|are|'?s)|where'?s|can'?t (see|find|read|open)|cannot (see|find|read|open)|unable to|is there a way|show me where|how come i can'?t|i can'?t)\b/.test(t)
              || /\b(cut off|truncated|toggle|switch (to|between)|selector)\b/.test(t)
-             || /\bwhy\b.{0,50}(\.5|half|fraction|decimal)/.test(t);
+             || /\bwhy\b.{0,50}(\.5|half|fraction|decimal)/.test(t)
+             || /\bcan (i|we)\b|\b(looks?|seems?|is) (wrong|off|broken)\b|\breport (a |an )?(problem|bug|issue)/.test(t);
     if (!howTo || /\bhow (many|much)\b/.test(t)) return null;
     var NAV = _navBtn;
     // What this department's view can open (matches the sidebar and Talent tabs).
@@ -9784,6 +9789,26 @@
       profiles: _lens !== 'leadership',
       dol:      _lens === 'hr' || _lens === 'data',
     };
+
+    // Reporting a portal problem
+    if (/\breport (a |an )?(problem|bug|issue|error)|something('s| is)? (wrong|broken|off)|(number|data|page)s? (looks?|is|are|seems?) (wrong|off|broken)/.test(t)) {
+      return '**Reporting a problem** — under every page title there\'s a **⚑ Report a problem** button. Say what looks wrong and press Send. It goes to the Data & Evaluation team with the page and your department view attached, so you don\'t have to explain where you were.';
+    }
+    // Searching
+    if (/\bsearch\b|look (someone|a person|a school|it) up|find (a |someone|a staff|a tutor|a school|a page|someone's)/.test(t) && !/concern/.test(t)) {
+      return '**Search** — click **🔍 Search** at the top of the portal (or press the **/** key) and type a staff name, a school, or a page like "DOL Report". Pick a result to go straight there. You\'ll only see pages and people your department view can open.';
+    }
+    // Sharing a link
+    if (/\b(share|send|copy|bookmark)\b.{0,30}\b(link|page|profile|url)\b|\blink to (a |this )?(page|profile)/.test(t)) {
+      return '**Sharing a link** — every page has its own address now. Copy it from the browser\'s address bar or bookmark it. On a staff profile, use **🔗 Copy link** at the top. Whoever opens it signs in as usual and lands on that page, if their department view can open it. The **Back** button also goes back one page.';
+    }
+    // Phone / home screen
+    if (/home ?screen|install|\bapp\b.{0,20}\b(phone|iphone|android|tablet)|on my (phone|iphone|android|tablet)/.test(t)) {
+      return '**Putting the portal on your phone**\n\n' +
+        '• **iPhone / iPad (Safari):** open the portal → tap **Share** (the square with an arrow) → **Add to Home Screen** → **Add**.\n' +
+        '• **Android (Chrome):** open the portal → tap the **⋮** menu → **Add to Home screen** (or **Install app**).\n\n' +
+        '_It opens full screen with its own NJTC icon. Sign in once inside the app the first time._';
+    }
 
     // Logging a new concern
     if (/concern|write.?up|support (entry|note|conversation)/.test(t) && /\b(submit|file|add|create|enter|document|log (a|an|new)|report (a|an)|start (a|an))\b/.test(t)) {
@@ -9931,6 +9956,10 @@
         lines.push('- "Where do I switch the DOL hire dates?"');
         lines.push('- "Why are there .5 open positions on the DOL report?"');
         lines.push('- "Where do I see apprentices by school year?"');
+        lines.push('- "How do I search for a person or school?"');
+        lines.push('- "How do I share a link to a page?"');
+        lines.push('- "How do I put the portal on my phone?"');
+        lines.push('- "How do I report a problem?"');
         lines.push('\n### 💾 Data Sources & Governance');
         lines.push('- "Where does this data come from?"');
         lines.push('- "What data is loaded right now?"');
