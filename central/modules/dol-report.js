@@ -16,17 +16,67 @@
       label: 'Summer 2026',
       start: new Date(2026, 4, 1),
       end:   new Date(2026, 7, 31),
-      source: 'tracker',
+      source: 'snapshot',   // fixed roster — SUMMER_2026_SNAPSHOT below (program ended)
       cycleKey: 'summer 2026',
     },
     {
       id: 'sy2627',
       label: 'SY 26-27',
-      start: new Date(2026, 8, 1),
+      start: new Date(2026, 7, 1),   // Aug 1, 2026 — SY 26-27 hiring begins in August
       end:   new Date(2027, 5, 30),
       source: 'tracker',
       cycleKey: 'school year 26-27',
+      hrYear:   '2026-2027',   // Master List Academic Year — enables the HR Census hire-date toggle
     },
+  ];
+
+  // ── Summer 2026 snapshot (fixed — the program has ended) ────────────────────
+  // Source: Summer 2026 Staffing Tracker snapshot provided by HR (68 rows). The 29
+  // Pre-apprentices are excluded per DOL scope, leaving 39 employees.
+  // Columns: [name, role, location, hire date (Offer Accepted), program end date].
+  // Program end = that site's Summer 2026 End Date on the Locations tab (all sites
+  // "Inactive- program wrapped"); each employee is a Program Completion Separation
+  // that month unless the Terminations tab records a personal separation.
+  const SUMMER_2026_SNAPSHOT = [
+    ['Avery Frieze-Dunfee', "Tutor", "BGC Vineland", '7/6/2026', '7/30/2026'],
+    ['Chelsea Ostowski', "Dual Role", "BGC Vineland", '6/9/2026', '7/30/2026'],
+    ['Glenn Harris', "Certified Tutor", "BGC Vineland", '6/8/2026', '7/30/2026'],
+    ['Ava Bonetti', "Certified Tutor", "BGC Paulsboro", '6/17/2026', '7/31/2026'],
+    ['Danielle Hallahan', "Dual Role", "BGC Paulsboro", '6/4/2026', '7/31/2026'],
+    ['Faye Lewis', "Dual Role", "BGC Glassboro", '6/12/2026', '7/31/2026'],
+    ['Katrina Valentin', "Tutor", "BGC Glassboro", '6/17/2026', '7/31/2026'],
+    ['Karen Millet', "Tutor", "BGC Hoboken", '6/17/2026', '7/30/2026'],
+    ['Maria Zia', "Dual Role", "BGC Hoboken", '6/12/2026', '7/30/2026'],
+    ['María del Carmen Gutierrez Colin', "Tutor", "BGC Hoboken", '6/9/2026', '7/30/2026'],
+    ['Sharon Kessel', "Tutor", "BGC Hoboken", '6/12/2026', '7/30/2026'],
+    ['Cara Debonis', "Dual Role", "BGC Asbury", '6/10/2026', '7/30/2026'],
+    ['Cynthia Tyrrell', "Certified Tutor", "BGC Red Bank", '6/5/2026', '7/30/2026'],
+    ['Dawn Browning', "Tutor", "BGC Long Branch", '6/15/2026', '7/30/2026'],
+    ['Mike Ettore', "Dual Role", "BGC Long Branch", '6/5/2026', '7/30/2026'],
+    ['Mikey (Michael) Dombrowiecki', "Certified Tutor", "BGC Red Bank", '6/23/2026', '7/30/2026'],
+    ['Raina Thompson', "Certified Tutor", "BGC Asbury", '6/26/2026', '7/30/2026'],
+    ['Lauren Eckles', "Dual Role", "Greenwood ES", '6/8/2026', '7/30/2026'],
+    ['Lilia Quintero', "Tutor", "Greenwood ES", '6/9/2026', '7/30/2026'],
+    ['Alesia Alexander', "Dual Role", "PACE- iLearn", '6/8/2026', '7/22/2026'],
+    ['Briana Nurse', "Dual Role", "PACE- iLearn", '6/8/2026', '7/22/2026'],
+    ['Avani Jimenez', "Tutor", "Middlesex Charter Stem School", '6/8/2026', '8/7/2026'],
+    ['Carla Borbon', "Tutor", "Middlesex Charter Stem School", '6/8/2026', '8/7/2026'],
+    ['Carla Phillips', "Dual Role", "Middlesex Charter Stem School", '6/17/2026', '8/7/2026'],
+    ['Sharmina Ellis', "Dual Role", "PACE- Penns Grove", '6/9/2026', '7/30/2026'],
+    ['Bryanna Carey', "Certified Tutor", "Pennsauken", '7/3/2026', '7/30/2026'],
+    ['Caitlin Evgeniadis', "Tutor", "Pennsauken", '6/29/2026', '7/30/2026'],
+    ['Ciarra Martin', "Certified Tutor", "Pennsauken", '6/23/2026', '7/30/2026'],
+    ['Janelle Lee', "Tutor", "Pennsauken", '6/24/2026', '7/30/2026'],
+    ['Karen Rockhill', "Dual Role", "Pennsauken", '6/25/2026', '7/30/2026'],
+    ['Lisa Fisher', "Certified Tutor", "Pennsauken", '6/17/2026', '7/30/2026'],
+    ['Marta Reyes', "Dual Role", "Pennsauken", '6/23/2026', '7/30/2026'],
+    ['Adetomiwa (Ade) Opeolu', "Tutor", "GLA", '6/12/2026', '7/23/2026'],
+    ['Breaunna Braxton', "Tutor", "GLA", '5/7/2026', '7/23/2026'],
+    ['Jaejin Lee', "Tutor", "GLA", '5/15/2026', '7/23/2026'],
+    ['Juanita Brown-Lyons', "Tutor", "GLA", '5/8/2026', '7/23/2026'],
+    ['Katharine Samberg-Lawrence', "Dual Role", "GLA", '5/8/2026', '7/23/2026'],
+    ['Leila Einhorn', "Sub-Tutor", "GLA", '5/12/2026', '7/23/2026'],
+    ['Vincent Duong', "Tutor", "GLA", '5/8/2026', '7/23/2026'],
   ];
 
   // ── SY 25-26 termination date overrides ─────────────────────────────────────
@@ -232,6 +282,14 @@
 
   const ROLE_BUCKETS = ['Tutor', 'Site Coordinator', 'Instructional Coach', 'Dual Role'];
 
+  // "Site Leader" is the Dual Role position in the Locations tab
+  // ("Site Leader (Dual Role) Positions"), so it rolls up there.
+  function roleBucket(role) {
+    const r = (role || '').toLowerCase();
+    if (r.includes('site leader')) return 'Dual Role';
+    return ROLE_BUCKETS.find(b => r.includes(b.toLowerCase())) || null;
+  }
+
   // ── Date helpers ─────────────────────────────────────────────────────────────
   function parseDate(str) {
     if (!str) return null;
@@ -303,32 +361,90 @@
     };
   }
 
+  // Terminations tab row (window._njtcOnsiteTerms2627, parsed in shared-charts.js).
+  // Separated staff are moved off the Onsite Tracker tab, so this is their only record.
+  // Hire date: Offer Accepted, else Offer Letter Sent (rows pasted in from the
+  // tracker can land one column left). No date → counted in headcount, not as a hire.
+  function normalizeTerminationRow(t) {
+    if (/pre-?apprentice|\bpace\b/i.test(t.role || '')) return null;
+    return {
+      name:       t.name,
+      role:       t.role || '',
+      startDate:  parseDate(t.offerAccepted) || parseDate(t.offerSent) || null,
+      termDate:   parseDate(t.termDate),
+      terminated: true,
+      resignType: (t.termType || t.termReason || '').toLowerCase(),
+      cycle:      (t.cycle || '').toLowerCase(),
+    };
+  }
+
+  // HR Employee Census view: the Master List's rows for the period's Academic Year,
+  // hired on "Hire Date (ADP Census …)". Rows with no ADP hire date yet are returned
+  // separately (pending) so the report can say exactly who isn't counted.
+  function normalizeCensusEmps(period) {
+    const arr = window.HR_EMPS || [];
+    const out = [], pending = [];
+    arr.forEach(e => {
+      const y = e && e._byYear && e._byYear[period.hrYear];
+      if (!y) return;
+      if (/pre-?apprentice|\bpace\b/i.test(y.r || e.r || '')) return;
+      const startDate = parseDate(y.adpHire);
+      if (!startDate) { pending.push(e.n); return; }
+      const termDate = parseDate(y.termDate) || parseDate(y.adpTerm);
+      out.push({
+        name:       e.n,
+        role:       y.r || e.r || '',
+        startDate,
+        termDate,
+        terminated: !!termDate || /^terminated$/i.test(y.s || ''),
+        resignType: (y.termType || y.termReason || '').toLowerCase(),
+        cycle:      (period.cycleKey || '').toLowerCase(),
+      });
+    });
+    return { employees: out, pending: pending.sort() };
+  }
+
   function normalizeHREmps() {
     const arr       = (typeof HR_EMPS !== 'undefined') ? HR_EMPS : [];
-    const normName  = n => (n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    // Name keys ignore middle initials — the live Master List can spell a person
+    // differently by year (e.g. "Sharon K Kessel" 25-26 → "Sharon Kessel" 26-27).
+    const normName  = n => (n || '').toLowerCase().replace(/\s+/g, ' ').trim()
+      .split(' ').filter(t => t.replace(/[^a-z]/g, '').length > 1).join(' ');
+    const _keyed    = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [normName(k), v]));
+    const termDates = _keyed(SY2526_TERM_DATES);
+    const progDates = _keyed(SY2526_PROGRAM_END_DATES);
     return arr
       .filter(e => e && e.n && e.y && e.y.includes('2025-2026'))
       .map(e => {
-        let termDate = (e._termDate && e._termDate.trim()) ? parseDate(e._termDate.trim()) : null;
-        if (!termDate) {
-          const override = SY2526_TERM_DATES[normName(e.n)];
-          if (override) termDate = parseDate(override);
-        }
-        // Program completion date — only for Active staff with no personal termination
-        const progEndStr = SY2526_PROGRAM_END_DATES[normName(e.n)];
+        // Live Master List: read the person's 2025-2026 row (their current row may be
+        // 2026-2027). Every 25-26 row is now "Terminated" because the year closed, so a
+        // personal separation is one with a termination date/type/reason or a known
+        // override — end-of-program closures stay Program Completion Separations.
+        const yr = (e._byYear && e._byYear['2025-2026']) || null;
+        const tDateStr = yr ? yr.termDate : (e._termDate || '');
+        const tType    = yr ? yr.termType : (e._termType || '');
+        const tReason  = yr ? yr.termReason : (e._termReason || '');
+        let termDate = (tDateStr && tDateStr.trim()) ? parseDate(tDateStr.trim()) : null;
+        const override = termDates[normName(e.n)];
+        if (!termDate && override) termDate = parseDate(override);
+        const personalTerm = yr
+          ? !!(termDate || tType || tReason)
+          : (e.s === 'Terminated' || !!termDate);
+        // Program completion date — only for staff with no personal termination
+        const progEndStr = progDates[normName(e.n)];
         const progEndDate = progEndStr ? parseDate(progEndStr) : null;
         return {
           name:         e.n,
-          role:         e.r || '',
+          role:         (yr && yr.r) || e.r || '',
           startDate:    new Date(2025, 8, 1),
           termDate,
-          terminated:   e.s === 'Terminated' || !!termDate,
-          resignType:   (e._termType || '').toLowerCase(),
+          terminated:   personalTerm,
+          resignType:   (tType || '').toLowerCase(),
           cycle:        'school year 25-26',
           isSummer:     false,
           isSY:         true,
           progEndDate,  // null for voluntarily/involuntarily terminated staff
-          isActive:     e.s === 'Active' && !termDate,
+          isActive:     !personalTerm,
         };
       });
   }
@@ -391,6 +507,8 @@
     const active = employees.filter(e => {
       if (e.startDate > lastDay) return false;
       if (e.termDate && e.termDate < firstDay) return false;
+      // Summer snapshot: staff whose site's program ended before this month are gone
+      if (period && period.source === 'snapshot' && e.progEndDate && e.progEndDate < firstDay) return false;
       // Active staff whose program ends this month are still active during the month
       return true;
     });
@@ -422,7 +540,7 @@
     // SY 25-26: driven by SY2526_PROGRAM_END_DATES (Pearl last-session → SY DB end dates)
     // 26-27+:   driven by live NJTC_LOCATIONS wrapped sites vs. NJTC_ONSITE_TRACKER
     let programEnd = 0;
-    if (period && period.source === 'hr_emps') {
+    if (period && (period.source === 'hr_emps' || period.source === 'snapshot')) {
       // SY 25-26 path: count Active employees whose program ended this month
       // Active = no personal termination (not in vol/invol buckets)
       programEnd = employees.filter(e => {
@@ -438,7 +556,7 @@
     const byRole = {};
     ROLE_BUCKETS.forEach(r => { byRole[r] = 0; });
     active.forEach(e => {
-      const key = ROLE_BUCKETS.find(r => e.role.toLowerCase().includes(r.toLowerCase())) || 'Other';
+      const key = roleBucket(e.role) || 'Other';
       byRole[key] = (byRole[key] || 0) + 1;
     });
 
@@ -489,7 +607,7 @@
     ROLE_BUCKETS.forEach(r => { buckets[r] = { filled: 0, total: 0 }; });
     rows.forEach(r => {
       if (r.isPreApp) return;
-      const roleKey = ROLE_BUCKETS.find(b => (r.role || '').toLowerCase().includes(b.toLowerCase()));
+      const roleKey = roleBucket(r.role);
       if (!roleKey) return;
       buckets[roleKey].total++;
       if (r.isActive && !r.isTerminated) buckets[roleKey].filled++;
@@ -509,7 +627,7 @@
   }
 
   function renderMonthCard(stat, isSelected) {
-    const border = isSelected ? '2px solid var(--accent)' : '1.5px solid var(--border)';
+    const border = isSelected ? '2px solid var(--accent,#2563eb)' : '1.5px solid var(--border)';
     const bg     = isSelected ? 'rgba(37,99,235,.06)' : 'var(--surface)';
     const hasProgramEnd = stat.programEnd > 0;
 
@@ -575,7 +693,7 @@
   function exportCSV(stats, periodLabel) {
     const rows = [
       ['Period','Month','Total Employees','New Hires','Voluntary Terminations','Involuntary Terminations','Program Completion Separations','Total Separations'],
-      ...stats.map(s => [periodLabel, s.label, s.total, s.newHires, s.voluntary, s.involuntary, s.programEnd, s.termTotal]),
+      ...stats.map(s => [s.periodLabel || periodLabel, s.label, s.total, s.newHires, s.voluntary, s.involuntary, s.programEnd, s.termTotal]),
     ];
     const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -588,10 +706,10 @@
   }
 
   // ── PDF export ────────────────────────────────────────────────────────────────
-  function exportPDF(stats, periodLabel, openings) {
+  function exportPDF(stats, periodLabel, openings, showPeriod) {
     const rows = stats.map(s => `
       <tr>
-        <td>${s.label}</td>
+        <td>${showPeriod && s.periodLabel ? s.periodLabel + ' · ' : ''}${s.label}</td>
         <td style="text-align:center">${s.total}</td>
         <td style="text-align:center;color:#059669">${s.newHires}</td>
         <td style="text-align:center;color:#d97706">${s.voluntary}</td>
@@ -697,40 +815,129 @@
     if (!container) return;
 
     let _activePeriodId = 'sy2526';
+    // Hire-date source for live periods: 'tracker' (Onsite Tracker · Offer Accepted, staff's
+    // validation source) or 'census' (HR Master List · ADP Employee Census hire date).
+    let _hireSource = 'tracker';
+    try { if (localStorage.getItem('njtc_dol_hire_source') === 'census') _hireSource = 'census'; } catch (e) {}
+    let _censusPending = [];
+    let _undatedSeps   = [];   // Summer separations with no Termination Date (portal-only note)
     const today = new Date();
     for (const p of PERIODS) {
       if (today >= p.start && today <= p.end) { _activePeriodId = p.id; break; }
     }
 
+    // Onsite Tracker roster: Site Analytics' parse if loaded, else the HR
+    // widget's live roster (loaded below via fetchLiveOnsiteData).
+    function trackerRows() {
+      if (window.NJTC_ONSITE_TRACKER && window.NJTC_ONSITE_TRACKER.length) return window.NJTC_ONSITE_TRACKER;
+      return (window._njtcOnsiteRoster2627 || []).map(r => ({
+        cycle:         r.cycle,
+        role:          r.role,
+        fullName:      r.name,
+        offerAccepted: r.offerAccepted,
+        isPreApp:      /pre-?apprentice|\bpace\b/i.test(r.role || ''),
+        isTerminated:  (r.terminated || '').toLowerCase() === 'yes',
+        termDate:      r.termDate,
+        resignType:    r.resignType,
+      }));
+    }
+
     function getEmployees(period) {
       if (period.source === 'hr_emps') return normalizeHREmps();
-      const tracker = window.NJTC_ONSITE_TRACKER;
-      if (!tracker || !tracker.length) return [];
+      _censusPending = [];
+      if (period.source === 'snapshot') {
+        _undatedSeps = [];
+        const nk = n => (n || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+        const emps = SUMMER_2026_SNAPSHOT.map(([name, role, location, hire, progEnd]) => ({
+          name, role, location, startDate: parseDate(hire), termDate: null, terminated: false,
+          resignType: '', cycle: 'summer 2026', progEndDate: parseDate(progEnd),
+        }));
+        const byName = new Map(emps.map(e => [nk(e.name), e]));
+        // Personal separations recorded on the Terminations tab (Summer 2026 cycle)
+        (window._njtcOnsiteTerms2627 || [])
+          .filter(t => /summer 2026/i.test(t.cycle || ''))
+          .map(normalizeTerminationRow).filter(Boolean)
+          .forEach(t => {
+            if (!t.termDate) _undatedSeps.push(t.name);
+            const ex = byName.get(nk(t.name));
+            if (ex) { ex.terminated = true; ex.termDate = t.termDate; ex.resignType = t.resignType; ex.progEndDate = null; }
+            else { t.progEndDate = null; emps.push(t); }
+          });
+        return emps;
+      }
+      if (period.hrYear && _hireSource === 'census') {
+        const c = normalizeCensusEmps(period);
+        _censusPending = c.pending;
+        return c.employees;
+      }
       const cycleMatch = period.cycleKey.toLowerCase();
-      return tracker
-        .filter(r  => (r.cycle || '').toLowerCase().includes(cycleMatch))
-        .map(r     => normalizeTrackerRow(r, period.start))
+      const inCycle    = r => (r.cycle || '').toLowerCase().includes(cycleMatch);
+      const nk         = n => (n || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+
+      const employees = trackerRows()
+        .filter(inCycle)
+        .map(r => normalizeTrackerRow(r, period.start))
         .filter(Boolean);
+
+      // Merge the Terminations tab — attach to an existing roster entry when the
+      // person is still listed there, otherwise add them as a separated employee.
+      const byName = new Map(employees.map(e => [nk(e.name), e]));
+      (window._njtcOnsiteTerms2627 || [])
+        .filter(inCycle)
+        .map(normalizeTerminationRow)
+        .filter(Boolean)
+        .forEach(t => {
+          const existing = byName.get(nk(t.name));
+          if (existing) {
+            existing.terminated = true;
+            existing.termDate   = t.termDate || existing.termDate;
+            existing.resignType = t.resignType || existing.resignType;
+          } else {
+            employees.push(t);
+            byName.set(nk(t.name), t);
+          }
+        });
+      return employees;
+    }
+
+    // One period's month-by-month stats (each stat tagged with its period label).
+    function buildPeriod(p) {
+      const employees = getEmployees(p);
+      // Live tracker periods stop at the current month so in-progress months
+      // count acceptances "thus far" and future months aren't shown.
+      const rangeEnd  = (p.source === 'tracker' && today < p.end)
+        ? new Date(today.getFullYear(), today.getMonth(), 1) : p.end;
+      const months    = today < p.start ? [] : monthsInRange(p.start, rangeEnd);
+      const newHireOverride = p.id === 'sy2526' ? SY2526_NEW_HIRE_COUNTS : null;
+      // Pass period into computeMonthStats so program-end path knows the source
+      const stats     = months.map(mk => Object.assign(computeMonthStats(employees, mk, newHireOverride, p), { periodLabel: p.label }));
+      return { period: p, employees, stats, openings: computeOpenings(p) };
     }
 
     function render() {
-      const period    = PERIODS.find(p => p.id === _activePeriodId);
-      const employees = getEmployees(period);
-      const months    = monthsInRange(period.start, period.end);
-      const newHireOverride = period.id === 'sy2526' ? SY2526_NEW_HIRE_COUNTS : null;
-      // Pass period into computeMonthStats so program-end path knows the source
-      const stats     = months.map(mk => computeMonthStats(employees, mk, newHireOverride, period));
-      const openings  = computeOpenings(period);
+      // "All Time" stacks every period (SY 25-26, Summer 2026, SY 26-27) in order;
+      // each program period keeps its own roster, so totals are summed per period.
+      const isAll     = _activePeriodId === 'all';
+      const parts     = isAll ? PERIODS.map(buildPeriod) : [buildPeriod(PERIODS.find(p => p.id === _activePeriodId))];
+      const period    = isAll ? { id: 'all', label: 'All Time', source: 'all' } : parts[0].period;
+      const hrPeriod  = isAll ? PERIODS.find(p => p.hrYear) : (period.hrYear ? period : null);
+      const stats     = parts.reduce((a, x) => a.concat(x.stats), []);
+      const positions = parts.reduce((a, x) => a + x.employees.length, 0);
+      const openings  = isAll ? null : parts[0].openings;
 
       const totalProgEnd = stats.reduce((a, s) => a + s.programEnd, 0);
       const totalVol     = stats.reduce((a, s) => a + s.voluntary, 0);
       const totalInvol   = stats.reduce((a, s) => a + s.involuntary, 0);
 
-      const periodBtns = PERIODS.map(p =>
+      const periodBtns = PERIODS.concat([{ id: 'all', label: 'All Time' }]).map(p =>
         `<button class="pst-tab${p.id === _activePeriodId ? ' active' : ''}" onclick="window.__dolSetPeriod('${p.id}')" style="font-size:.8rem">${p.label}</button>`
       ).join('');
 
-      const monthRows = stats.map(s => renderMonthCard(s, false)).join('');
+      const monthRows = parts.map(x =>
+        (isAll ? `<div style="font-size:.8rem;font-weight:800;color:var(--navy);margin:1rem 0 .5rem">${x.period.label}</div>` : '')
+        + (x.stats.map(s => renderMonthCard(s, false)).join('')
+           || (isAll ? '<p style="color:var(--muted);font-size:.8rem">No months yet.</p>' : ''))
+      ).join('');
 
       // Program Completion callout strip — only visible when totalProgEnd > 0
       const progStrip = totalProgEnd > 0 ? `
@@ -757,7 +964,7 @@
             </div>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap">
               <button onclick="window.__dolExportCSV()" style="font-size:.78rem;padding:.45rem .9rem;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-weight:600;color:var(--navy)">⬇ CSV</button>
-              <button onclick="window.__dolExportPDF()" style="font-size:.78rem;padding:.45rem .9rem;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🖨 PDF Report</button>
+              <button onclick="window.__dolExportPDF()" style="font-size:.78rem;padding:.45rem .9rem;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🖨 PDF Report</button>
             </div>
           </div>
 
@@ -767,9 +974,32 @@
             ${periodBtns}
           </div>
 
+          ${hrPeriod ? `
+          <!-- Hire-date source toggle -->
+          <div style="display:flex;gap:.5rem;align-items:center;margin:-.75rem 0 1rem;flex-wrap:wrap">
+            <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Hire dates</span>
+            <button class="pst-tab${_hireSource === 'tracker' ? ' active' : ''}" onclick="window.__dolSetHireSource('tracker')" style="font-size:.8rem">Onsite Tracker <span style="opacity:.6;font-size:.7rem">Offer Accepted</span></button>
+            <button class="pst-tab${_hireSource === 'census' ? ' active' : ''}" onclick="window.__dolSetHireSource('census')" style="font-size:.8rem">HR Employee Census <span style="opacity:.6;font-size:.7rem">ADP hire date</span></button>
+          </div>
+          <div style="font-size:.74rem;color:#475569;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:1rem;line-height:1.5">
+            <span style="font-size:.66rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em">Portal only — not included in CSV/PDF downloads</span><br>
+            ${_hireSource === 'census'
+              ? `${isAll ? `${hrPeriod.label}: ` : ''}Source: <strong>HR Master List (${hrPeriod.hrYear})</strong> · hire month = <strong>Hire Date (ADP Census)</strong> · separations = Termination Date (ADP Termination Date if blank).
+                 ${!window._hrDataFetched ? '<br>⏳ Loading HR Master List…' : ''}
+                 ${_censusPending.length ? `<br><span style="color:#b45309"><strong>${_censusPending.length}</strong> on the Master List with no ADP hire date yet — not counted: ${_censusPending.map(n => n.replace(/</g,'&lt;')).join(', ')}</span>` : ''}`
+              : `${isAll ? `${hrPeriod.label}: ` : ''}Source: <strong>Onsite Tracker</strong> · hire month = <strong>Offer Accepted (DATE)</strong> · separations = Terminations tab.`}
+          </div>` : ''}
+
+          ${(period.source === 'snapshot' || isAll) ? `
+          <div style="font-size:.74rem;color:#475569;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:1rem;line-height:1.5">
+            <span style="font-size:.66rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em">Portal only — not included in CSV/PDF downloads</span><br>
+            Summer 2026: fixed snapshot (${SUMMER_2026_SNAPSHOT.length} employees, pre-apprentices excluded) · hire month = Offer Accepted · program completion = site End Date.
+            ${_undatedSeps.length ? `<br><span style="color:#b45309">Separation on the Terminations tab with no Termination Date — counted as a hire, not yet as a separation: ${_undatedSeps.map(n => n.replace(/</g,'&lt;')).join(', ')}</span>` : ''}
+          </div>` : ''}
+
           <!-- Summary strip -->
           <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem">
-            ${statCard('Total Positions', employees.length, period.label, 'var(--navy)')}
+            ${statCard('Total Positions', positions, period.label, 'var(--navy)')}
             ${statCard('Total New Hires', stats.reduce((a,s)=>a+s.newHires,0), 'across period', '#059669')}
             ${statCard('Total Voluntary', totalVol, 'resignations', '#d97706')}
             ${statCard('Total Involuntary', totalInvol, 'terminations', '#dc2626')}
@@ -789,15 +1019,41 @@
           <div>
             <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Open Positions by Role</div>
             <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem">
-              ${renderOpeningsTable(openings)}
+              ${isAll ? '<p style="color:var(--muted);font-size:.85rem">Select a single period to see open positions.</p>' : renderOpeningsTable(openings)}
             </div>
-            ${period.source === 'tracker' && !window.NJTC_ONSITE_TRACKER ? '<p style="color:#d97706;font-size:.78rem;margin-top:.5rem">⚠ Tracker not loaded — switch to SY 26-27 in Site Analytics to load it, then return here.</p>' : ''}
+            ${period.source === 'tracker' && !trackerRows().length ? `<p style="color:#d97706;font-size:.78rem;margin-top:.5rem">${_loading ? '⏳ Loading Onsite Tracker…' : '⚠ Onsite Tracker could not be loaded — try refreshing the page.'}</p>` : ''}
           </div>
         </div>`;
 
       window.__dolSetPeriod = function(id) { _activePeriodId = id; render(); };
+      window.__dolSetHireSource = function(src) {
+        _hireSource = src === 'census' ? 'census' : 'tracker';
+        try { localStorage.setItem('njtc_dol_hire_source', _hireSource); } catch (e) {}
+        if (_hireSource === 'census' && !window._hrDataFetched && typeof window.fetchLiveHRData === 'function') {
+          Promise.resolve(window.fetchLiveHRData()).catch(() => {}).then(() => { if (container.isConnected) render(); });
+        }
+        render();
+      };
+      // Downloads are submitted to DOL: they carry only the selected source's counts —
+      // never the source name or the on-screen "not counted" / discrepancy notes.
       window.__dolExportCSV = function() { exportCSV(stats, period.label); };
-      window.__dolExportPDF = function() { exportPDF(stats, period.label, openings); };
+      window.__dolExportPDF = function() { exportPDF(stats, period.label, openings, isAll); };
+    }
+
+    // Load the Onsite Tracker + Terminations tabs directly so the report doesn't
+    // depend on Site Analytics having been opened first. Uses the shared 10-min
+    // cache; re-renders once fresh data arrives so new acceptances show up.
+    let _loading = false;
+    if (typeof window.fetchLiveOnsiteData === 'function') {
+      _loading = true;
+      Promise.resolve(window.fetchLiveOnsiteData())
+        .catch(e => console.warn('[DOL] Onsite data load failed:', e && e.message))
+        .then(() => { _loading = false; if (container.isConnected) render(); });
+    }
+
+    // HR Census mode reads the Master List — load it if Talent Analytics hasn't yet.
+    if (_hireSource === 'census' && !window._hrDataFetched && typeof window.fetchLiveHRData === 'function') {
+      Promise.resolve(window.fetchLiveHRData()).catch(() => {}).then(() => { if (container.isConnected) render(); });
     }
 
     render();

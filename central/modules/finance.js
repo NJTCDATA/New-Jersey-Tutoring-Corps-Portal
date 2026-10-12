@@ -22,7 +22,7 @@
     // ── Workforce risk signals ───────────────────────────────────
     var withAction    = emps.filter(function(e){ return e._liveHRAction && e._liveHRAction.trim(); });
     var lowAtt70      = emps.filter(function(e){ return e.att !== null && e.att < 70; });
-    var multiConcern  = emps.filter(function(e){ return (e.co || 0) >= 2; });
+    var multiConcern  = emps.filter(function(e){ return (e._liveConcerns || 0) >= 2; });
 
     // Employees needing deeper review: active HR action, very low attendance, or 2+ concerns
     var deepNames = {};
@@ -31,8 +31,8 @@
     multiConcern.forEach(function(e) { deepNames[e.n] = e; });
     var deepReview = Object.values(deepNames).sort(function(a, b) {
       // Sort: active HR action first, then lowest attendance
-      var aScore = (a._liveHRAction ? 100 : 0) + (a.att !== null && a.att < 70 ? 50 : 0) + (a.co || 0);
-      var bScore = (b._liveHRAction ? 100 : 0) + (b.att !== null && b.att < 70 ? 50 : 0) + (b.co || 0);
+      var aScore = (a._liveHRAction ? 100 : 0) + (a.att !== null && a.att < 70 ? 50 : 0) + (a._liveConcerns || 0);
+      var bScore = (b._liveHRAction ? 100 : 0) + (b.att !== null && b.att < 70 ? 50 : 0) + (b._liveConcerns || 0);
       return bScore - aScore;
     });
 
@@ -162,7 +162,7 @@
               + '<td style="font-size:.78rem">' + (e.di || e.si || '\u2014') + '</td>'
               + '<td style="font-weight:700;color:' + attColor + '">' + attText + '</td>'
               + '<td style="font-size:.78rem">' + action + '</td>'
-              + '<td style="text-align:center">' + (e.co || 0) + '</td>'
+              + '<td style="text-align:center">' + (e._liveConcerns || 0) + '</td>'
               + '<td style="font-size:.78rem">' + riskLabel + '</td>'
               + '</tr>';
       });

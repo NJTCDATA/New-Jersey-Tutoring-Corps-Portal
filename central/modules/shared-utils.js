@@ -50,7 +50,7 @@
     },
     bustAll() {
       // Evict all known NJTC cache keys so next page load fetches fresh data
-      const keys = ['njtc_kpi_v2','njtc_kpi_2627_v1','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v2',
+      const keys = ['njtc_kpi_v2','njtc_kpi_2627_v1','njtc_sya_v1','njtc_talent_v1','njtc_talent_v2','njtc_pearl_v1','njtc_ops_v2',
                     'njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2','njtc_irlab_live_v3',
                     'njtc_irlab_gids_v5','njtc_resolutions_v1','njtc_reviews_v1'];
       keys.forEach(k => this.bust(k));
@@ -5439,7 +5439,20 @@
 
   window._talentLoaded = false; // shared with shared-charts.js (cross-module state)
   let _talentTab     = 'all';
-  let _talentYear_selected = 'all';
+  // Concerns are grouped by School Year from their date: Aug–Dec → that fall's SY,
+  // Jan–Jul → the SY that started the prior August (SY 26-27 = Aug 2026 – Jul 2027).
+  function _concernSY(c) {
+    const y = Number(c && c.yr), m = Number(c && c.mo);
+    if (!y || !m) return '';
+    return m >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+  }
+  function _currentConcernSY() {
+    const d = new Date();
+    return _concernSY({ yr: d.getFullYear(), mo: d.getMonth() + 1 });
+  }
+  window._njtcConcernSY = _concernSY;
+  // Default the Talent dashboard to the current School Year.
+  let _talentYear_selected = _currentConcernSY();
   let _filteredConcerns = CONCERNS; window._filteredConcerns = CONCERNS; // shared with hr-department.js
   let _talentFilters = {};
 
@@ -5526,6 +5539,7 @@
     if (hRow < 0) return [];
 
     const fresh = [];
+    const _hdr = (rows[hRow] || []).map(h => (h || '').replace(/\s+/g, ' ').trim());
     const TS_RE = /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/;
     for (let i = hRow + 1; i < rows.length; i++) {
       const cols = rows[i];
@@ -5556,6 +5570,9 @@
         hr_action:    (()=>{ let hr_action = (cols[17]||'').trim(); if (hr_action === 'Yes') hr_action = 'On Watch'; if (hr_action === 'No') hr_action = 'No Action'; return hr_action; })(),
         first_time:   (cols[19]||'').trim(),
         hr_followup:  (cols[20]||'').trim(),
+        // Every answered question on the form, labelled by its header — powers the
+        // "Read full entry" pop-up (profile + Support Log) so nothing is cut off.
+        fields:       _hdr.map((h, j) => [h, (cols[j] || '').trim()]).filter(([h, v]) => h && v),
       });
     }
     return fresh;
@@ -5565,7 +5582,7 @@
     // ── stale-while-revalidate: show cached data instantly ────────────
     const _forceRefresh = typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh;
     if (!_forceRefresh) {
-      const _tc = NJTC_CACHE.get('njtc_talent_v1');
+      const _tc = NJTC_CACHE.get('njtc_talent_v2');
       if (_tc && _tc.data && _tc.data.length) {
         CONCERNS = _tc.data; window.CONCERNS = CONCERNS;
         _talentLiveStatus = 'live';
@@ -5583,7 +5600,7 @@
         if (fresh.length > 0) {
           CONCERNS = fresh; window.CONCERNS = CONCERNS;
           _talentLiveStatus = 'live';
-          NJTC_CACHE.set('njtc_talent_v1', fresh);
+          NJTC_CACHE.set('njtc_talent_v2', fresh);
           console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
           if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
           return CONCERNS;
@@ -5777,7 +5794,7 @@
               <span class="sl-col-date sl-cell-muted">${dateStr}</span>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${submitter}">${submitter}</span>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${emp}"><strong>${emp}</strong></span>
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.75rem" title="${label}">${label}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.75rem;cursor:pointer;color:#1d4ed8;text-decoration:underline" title="Read full entry — ${String(label).replace(/"/g,'&quot;')}" data-ts="${String(c.ts).replace(/"/g,'&quot;')}" data-emp="${String(c.emp||'').replace(/"/g,'&quot;')}" onclick="window._njtcShowConcernEntry(this.dataset.ts,this.dataset.emp)">📄 ${label}</span>
               <span style="font-size:.75rem;color:#475569">${action}</span>
               ${resolveCell}
             </div>`;
@@ -5792,6 +5809,48 @@
       console.error('[SupportLog]', err);
     });
   }
+
+  // ── Full concern entry pop-up (Support Log + staff profiles) ────────────────
+  // Shows every answered question on the Performance Concern form for one entry,
+  // so HR can read the whole write-up without leaving the portal.
+  function showConcernEntry(ts, emp) {
+    const all = window.CONCERNS || CONCERNS || [];
+    const c = all.find(x => x.ts === ts && (!emp || x.emp === emp)) || all.find(x => x.ts === ts);
+    if (!c) { alert('That concern entry is not loaded yet — refresh Talent Analytics and try again.'); return; }
+    const old = document.getElementById('njtcConcernEntryModal');
+    if (old) old.remove();
+    const e = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const sy = typeof _concernSY === 'function' ? _concernSY(c) : '';
+    const fields = (c.fields && c.fields.length) ? c.fields : [
+      ['Timestamp', c.ts], ['Submitted By', c.submitter], ['Employee', c.emp], ['Role', c.role],
+      ['Site', c.site], ['Type of Support', c.support_type], ['Delivery', c.delivery],
+      ['Concern Type', c.concern_type], ['Concern', c.concern_label], ['Details', c.concern_detail],
+      ['HR Action', c.hr_action], ['First Time?', c.first_time], ['HR Follow-Up', c.hr_followup],
+    ].filter(([, v]) => v);
+    const ov = document.createElement('div');
+    ov.id = 'njtcConcernEntryModal';
+    ov.className = 'sl-modal-overlay';
+    ov.style.zIndex = '20000';
+    ov.onclick = ev => { if (ev.target === ov) ov.remove(); };
+    ov.innerHTML = `
+      <div class="sl-modal" style="max-width:640px;max-height:85vh;overflow:auto">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem">
+          <div>
+            <div class="sl-modal-hdr" style="margin-bottom:.15rem">📄 Performance Concern — Full Entry</div>
+            <div style="font-size:.8rem;color:#475569"><strong>${e(c.emp)}</strong> · ${e((c.ts||'').split(' ')[0])}${sy ? ' · SY ' + e(sy.slice(2,4) + '-' + sy.slice(7,9)) : ''}${c.hr_action ? ` · <span style="color:#b91c1c;font-weight:700">${e(c.hr_action)}</span>` : ''}</div>
+          </div>
+          <button onclick="document.getElementById('njtcConcernEntryModal').remove()" style="border:none;background:#f1f5f9;border-radius:8px;padding:.3rem .6rem;cursor:pointer;font-size:.9rem" aria-label="Close">✕</button>
+        </div>
+        <div style="margin-top:1rem;border-top:1px solid #e2e8f0">
+          ${fields.map(([k, v]) => `<div style="padding:.6rem 0;border-bottom:1px solid #f1f5f9">
+            <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.2rem">${e(k)}</div>
+            <div style="font-size:.85rem;color:#0f172a;white-space:pre-wrap;line-height:1.5">${e(v)}</div>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+  }
+  window._njtcShowConcernEntry = showConcernEntry;
 
   // ── HR Resolve Modal ────────────────────────────────────────────────────────
   function showSLResolveModal(ts) {
@@ -6007,7 +6066,7 @@
     if (btn) btn.classList.add('active');
     _talentYear_selected = yr;
     const countEl=document.getElementById('tyrCount');
-    if (countEl) countEl.textContent = yr!=='all' ? CONCERNS.filter(c=>c.yr===Number(yr)).length+' records' : '';
+    if (countEl) countEl.textContent = yr!=='all' ? CONCERNS.filter(c=>_concernSY(c)===yr).length+' records' : '';
     applyTalentFilters();
   }
   function setTalentTab(tab) {
@@ -6052,18 +6111,7 @@
         const o = document.createElement('option'); o.value = o.textContent = d; dSel.appendChild(o);
       });
     }
-    const mSel = document.getElementById('tf_month');
-    if (mSel && mSel.options.length <= 1) {
-      ["Mar 2025", "Apr 2025", "May 2025", "Jun 2025", "Jul 2025", "Aug 2025", "Sep 2025", "Oct 2025", "Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026"].forEach(m => {
-        const o = document.createElement('option'); o.value = o.textContent = m; mSel.appendChild(o);
-      });
-    }
-    const sSel = document.getElementById('tf_submitter');
-    if (sSel && sSel.options.length <= 1) {
-      ["Andrea Brooks", "Andrea Brooks, PM", "Andrea Brooks- PM", "Andrea Brooks- Program Manager", "Andrea Brooks/PM", "Anne Lee", "Bertin Lefkovic", "Briana Nurse", "Chelsea Ostrowski", "Colleen Elam", "Colleen Elam (Instructional Coach/Site Leader)", "Danielle Hallahan", "Dr. Clemons", "Dr. Clemons- Program Manager", "Dr. Clemons-Program Manager", "Dr. T. Clemons / Program Manager", "Dr. Taneisha Clemons- Program Manager", "Faye Lewis Instructional Coach/Site Coordinator", "JLC", "Jenny Irwin, APM", "Jenny Irwin, Asst. Program Manager", "Jenny Irwin, Asst. Program Mgr", "Jessica Kelly, Exec Dir Programs", "Katharine Samberg-Lawrence", "Lakeeda Sessoms", "Lakeeda Sessoms (Site Leader/ Instructional Coach)", "Lakeeda Sessoms (Site Leader/Instructional Coach)", "Marta Reyes SC/IC", "Marta Reyes, IC/SC", "Marta Reyes-IC/SC", "Ms. Sessoms (Site Leader/Instructional Coach)", "Rene Lintz", "Rene Lintz, Program Associate", "Rene Lintz Program Associate", "Scott Oswald", "Sharlene Rahim", "Sharmina Ellis-SC/IC", "T Clemons Program Manager", "T. Clemons-Program Manager", "T. Clemons/Program Manager", "T.Clemons", "Taneisha Clemons", "Taneisha Clemons- Program Manager", "Tanya Israel-Sainthilaire", "Tierney Tittermary", "Tierney Tittermary (Assistant Program Manager)", "Tierney Tittermary/ APM", "Tierney Tittermary/APM"].forEach(s => {
-        const o = document.createElement('option'); o.value = o.textContent = s; sSel.appendChild(o);
-      });
-    }
+    _populateTalentFilterOptions();
     // Employee filter — add dynamically if not present
     const fb = document.getElementById('talentFilterBar');
     if (fb && !document.getElementById('tf_employee')) {
@@ -6073,17 +6121,75 @@
       empSel.onchange = applyTalentFilters;
       const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All Employees';
       empSel.appendChild(allOpt);
-      ["Alexandra Cristescu", "Angelica Werts", "Brandon (Bergen Middle Tutor)", "Breaunna Braxton", "Bryanna Matos", "Carlos Jacho", "Claudia Barbieri", "Coleen Piontkowskie", "Disan Singleton", "Durel Freeman", "Dylan Aiken", "Dylan Sepulveda", "Eliza Kabashi", "Erica Mela", "Evan White", "Fasiha Shaikh", "Genesis Troya", "Huda Deweat", "James DeJesus", "Jeff Wilder", "Jenny Seligman", "Juanita Brown-Lyons", "Katharine Samberg-Lawrence", "Katie Hennigan", "Kimara Ramsey", "Laura Gallucci", "Marissa Onesi", "Maryann Ficker", "Mattelyn Bullock", "Micaela Wilkerson", "Michelle Kim", "Naima Boutria", "Nicholas Antoine", "Nicole Cill", "Norelis Ramirez", "Pooja Tyagi", "Queen Beaute", "Robert Whitman", "Sara Gonzalez", "Shabnam Mustari", "Shanice Jackman", "Sharlene Rahim", "Sharmina Ellis", "Sharon Kessel", "Sharon Kessle", "Susan Dominguez", "Tabitha Parris", "Takiyah Jackson", "Ted Mills", "Timothy Winn", "Trushti Shah", "Victoria Nachimson", "Zahnick Underdue", "Zahnik Underdue"].forEach(e => {
-        const o = document.createElement('option'); o.value = o.textContent = e; empSel.appendChild(o);
-      });
       const cb = fb.querySelector('button'); if (cb) fb.insertBefore(empSel, cb);
     }
+    _populateTalentFilterOptions();
+    _syncTalentYearBar();
     applyTalentFilters();
   }
+
+  // Month / submitter / employee options come from the live concerns data so new
+  // School Year months and staff appear automatically (previously hardcoded through Feb 2026).
+  function _populateTalentFilterOptions() {
+    const fill = (id, values, allLabel) => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const cur = sel.value;
+      const first = sel.options[0] ? sel.options[0].textContent : allLabel;
+      sel.innerHTML = '';
+      const a = document.createElement('option'); a.value = ''; a.textContent = first; sel.appendChild(a);
+      values.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+      if (cur && values.includes(cur)) sel.value = cur;
+    };
+    const data = Array.isArray(CONCERNS) ? CONCERNS : [];
+    const months = [...new Map(data.filter(c => c.month && c.yr && c.mo)
+      .map(c => [c.month, c.yr * 100 + c.mo])).entries()]
+      .sort((a, b) => b[1] - a[1]).map(([m]) => m);
+    const uniq = key => [...new Set(data.map(c => (c[key] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    fill('tf_month', months, 'All Months');
+    fill('tf_submitter', uniq('submitter'), 'All Submitters');
+    fill('tf_employee', uniq('emp'), 'All Employees');
+  }
+  window._populateTalentFilterOptions = _populateTalentFilterOptions;
+
+  // School Year buttons — current SY first, built from the years present in the data.
+  function _syncTalentYearBar() {
+    const bar = document.getElementById('talentYearBar');
+    if (!bar) return;
+    const cur = _currentConcernSY();
+    const yrs = [...new Set([cur, ...(CONCERNS || []).map(_concernSY).filter(Boolean)])].sort().reverse();
+    const short = sy => 'SY ' + sy.slice(2, 4) + '-' + sy.slice(7, 9);
+    bar.querySelectorAll('.pst-tab').forEach(b => b.remove());
+    const countEl = document.getElementById('tyrCount');
+    const mk = (val, label) => {
+      const b = document.createElement('button');
+      b.className = 'pst-tab' + (_talentYear_selected === val ? ' active' : '');
+      b.id = 'tyrBtn-' + val;
+      b.innerHTML = label;
+      b.onclick = function () { setTalentYear(val, this); };
+      bar.insertBefore(b, countEl);
+    };
+    yrs.forEach(sy => mk(sy, short(sy) + (sy === cur ? ' <span style="font-size:.65rem;opacity:.6">current</span>' : '')));
+    mk('all', 'All Years');
+  }
+  window._syncTalentYearBar = _syncTalentYearBar;
     // District → site lookup for group-based filtering
   const _DISTRICT_GROUPS = {"Central Jersey College Prep": ["Central Jersey College Prep"], "First Philadelphia Prep": ["First Philadelphia Prep Charter School (American Paradigm)"], "Global Leadership Academy": ["Global Leadership Academy - GLA- West"], "Gloucester Township SD": ["Gloucester Township School District- Erial Elementary School", "Gloucester Township School District- Loring Flemming Elementary School"], "Haddon Township SD": ["Haddon Township School District-Strawbridge Elementary School", "Haddon Township School District-Van Sciver Elementary School"], "Hamilton Township SD": ["Hamilton Township School District- Kuser Elementary School", "Hamilton Township School District- Mercerville Elementary School"], "Hoboken / HOLA Charter": ["Hoboken Dual Language Charter School (HOLA) - ES"], "Lawrence Township SD": ["Lawrence Township- Slackwood Elementary"], "Paterson Charter Sci & Tech": ["Paterson Charter School Science & Tech.- PCSST 4-7 Campus"], "Penns Grove - Carneys Point SD": ["Penns Grove - Carneys Point Regional School District- Penns Grove Middle School", "Penns Grove - Field Street Elementary"], "Salem City SD": ["Salem City School District- Salem - John Fenwick Academy (K-2)", "Salem City School District- Salem Middle School (3-5)"], "iLearn Charter Schools": ["iLearn Charter School- Bergen ES", "iLearn Charter School- Bergen MS", "iLearn Charter School- Clifton ES", "iLearn Charter School- Clifton MS", "iLearn Charter School- Hudson MS", "iLearn Charter School- Passaic ES", "iLearn Charter School- Passaic MS", "iLearn Charter School- Paterson ES", "iLearn Charter School- Paterson MS"]};
 
   function applyTalentFilters() {
+    const hasF = _recomputeTalentFilter();
+    const countEl = document.getElementById('tf_count');
+    if (countEl) {
+      countEl.textContent = hasF
+        ? `${_filteredConcerns.length} of ${CONCERNS.length} records`
+        : `${CONCERNS.length} records`;
+      countEl.style.color = hasF && _filteredConcerns.length < CONCERNS.length ? '#e76f51' : 'var(--muted)';
+    }
+    buildTalentContent();
+  }
+
+  // Filter only (no re-render) — returns whether any filter is active.
+  function _recomputeTalentFilter() {
     const g = id => document.getElementById(id)?.value || '';
     const district  = g('tf_district');
     const role      = g('tf_role');
@@ -6105,20 +6211,12 @@
       (!hr          || c.hr_action === hr) &&
       (!submitter   || c.submitter === submitter) &&
       (!employee    || c.emp === employee) &&
-      (yr === 'all' || yr === null || c.yr === Number(yr))
+      (yr === 'all' || yr === null || _concernSY(c) === yr)
     );
     window._filteredConcerns = _filteredConcerns; // keep window ref in sync for hr-department.js
-
-    const hasF = !![district, role, concern, month, hr, submitter, employee].find(v => v) || (yr !== 'all' && yr !== null);
-    const countEl = document.getElementById('tf_count');
-    if (countEl) {
-      countEl.textContent = hasF
-        ? `${_filteredConcerns.length} of ${CONCERNS.length} records`
-        : `${CONCERNS.length} records`;
-      countEl.style.color = hasF && _filteredConcerns.length < CONCERNS.length ? '#e76f51' : 'var(--muted)';
-    }
-    buildTalentContent();
+    return !![district, role, concern, month, hr, submitter, employee].find(v => v) || (yr !== 'all' && yr !== null);
   }
+  window._recomputeTalentFilter = _recomputeTalentFilter;
   
   function clearTalentFilters() {
     ['tf_district','tf_role','tf_concern','tf_month','tf_hr','tf_submitter','tf_employee'].forEach(id => {

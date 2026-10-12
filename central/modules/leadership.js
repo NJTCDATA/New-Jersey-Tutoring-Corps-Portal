@@ -77,8 +77,12 @@
     // ── 1. Program Footprint ──────────────────────────────────────────
     // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap.
     // Only read HR_EMPS after live HR data has been fetched — prevents showing stale embedded snapshot count.
+    // SY 25-26 archive: staff active through the closed year (Master List 2025-2026 rows
+    // with no recorded separation) — HR_EMPS' live Active status is now SY 26-27.
     const hrActiveTutors = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
-      ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
+      ? (execPeriod === 'sy2526' && typeof window._hrActiveInSY === 'function'
+          ? window._hrActiveInSY('2025-2026')
+          : HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length)
       : null;
     // For live periods: staff/districts/schools come from SY Analytics tracker stats (period-specific).
     // For SY 25-26: staff from HR Master List, districts/schools from Pearl + SYA.
@@ -272,7 +276,7 @@
           <div class="ecd-kpi-lbl">Active Onsite Staff</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
           <div class="ecd-kpi-foot">${_pearlActiveNow != null ? 'Pearl · led ≥1 session' + (_rosterRef != null ? ' · ' + fc(_rosterRef) + ' on SY roster' : '') : execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null ? 'Pearl · Attended ≥1 session' : (_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List')}</div>
-          ${!_isLive ? `<button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v2';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>` : ''}
+          ${!_isLive ? `<button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v3';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>` : ''}
         </div>
         <div class="ecd-kpi ck-gold" title="Districts: ${_isLive ? 'Unique districts from SY Analytics tracker for this period.' : 'Count of unique partner districts derived from Pearl Operations attendance records.'}">
           <div class="ecd-kpi-lbl">Districts</div>
@@ -851,6 +855,12 @@
     return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
   }
 
+  // Briefs are built from KPI_DATA for the KPI Dashboard's selected School Year.
+  function _expSYLabel() {
+    var c = (typeof window.kpiSYConfig === 'function') ? window.kpiSYConfig() : null;
+    return (c && c.label) || 'SY 2026–2027';
+  }
+
   function _expComputeGoalAreas() {
     var areas = {};
     KPI_DATA.forEach(function(k) {
@@ -903,7 +913,7 @@
       '<div class="exp-hdr-title">' + title + '</div>' +
       '<div class="exp-hdr-subtitle">' + subtitle + '</div>' +
       '<div class="exp-hdr-meta">' +
-        '<div class="exp-hdr-meta-item"><strong>SY 2025–2026</strong>School Year</div>' +
+        '<div class="exp-hdr-meta-item"><strong>' + _expSYLabel() + '</strong>School Year</div>' +
         '<div class="exp-hdr-meta-item"><strong>' + _expNow() + '</strong>Generated</div>' +
         '<div class="exp-hdr-meta-item"><strong>' + modeLabel + '</strong>Report Type</div>' +
         '<div class="exp-hdr-meta-item"><strong>' + met + ' of ' + total + ' targets</strong>Goals Met</div>' +
@@ -960,7 +970,7 @@
 
     var html = _expReportHeader(
       'Executive Performance Brief',
-      'A summary of NJTC\'s organizational standing for SY 2025–2026 — scholar impact, program momentum, and goal progress across all strategic areas.',
+      'A summary of NJTC\'s organizational standing for ' + _expSYLabel() + ' — scholar impact, program momentum, and goal progress across all strategic areas.',
       'kb'
     );
 
@@ -970,7 +980,7 @@
     html += '<div class="exp-section">';
     html += '<div class="exp-slabel">Organizational Standing</div>';
     html += '<p class="exp-narrative">';
-    html += 'NJTC is demonstrating <strong>sustained organizational momentum</strong> across SY 2025–2026. ';
+    html += 'NJTC is demonstrating <strong>sustained organizational momentum</strong> across ' + _expSYLabel() + '. ';
     html += 'Of ' + total + ' strategic targets tracked this school year, <strong>' + met + ' have been fully met</strong> — ';
     html += 'with an additional ' + (partial + prog) + ' actively in progress. ';
     html += 'The organization\'s weighted health score of <em>' + pct + '%</em> reflects a <strong>' + hlth.label.toLowerCase() + ' standing</strong> ';
@@ -1068,7 +1078,7 @@
     // ── CLOSING NARRATIVE ──
     html += '<div style="margin-top:1.5rem">';
     html += '<p class="exp-narrative">';
-    html += 'NJTC\'s SY 2025–2026 performance reflects the organization\'s <strong>commitment to evidence-based programming</strong> ';
+    html += 'NJTC\'s ' + _expSYLabel() + ' performance reflects the organization\'s <strong>commitment to evidence-based programming</strong> ';
     html += 'and the strength of its operational infrastructure. The data presented in this brief is drawn live from the NJTC Central Team Portal ';
     html += 'and reflects the most current available information as of the date of this report. ';
     html += 'Goal owners across all departments continue to drive progress toward each target.';
@@ -1097,7 +1107,7 @@
 
     var html = _expReportHeader(
       'Leadership Performance Report',
-      'Detailed organizational performance brief for SY 2025–2026 — goal-area breakdown, KPI status, owner accountability, and current standing across all strategic dimensions.',
+      'Detailed organizational performance brief for ' + _expSYLabel() + ' — goal-area breakdown, KPI status, owner accountability, and current standing across all strategic dimensions.',
       'leadership'
     );
 
@@ -1107,7 +1117,7 @@
     html += '<div class="exp-section">';
     html += '<div class="exp-slabel">Executive Summary</div>';
     html += '<p class="exp-narrative">';
-    html += 'Across SY 2025–2026, NJTC\'s leadership team is navigating a <strong>complex and ambitious year</strong> with notable achievement and clear directional progress. ';
+    html += 'Across ' + _expSYLabel() + ', NJTC\'s leadership team is navigating a <strong>complex and ambitious year</strong> with notable achievement and clear directional progress. ';
     html += 'The organization is actively tracking <strong>' + total + ' strategic targets</strong> across ' + areaKeys.length + ' annual goal areas. ';
     html += 'With <strong>' + met + ' targets fully achieved</strong> at mid-year, ' + partial + ' partially met, and ' + prog + ' actively in progress, ';
     html += 'NJTC\'s operational engine is producing real results while maintaining focus on the areas that require leadership attention.';
@@ -1261,8 +1271,8 @@
     var sub = document.getElementById('expToolbarSub');
     if (sub) {
       sub.textContent = dept === 'kb'
-        ? 'CEO Executive Brief  ·  SY 2025–2026'
-        : 'Leadership Detail Brief  ·  SY 2025–2026  ·  Chief of Staff View';
+        ? 'CEO Executive Brief  ·  ' + _expSYLabel() + ''
+        : 'Leadership Detail Brief  ·  ' + _expSYLabel() + '  ·  Chief of Staff View';
     }
 
     // Build reports
