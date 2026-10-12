@@ -663,13 +663,94 @@
       </div>`;
   }
 
+  // ── Staff by role ───────────────────────────────────────────────────────────
+  // Uses the same employee list as the monthly table, so roles come from the
+  // selected source: Onsite Tracker col B ("Role") or HR Master List col D
+  // ("Position / Role") for that year, grouped by canonicalRole(). New hires are blank for SY 25-26, whose
+  // monthly hire counts are fixed overrides rather than per-person dates.
+  // One name per role across sources/spellings: Onsite Tracker "Tutor" = Master List
+  // "Non-cert Tutor"; "Certified Sub- Tutor" / "Certified Sub Tutor" → Certified Sub-Tutor, etc.
+  function canonicalRole(raw) {
+    const r = (raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!r) return 'Role not listed';
+    const cert = /cert/.test(r) && !/non[- ]?cert/.test(r);
+    if (/dual/.test(r))                 return 'Dual Role';
+    if (/site leader/.test(r))          return 'Site Leader';
+    if (/master trainer/.test(r))       return 'Master Trainer';
+    if (/site coord/.test(r))           return 'Site Coordinator';
+    if (/instructional coach/.test(r))  return 'Instructional Coach';
+    if (/sub\s*-?\s*tutor/.test(r))    return cert ? 'Certified Sub-Tutor' : 'Sub-Tutor';
+    if (/tutor/.test(r))                return cert ? 'Certified Tutor' : 'Tutor';
+    return raw.trim();
+  }
+
+  function computeRoleStats(parts, today) {
+    const map = {};
+    parts.forEach(({ period: p, employees }) => {
+      const end = (p.source === 'tracker' && today < p.end) ? today : p.end;
+      const hasHireDates = p.id !== 'sy2526';
+      employees.forEach(e => {
+        if (e.startDate && e.startDate > end) return;
+        const role = canonicalRole(e.role);
+        const r = map[role] || (map[role] = { role, employees: 0, newHires: hasHireDates ? 0 : null, voluntary: 0, involuntary: 0, programEnd: 0, activeEnd: 0 });
+        if (hasHireDates && r.newHires === null) r.newHires = 0;
+        r.employees++;
+        if (hasHireDates && e.startDate && e.startDate >= p.start && e.startDate <= end) r.newHires++;
+        const sepInPeriod = e.terminated && e.termDate && e.termDate >= p.start && e.termDate <= end;
+        if (sepInPeriod) {
+          const t = e.resignType || '';
+          if (t === 'voluntary' || t.startsWith('voluntary')) r.voluntary++;
+          else if (t !== '') r.involuntary++;
+        }
+        const progEnded = (p.source === 'hr_emps' || p.source === 'snapshot') && !e.terminated
+          && e.progEndDate && e.progEndDate >= p.start && e.progEndDate <= end;
+        if (progEnded) r.programEnd++;
+        const gone = (e.terminated && e.termDate && e.termDate <= end) || (e.progEndDate && e.progEndDate <= end && !e.terminated);
+        if (!gone) r.activeEnd++;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.employees - a.employees || a.role.localeCompare(b.role));
+  }
+
+  function renderRoleTable(roles) {
+    if (!roles.length) return '<p style="color:var(--muted);font-size:.85rem">No staff in this period.</p>';
+    const th = 'padding:.5rem .75rem;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em';
+    const td = 'padding:.5rem .75rem;text-align:center';
+    const tot = k => roles.reduce((a, r) => a + (r[k] || 0), 0);
+    const nh  = r => r.newHires == null ? '—' : r.newHires;
+    const row = (r, bold) => `<tr style="${bold ? 'border-top:2px solid var(--border);font-weight:800' : ''}">
+        <td style="padding:.5rem .75rem;font-weight:${bold ? 800 : 600};color:var(--navy)">${r.role}</td>
+        <td style="${td}">${r.employees}</td>
+        <td style="${td};color:#059669">${nh(r)}</td>
+        <td style="${td};color:#d97706">${r.voluntary}</td>
+        <td style="${td};color:#dc2626">${r.involuntary}</td>
+        <td style="${td};color:#0369a1">${r.programEnd}</td>
+        <td style="${td}">${r.activeEnd}</td>
+      </tr>`;
+    const totalRow = { role: 'Total', employees: tot('employees'), newHires: roles.some(r => r.newHires != null) ? tot('newHires') : null,
+      voluntary: tot('voluntary'), involuntary: tot('involuntary'), programEnd: tot('programEnd'), activeEnd: tot('activeEnd') };
+    return `
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead><tr style="border-bottom:2px solid var(--border)">
+          <th style="${th};text-align:left">Role</th><th style="${th};text-align:center">Employees</th>
+          <th style="${th};text-align:center">New Hires</th><th style="${th};text-align:center">Voluntary</th>
+          <th style="${th};text-align:center">Involuntary</th><th style="${th};text-align:center">Program Completions</th>
+          <th style="${th};text-align:center">Active at Period End</th>
+        </tr></thead>
+        <tbody>${roles.map(r => row(r, false)).join('')}${row(totalRow, true)}</tbody>
+      </table>`;
+  }
+
+  // Locations tab position columns: "Site Leader (Dual Role) Positions" is the Dual Role bucket.
+  const OPENING_LABEL = { 'Dual Role': 'Site Leader / Dual Role' };
+
   function renderOpeningsTable(openings) {
     if (!openings) return '<p style="color:var(--muted);font-size:.85rem">Open position data requires Tracker data to be loaded.</p>';
     const rows = ROLE_BUCKETS.map(r => {
       const d    = openings[r] || { filled: 0, total: 0 };
       const open = Math.max(0, d.total - d.filled);
       return `<tr>
-        <td style="padding:.5rem .75rem;font-weight:600;color:var(--navy)">${r}</td>
+        <td style="padding:.5rem .75rem;font-weight:600;color:var(--navy)">${OPENING_LABEL[r] || r}</td>
         <td style="padding:.5rem .75rem;text-align:center">${d.total}</td>
         <td style="padding:.5rem .75rem;text-align:center;color:#059669">${d.filled}</td>
         <td style="padding:.5rem .75rem;text-align:center;color:${open > 0 ? '#dc2626' : '#059669'};font-weight:700">${open}</td>
@@ -690,11 +771,17 @@
   }
 
   // ── CSV export ────────────────────────────────────────────────────────────────
-  function exportCSV(stats, periodLabel) {
+  function exportCSV(stats, periodLabel, roles) {
     const rows = [
       ['Period','Month','Total Employees','New Hires','Voluntary Terminations','Involuntary Terminations','Program Completion Separations','Total Separations'],
       ...stats.map(s => [s.periodLabel || periodLabel, s.label, s.total, s.newHires, s.voluntary, s.involuntary, s.programEnd, s.termTotal]),
     ];
+    if (roles && roles.length) {
+      rows.push([]);
+      rows.push(['Staff by Role — ' + periodLabel]);
+      rows.push(['Role','Employees','New Hires','Voluntary Terminations','Involuntary Terminations','Program Completion Separations','Active at Period End']);
+      roles.forEach(r => rows.push([r.role, r.employees, r.newHires == null ? '' : r.newHires, r.voluntary, r.involuntary, r.programEnd, r.activeEnd]));
+    }
     const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url  = URL.createObjectURL(blob);
@@ -706,7 +793,7 @@
   }
 
   // ── PDF export ────────────────────────────────────────────────────────────────
-  function exportPDF(stats, periodLabel, openings, showPeriod) {
+  function exportPDF(stats, periodLabel, openings, showPeriod, roles) {
     const rows = stats.map(s => `
       <tr>
         <td>${showPeriod && s.periodLabel ? s.periodLabel + ' · ' : ''}${s.label}</td>
@@ -718,11 +805,27 @@
         <td style="text-align:center;font-weight:700">${s.termTotal}</td>
       </tr>`).join('');
 
+    const roleList = roles || [];
+    const rSum = k => roleList.reduce((a, r) => a + (r[k] || 0), 0);
+    const roleRows = roleList.map(r => `<tr>
+        <td>${r.role}</td>
+        <td style="text-align:center">${r.employees}</td>
+        <td style="text-align:center;color:#059669">${r.newHires == null ? '—' : r.newHires}</td>
+        <td style="text-align:center;color:#d97706">${r.voluntary}</td>
+        <td style="text-align:center;color:#dc2626">${r.involuntary}</td>
+        <td style="text-align:center;color:#0369a1">${r.programEnd}</td>
+        <td style="text-align:center">${r.activeEnd}</td>
+      </tr>`).join('') + (roleList.length ? `<tr class="total-row" style="font-weight:700">
+        <td>Total</td><td style="text-align:center">${rSum('employees')}</td>
+        <td style="text-align:center">${roleList.some(r => r.newHires != null) ? rSum('newHires') : '—'}</td>
+        <td style="text-align:center">${rSum('voluntary')}</td><td style="text-align:center">${rSum('involuntary')}</td>
+        <td style="text-align:center">${rSum('programEnd')}</td><td style="text-align:center">${rSum('activeEnd')}</td>
+      </tr>` : '');
     const openRows = openings ? ROLE_BUCKETS.map(r => {
       const d    = openings[r] || { filled: 0, total: 0 };
       const open = Math.max(0, d.total - d.filled);
       return `<tr>
-        <td>${r}</td>
+        <td>${OPENING_LABEL[r] || r}</td>
         <td style="text-align:center">${d.total}</td>
         <td style="text-align:center">${d.filled}</td>
         <td style="text-align:center;color:${open > 0 ? '#dc2626' : '#059669'}">${open}</td>
@@ -792,7 +895,12 @@
       </tr>
     </tbody>
   </table>
-  ${openings ? `<h2>Positions by Role</h2>
+  ${roleList.length ? `<h2>Staff by Role</h2>
+  <table>
+    <thead><tr><th>Role</th><th style="text-align:center">Employees</th><th style="text-align:center">New Hires</th><th style="text-align:center">Voluntary</th><th style="text-align:center">Involuntary</th><th style="text-align:center">Program Completions</th><th style="text-align:center">Active at Period End</th></tr></thead>
+    <tbody>${roleRows}</tbody>
+  </table>` : ''}
+  ${openings ? `<h2>Open Positions (Locations tab)</h2>
   <table>
     <thead><tr><th>Role</th><th style="text-align:center">Positions</th><th style="text-align:center">Filled</th><th style="text-align:center">Vacancies</th></tr></thead>
     <tbody>${openRows}</tbody>
@@ -924,6 +1032,7 @@
       const stats     = parts.reduce((a, x) => a.concat(x.stats), []);
       const positions = parts.reduce((a, x) => a + x.employees.length, 0);
       const openings  = isAll ? null : parts[0].openings;
+      const roles     = computeRoleStats(parts, today);
 
       const totalProgEnd = stats.reduce((a, s) => a + s.programEnd, 0);
       const totalVol     = stats.reduce((a, s) => a + s.voluntary, 0);
@@ -1018,9 +1127,17 @@
             ${monthRows || '<p style="color:var(--muted);font-size:.85rem">No data available for this period.</p>'}
           </div>
 
+          <!-- Staff by role (from the selected roster) -->
+          <div style="margin-bottom:1.75rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Staff by Role</div>
+            <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem;overflow-x:auto">
+              ${renderRoleTable(roles)}
+            </div>
+          </div>
+
           <!-- Open positions -->
           <div>
-            <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Open Positions by Role</div>
+            <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Open Positions (Locations tab)</div>
             <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem">
               ${isAll ? '<p style="color:var(--muted);font-size:.85rem">Select a single period to see open positions.</p>' : renderOpeningsTable(openings)}
             </div>
@@ -1039,8 +1156,8 @@
       };
       // Downloads are submitted to DOL: they carry only the selected source's counts —
       // never the source name or the on-screen "not counted" / discrepancy notes.
-      window.__dolExportCSV = function() { exportCSV(stats, period.label); };
-      window.__dolExportPDF = function() { exportPDF(stats, period.label, openings, isAll); };
+      window.__dolExportCSV = function() { exportCSV(stats, period.label, roles); };
+      window.__dolExportPDF = function() { exportPDF(stats, period.label, openings, isAll, roles); };
     }
 
     // Load the Onsite Tracker + Terminations tabs directly so the report doesn't
