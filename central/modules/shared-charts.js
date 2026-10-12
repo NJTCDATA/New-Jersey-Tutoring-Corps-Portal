@@ -1441,7 +1441,7 @@
   const ONSITE_SHEET_ID   = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
   const ONSITE_GID_ROSTER = '0';          // "Onsite Tracker" tab — active/onboarding roster
   const ONSITE_GID_TERM   = '1788942666'; // Terminations tab
-  const ONSITE_CACHE_KEY  = 'njtc_onsite_live_v2';  // v2: terms carry role + offer dates
+  const ONSITE_CACHE_KEY  = 'njtc_onsite_live_v3';  // v3: roster carries GAINS/PACE apprenticeship cols
   const ONSITE_TTL_MS     = 10 * 60 * 1000;
   let _onsiteStatus = 'pending';
 
@@ -1721,6 +1721,11 @@
       cycle: ci('cycle'), role: ci('role'), county: ci('county'), district: ci('district'),
       first: ci('first name'), last: ci('last name'), email: ci('email'),
       offerAccepted: ci('offer accepted'),
+      location:      H.findIndex(h => h === 'locations' || h === 'location'),
+      source:        H.findIndex(h => h === 'source'),
+      // Apprenticeship columns (SY 26-27 tab): GAINS registration + PACE pre-apprentice cohort
+      gains:         ci('registered for gains'),
+      paceCohort:    ci('pace cohort'),
       terminated:    H.findIndex(h => h === 'terminated?'),
       resignType:    ci('resignation type'),
       resignReason:  ci('resignation reason'),
@@ -1737,6 +1742,10 @@
         name:          `${r[C.first]||''} ${r[C.last]||''}`.trim(),
         email:         (r[C.email]         || '').trim().toLowerCase(),
         offerAccepted: (r[C.offerAccepted] || '').trim(),
+        location:      C.location   >= 0 ? (r[C.location]   || '').trim() : '',
+        source:        C.source     >= 0 ? (r[C.source]     || '').trim() : '',
+        gains:         C.gains      >= 0 ? (r[C.gains]      || '').trim() : '',
+        paceCohort:    C.paceCohort >= 0 ? (r[C.paceCohort] || '').trim() : '',
         terminated:    C.terminated   >= 0 ? (r[C.terminated]   || '').trim() : '',
         resignType:    C.resignType   >= 0 ? (r[C.resignType]   || '').trim() : '',
         resignReason:  C.resignReason >= 0 ? (r[C.resignReason] || '').trim() : '',

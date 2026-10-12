@@ -16,7 +16,7 @@
       label: 'Summer 2026',
       start: new Date(2026, 4, 1),
       end:   new Date(2026, 7, 31),
-      source: 'tracker',
+      source: 'snapshot',   // fixed roster — SUMMER_2026_SNAPSHOT below (program ended)
       cycleKey: 'summer 2026',
     },
     {
@@ -28,6 +28,55 @@
       cycleKey: 'school year 26-27',
       hrYear:   '2026-2027',   // Master List Academic Year — enables the HR Census hire-date toggle
     },
+  ];
+
+  // ── Summer 2026 snapshot (fixed — the program has ended) ────────────────────
+  // Source: Summer 2026 Staffing Tracker snapshot provided by HR (68 rows). The 29
+  // Pre-apprentices are excluded per DOL scope, leaving 39 employees.
+  // Columns: [name, role, location, hire date (Offer Accepted), program end date].
+  // Program end = that site's Summer 2026 End Date on the Locations tab (all sites
+  // "Inactive- program wrapped"); each employee is a Program Completion Separation
+  // that month unless the Terminations tab records a personal separation.
+  const SUMMER_2026_SNAPSHOT = [
+    ['Avery Frieze-Dunfee', "Tutor", "BGC Vineland", '7/6/2026', '7/30/2026'],
+    ['Chelsea Ostowski', "Dual Role", "BGC Vineland", '6/9/2026', '7/30/2026'],
+    ['Glenn Harris', "Certified Tutor", "BGC Vineland", '6/8/2026', '7/30/2026'],
+    ['Ava Bonetti', "Certified Tutor", "BGC Paulsboro", '6/17/2026', '7/31/2026'],
+    ['Danielle Hallahan', "Dual Role", "BGC Paulsboro", '6/4/2026', '7/31/2026'],
+    ['Faye Lewis', "Dual Role", "BGC Glassboro", '6/12/2026', '7/31/2026'],
+    ['Katrina Valentin', "Tutor", "BGC Glassboro", '6/17/2026', '7/31/2026'],
+    ['Karen Millet', "Tutor", "BGC Hoboken", '6/17/2026', '7/30/2026'],
+    ['Maria Zia', "Dual Role", "BGC Hoboken", '6/12/2026', '7/30/2026'],
+    ['María del Carmen Gutierrez Colin', "Tutor", "BGC Hoboken", '6/9/2026', '7/30/2026'],
+    ['Sharon Kessel', "Tutor", "BGC Hoboken", '6/12/2026', '7/30/2026'],
+    ['Cara Debonis', "Dual Role", "BGC Asbury", '6/10/2026', '7/30/2026'],
+    ['Cynthia Tyrrell', "Certified Tutor", "BGC Red Bank", '6/5/2026', '7/30/2026'],
+    ['Dawn Browning', "Tutor", "BGC Long Branch", '6/15/2026', '7/30/2026'],
+    ['Mike Ettore', "Dual Role", "BGC Long Branch", '6/5/2026', '7/30/2026'],
+    ['Mikey (Michael) Dombrowiecki', "Certified Tutor", "BGC Red Bank", '6/23/2026', '7/30/2026'],
+    ['Raina Thompson', "Certified Tutor", "BGC Asbury", '6/26/2026', '7/30/2026'],
+    ['Lauren Eckles', "Dual Role", "Greenwood ES", '6/8/2026', '7/30/2026'],
+    ['Lilia Quintero', "Tutor", "Greenwood ES", '6/9/2026', '7/30/2026'],
+    ['Alesia Alexander', "Dual Role", "PACE- iLearn", '6/8/2026', '7/22/2026'],
+    ['Briana Nurse', "Dual Role", "PACE- iLearn", '6/8/2026', '7/22/2026'],
+    ['Avani Jimenez', "Tutor", "Middlesex Charter Stem School", '6/8/2026', '8/7/2026'],
+    ['Carla Borbon', "Tutor", "Middlesex Charter Stem School", '6/8/2026', '8/7/2026'],
+    ['Carla Phillips', "Dual Role", "Middlesex Charter Stem School", '6/17/2026', '8/7/2026'],
+    ['Sharmina Ellis', "Dual Role", "PACE- Penns Grove", '6/9/2026', '7/30/2026'],
+    ['Bryanna Carey', "Certified Tutor", "Pennsauken", '7/3/2026', '7/30/2026'],
+    ['Caitlin Evgeniadis', "Tutor", "Pennsauken", '6/29/2026', '7/30/2026'],
+    ['Ciarra Martin', "Certified Tutor", "Pennsauken", '6/23/2026', '7/30/2026'],
+    ['Janelle Lee', "Tutor", "Pennsauken", '6/24/2026', '7/30/2026'],
+    ['Karen Rockhill', "Dual Role", "Pennsauken", '6/25/2026', '7/30/2026'],
+    ['Lisa Fisher', "Certified Tutor", "Pennsauken", '6/17/2026', '7/30/2026'],
+    ['Marta Reyes', "Dual Role", "Pennsauken", '6/23/2026', '7/30/2026'],
+    ['Adetomiwa (Ade) Opeolu', "Tutor", "GLA", '6/12/2026', '7/23/2026'],
+    ['Breaunna Braxton', "Tutor", "GLA", '5/7/2026', '7/23/2026'],
+    ['Jaejin Lee', "Tutor", "GLA", '5/15/2026', '7/23/2026'],
+    ['Juanita Brown-Lyons', "Tutor", "GLA", '5/8/2026', '7/23/2026'],
+    ['Katharine Samberg-Lawrence', "Dual Role", "GLA", '5/8/2026', '7/23/2026'],
+    ['Leila Einhorn', "Sub-Tutor", "GLA", '5/12/2026', '7/23/2026'],
+    ['Vincent Duong', "Tutor", "GLA", '5/8/2026', '7/23/2026'],
   ];
 
   // ── SY 25-26 termination date overrides ─────────────────────────────────────
@@ -458,6 +507,8 @@
     const active = employees.filter(e => {
       if (e.startDate > lastDay) return false;
       if (e.termDate && e.termDate < firstDay) return false;
+      // Summer snapshot: staff whose site's program ended before this month are gone
+      if (period && period.source === 'snapshot' && e.progEndDate && e.progEndDate < firstDay) return false;
       // Active staff whose program ends this month are still active during the month
       return true;
     });
@@ -489,7 +540,7 @@
     // SY 25-26: driven by SY2526_PROGRAM_END_DATES (Pearl last-session → SY DB end dates)
     // 26-27+:   driven by live NJTC_LOCATIONS wrapped sites vs. NJTC_ONSITE_TRACKER
     let programEnd = 0;
-    if (period && period.source === 'hr_emps') {
+    if (period && (period.source === 'hr_emps' || period.source === 'snapshot')) {
       // SY 25-26 path: count Active employees whose program ended this month
       // Active = no personal termination (not in vol/invol buckets)
       programEnd = employees.filter(e => {
@@ -769,6 +820,7 @@
     let _hireSource = 'tracker';
     try { if (localStorage.getItem('njtc_dol_hire_source') === 'census') _hireSource = 'census'; } catch (e) {}
     let _censusPending = [];
+    let _undatedSeps   = [];   // Summer separations with no Termination Date (portal-only note)
     const today = new Date();
     for (const p of PERIODS) {
       if (today >= p.start && today <= p.end) { _activePeriodId = p.id; break; }
@@ -793,6 +845,26 @@
     function getEmployees(period) {
       if (period.source === 'hr_emps') return normalizeHREmps();
       _censusPending = [];
+      if (period.source === 'snapshot') {
+        _undatedSeps = [];
+        const nk = n => (n || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+        const emps = SUMMER_2026_SNAPSHOT.map(([name, role, location, hire, progEnd]) => ({
+          name, role, location, startDate: parseDate(hire), termDate: null, terminated: false,
+          resignType: '', cycle: 'summer 2026', progEndDate: parseDate(progEnd),
+        }));
+        const byName = new Map(emps.map(e => [nk(e.name), e]));
+        // Personal separations recorded on the Terminations tab (Summer 2026 cycle)
+        (window._njtcOnsiteTerms2627 || [])
+          .filter(t => /summer 2026/i.test(t.cycle || ''))
+          .map(normalizeTerminationRow).filter(Boolean)
+          .forEach(t => {
+            if (!t.termDate) _undatedSeps.push(t.name);
+            const ex = byName.get(nk(t.name));
+            if (ex) { ex.terminated = true; ex.termDate = t.termDate; ex.resignType = t.resignType; ex.progEndDate = null; }
+            else { t.progEndDate = null; emps.push(t); }
+          });
+        return emps;
+      }
       if (period.hrYear && _hireSource === 'census') {
         const c = normalizeCensusEmps(period);
         _censusPending = c.pending;
@@ -916,6 +988,13 @@
                  ${!window._hrDataFetched ? '<br>⏳ Loading HR Master List…' : ''}
                  ${_censusPending.length ? `<br><span style="color:#b45309"><strong>${_censusPending.length}</strong> on the Master List with no ADP hire date yet — not counted: ${_censusPending.map(n => n.replace(/</g,'&lt;')).join(', ')}</span>` : ''}`
               : `${isAll ? `${hrPeriod.label}: ` : ''}Source: <strong>Onsite Tracker</strong> · hire month = <strong>Offer Accepted (DATE)</strong> · separations = Terminations tab.`}
+          </div>` : ''}
+
+          ${(period.source === 'snapshot' || isAll) ? `
+          <div style="font-size:.74rem;color:#475569;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:1rem;line-height:1.5">
+            <span style="font-size:.66rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em">Portal only — not included in CSV/PDF downloads</span><br>
+            Summer 2026: fixed snapshot (${SUMMER_2026_SNAPSHOT.length} employees, pre-apprentices excluded) · hire month = Offer Accepted · program completion = site End Date.
+            ${_undatedSeps.length ? `<br><span style="color:#b45309">Separation on the Terminations tab with no Termination Date — counted as a hire, not yet as a separation: ${_undatedSeps.map(n => n.replace(/</g,'&lt;')).join(', ')}</span>` : ''}
           </div>` : ''}
 
           <!-- Summary strip -->

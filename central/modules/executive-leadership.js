@@ -1398,9 +1398,11 @@
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // NJTC APPRENTICE DATA LAYER — SY 2025-2026
+  // NJTC APPRENTICE DATA LAYER — SY 2026-2027
   // Single source of truth for all apprentice logic across all departments
-  // Source: HR Master List (updated 2025-2026, active employees only)
+  // Source: live Onsite Tracker (SY 26-27 roster) — "Registered for GAINS Tutoring
+  // Apprentice Program?" = Yes is an active apprentice; Pre-apprentice roles and the
+  // "PACE Cohort summer 2026" column give the pre-apprentice pipeline.
   // ap_ namespace — no collisions with existing portal functions
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -1421,14 +1423,18 @@
     if (s.includes('somerset'))                         return 'Somerset';
     if (s.includes('penns grove') || s.includes('carneys')) return 'Penns Grove';
     if (s.includes('central jersey'))                        return 'Central Jersey College Prep';
+    if (s.includes('lyndhurst'))                             return 'Lyndhurst';
+    if (s.includes('vernon'))                                return 'Vernon';
+    if (s.includes('lawrence'))                              return 'Lawrence Township';
+    if (s.includes('leap'))                                  return 'LEAP Academy';
     return 'Other';
   };
   const ap_inferNetwork = ap_deriveNetwork; // alias
 
   const ap_deriveRegion = (site, district) => {
     const net = ap_deriveNetwork(site, district);
-    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep'].includes(net)) return 'NE';
-    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove'].includes(net)) return 'SW';
+    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep','Lyndhurst','Vernon'].includes(net)) return 'NE';
+    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy'].includes(net)) return 'SW';
     return 'Unassigned';
   };
 
@@ -1497,83 +1503,53 @@
 
   const ap_buildFromLive = async () => {
     try {
-      // Use njtc_fetch (defined below) for consistent redirect + error handling
-      const result = await njtc_fetch(AP_HR_MASTER_URL, 30000);
-      if (!result.ok) throw new Error('HTTP ' + result.status);
-      const raw = ap_parseHRMaster(result.text);
-      // ── Step 1: filter to 2025-2026, non-terminated rows ──────────────────
-      // Also accept short-form "25-26" year values used by some HR data entry.
-      const isCurYr = yr => /2025.*(2026|26)/.test(yr) || /^(SY\s*)?25[-\/]26$/i.test(yr);
-      const curYrRows = raw.filter(r =>
-        isCurYr(r.yr) && !/terminated/i.test(r.status || '')
-      );
-      // ── Diagnostic: log any "Yes" apprentice rows that were filtered OUT ───
-      // This catches the missing-2 case where year format or status excluded them.
-      const excludedYes = raw.filter(r =>
-        /^yes$/i.test(r.apprentice) && !(isCurYr(r.yr) && !/terminated/i.test(r.status || ''))
-      );
-      if (excludedYes.length) {
-        console.warn('[AP] Excluded "Yes" apprentice rows:', excludedYes.map(r =>
-          `${r.name} | yr=${r.yr} | status=${r.status}`));
-      }
-      // ── Step 2: group by normalized name so multi-row staff count once ────
-      // A person can have 2+ rows in the same SY (e.g. site change).
-      // We OR all apprentice flags across every row for that person — this is
-      // what caused the 27 vs 29 discrepancy: the first-seen row's apprentice
-      // cell was blank while a later row had "Yes", and the old simple-dedup
-      // kept only the first row.
+      // Live Onsite Tracker (roster + Terminations tabs) — shared loader in shared-charts.js
+      if (typeof window.fetchLiveOnsiteData === 'function') await window.fetchLiveOnsiteData();
+      const roster = window._njtcOnsiteRoster2627 || [];
+      if (!roster.length) throw new Error('Onsite Tracker not loaded');
+      const nm = s => (s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+      // Separated SY staff (Terminations tab) are no longer active
+      const termed = new Set((window._njtcOnsiteTerms2627 || [])
+        .filter(t => /school year/i.test(t.cycle || '')).map(t => nm(t.name)));
+      // Active = SY 26-27 row, offer accepted (a date / "Yes"), not separated
+      const accepted = v => !!v && !/^(no|n\/a|declined|rescinded|not eligible)/i.test(v);
+      const syRows = roster.filter(r => /school year/i.test(r.cycle || '')
+        && accepted(r.offerAccepted) && !/^yes$/i.test(r.terminated || '') && !termed.has(nm(r.name)));
+      const isPreAppRole = r => /pre-?apprentice|\bpace\b/i.test(r.role || '');
+      // Pre-apprentice pipeline: current pre-apprentice roles + PACE (Summer 2026) graduates now on staff
+      window.AP_PREAPPS      = syRows.filter(isPreAppRole).map(r => ({ name: r.name, role: r.role, site: r.location, district: r.district }));
+      window.AP_PACE_GRADS   = syRows.filter(r => !isPreAppRole(r) && /summer\s*20\d\d/i.test(r.paceCohort || ''))
+        .map(r => ({ name: r.name, cohort: r.paceCohort, gains: r.gains }));
+      // One entry per person (dedupe by name)
       const byName = {};
-      curYrRows.forEach(r => {
-        const k = (r.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
-        if (!k) return;
-        if (!byName[k]) byName[k] = { rows: [], apYes: false };
-        byName[k].rows.push(r);
-        // ── Apprentice detection — multiple signal sources ─────────────────
-        // Signal 1: dedicated apprentice column (broadened to match any affirmative value)
-        const apVal  = (r.apprentice || '').trim();
-        const roleVal = (r.role || '').trim();
-        const apFromCol = apVal !== '' && !/^no$|not eligible|not enrolled/i.test(apVal)
-          && !/^false$/i.test(apVal) && apVal !== '0';
-        // Signal 2: position/role field contains "apprentice"
-        // Seen in PD data as "Tutor - Apprentice"; may appear in HR Master too.
-        const apFromRole = /apprentice/i.test(roleVal);
-        if (apFromCol || apFromRole) byName[k].apYes = true;
-      });
-      // ── Diagnostic: log unique apprentice column values (helps debug counts) ──
-      const apValMap = {};
-      curYrRows.forEach(r => {
-        const v = (r.apprentice || '').trim() || '(blank)';
-        apValMap[v] = (apValMap[v] || 0) + 1;
-      });
-      console.log('[AP] Apprentice col values:', JSON.stringify(apValMap));
-      // ── Step 3: map each person to a single AP_DATA entry ─────────────────
-      window.AP_DATA = Object.values(byName).map(group => {
-        // Use the latest row for contact / assignment fields
-        const r = group.rows[group.rows.length - 1];
-        const apRaw = (r.apprentice || '').trim();
-        const ap    = /not eligible/i.test(apRaw)  ? 'Not eligible'
-                    : group.apYes                   ? 'Yes'
-                    : /^no$|^false$|^0$/i.test(apRaw) ? 'No'
-                    : apRaw === ''                  ? 'No'
-                    : apRaw;
+      syRows.filter(r => !isPreAppRole(r)).forEach(r => { const k = nm(r.name); if (k && !byName[k]) byName[k] = r; });
+      window.AP_DATA = Object.values(byName).map(r => {
+        const g = (r.gains || '').trim();
+        const ap = /^yes$/i.test(g)          ? 'Yes'
+                 : /not eligible/i.test(g)   ? 'Not eligible'
+                 : g === '' && /not eligible/i.test(r.paceCohort || '') ? 'Not eligible'
+                 : 'No';                     // "Eligible" / "No" / blank = eligible, not enrolled
         return {
           name:       r.name,
-          role:       r.role       || '',
-          site:       r.site       || '',
-          district:   r.district   || '',
-          network:    ap_deriveNetwork(r.site, r.district),
-          region:     ap_deriveRegion(r.site, r.district),
+          role:       r.role     || '',
+          site:       r.location || '',
+          district:   r.district || '',
+          network:    ap_deriveNetwork(r.location, r.district),
+          region:     ap_deriveRegion(r.location, r.district),
           apprentice: ap,
-          rehire:     r.rehire     || '',
-          cycles:     r.cycles     || '1',
-          email:      r.email      || '',
+          gains:      g,
+          paceGrad:   /summer\s*20\d\d/i.test(r.paceCohort || ''),
+          rehire:     /rehire/i.test(r.source || '') ? 'Yes' : 'No',
+          cycles:     '',
+          email:      r.email    || '',
         };
       });
-      console.log('[AP] Live build: ' + window.AP_DATA.length + ' active staff · '
-                  + ap_enrolled().length + ' enrolled · source: HR Master List');
+      console.log('[AP] Live build (Onsite Tracker SY 26-27): ' + window.AP_DATA.length + ' active staff · '
+        + ap_enrolled().length + ' GAINS apprentices · ' + window.AP_PREAPPS.length + ' pre-apprentices · '
+        + window.AP_PACE_GRADS.length + ' PACE grads on staff');
     } catch (err) {
-      console.warn('[AP] Master List fetch failed — AP_DATA empty:', err.message);
-      window.AP_DATA = [];
+      console.warn('[AP] Onsite Tracker load failed — AP_DATA empty:', err.message);
+      window.AP_DATA = []; window.AP_PREAPPS = []; window.AP_PACE_GRADS = [];
     }
   };
 
@@ -1639,108 +1615,32 @@
   // who are NOT in the TAP sheet (supplement). This prevents HR-confirmed apprentices
   // from being silently dropped when the TAP sheet hasn't been updated yet.
   const ap_mergeTAPData = () => {
+    // Enrollment comes from the Onsite Tracker (GAINS = Yes). The Live Apprentice
+    // Tracker (TAP sheet) only adds cohort / registration date / folder link.
     const tapRoster = window.AP_TAP_ROSTER || [];
-    if (!tapRoster.length) return;
-    const nm = s => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const hrByName = {};
-    (window.AP_DATA || []).forEach(r => { hrByName[nm(r.name)] = r; });
-    const tapNames = new Set(tapRoster.map(r => nm(r.name)));
-    const hrEligible = (window.AP_DATA || []).filter(r =>
-      r.apprentice !== 'Yes' && !tapNames.has(nm(r.name))
-    );
-    // Live Tracker whitelist — source of truth for ADP-active apprentices.
-    // njtcLiveOtjMap is keyed by lowercased name from the Live Apprentice Tracker sheet
-    // (1Dh1-...) — contains the currently ADP-active apprentices (count varies by SY).
-    // njtcLiveOtjMap is built in njtc_loadAll() before ap_mergeTAPData() is ever called.
-    // Fuzzy match: try full name, first+last only, and reversed "Last, First" variants.
-    const _ltMap = window.njtcLiveOtjMap || {};
-    const _ltKeys = new Set(Object.keys(_ltMap));
-    const _fl2 = n => { const p = n.split(/\s+/).filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : n; };
-    const _inLT = name => {
-      const k = nm(name);
-      if (_ltKeys.has(k)) return true;
-      const fl = _fl2(k);
-      if (fl !== k && _ltKeys.has(fl)) return true;
-      // Try matching each Live Tracker key against first+last of the TAP name
-      for (const ltk of _ltKeys) { if (_fl2(ltk) === fl) return true; }
-      return false;
-    };
-    // Only filter when Live Tracker loaded successfully (has entries); otherwise keep all TAP entries.
-    // Safety net: if the whitelist has keys but matches 0 TAP entries (name mismatch / parse error),
-    // fall back to the unfiltered TAP roster to prevent wiping enrolled to 0.
-    let activeRoster = tapRoster;
-    if (_ltKeys.size > 0) {
-      const filtered = tapRoster.filter(tap => _inLT(tap.name));
-      if (filtered.length > 0) {
-        activeRoster = filtered;
-      } else {
-        console.warn('[AP] Live Tracker whitelist matched 0/' + tapRoster.length + ' TAP entries — name mismatch or parse error. Using full TAP roster as fallback.');
-      }
-    }
-    console.log('[AP] Live Tracker whitelist: ' + _ltKeys.size + ' keys · TAP=' + tapRoster.length + ' · active=' + activeRoster.length);
-    const enrolled = activeRoster.map(tap => {
-      const hrMatch = hrByName[nm(tap.name)];
-      // TAP placement is the authoritative current school — derive network from it first.
-      // HR site/district is only used as a fallback when placement alone is ambiguous.
-      let network = ap_deriveNetwork(tap.placement, '');
-      let region  = ap_deriveRegion(tap.placement, '');
-      if (network === 'Other' && hrMatch) {
-        network = ap_deriveNetwork(hrMatch.site, hrMatch.district);
-        region  = ap_deriveRegion(hrMatch.site, hrMatch.district);
-      }
-      // Final fallback: explicit keywords in cohort seat text (e.g. "NE - iLearn Seat 1")
-      if (network === 'Other' && tap.cohort) {
-        const cs = tap.cohort.toLowerCase();
-        if      (cs.includes('ilearn') || cs.includes('i-learn')) { network = 'iLearn Charter Network';     region = 'NE'; }
-        else if (cs.includes('kipp'))                              { network = 'KIPP NJ';                   region = 'NE'; }
-        else if (cs.includes('hamilton'))                          { network = 'Hamilton Township';          region = 'SW'; }
-        else if (cs.includes('gloucester'))                        { network = 'Gloucester Township';        region = 'SW'; }
-        else if (cs.includes('haddon'))                            { network = 'Haddon Township';            region = 'SW'; }
-        else if (cs.includes('penns') || cs.includes('carneys'))   { network = 'Penns Grove';               region = 'SW'; }
-        else if (cs.includes('somerset'))                          { network = 'Somerset';                   region = 'NE'; }
-        else if (cs.includes('middlesex'))                         { network = 'Middlesex Charter';          region = 'NE'; }
-        else if (cs.includes('central jersey'))                    { network = 'Central Jersey College Prep'; region = 'NE'; }
-        else if (cs.includes('hoboken') || cs.includes('hola'))    { network = 'Hoboken Dual Charter';      region = 'NE'; }
-        else if (cs.includes('global') || cs.includes('glaw'))     { network = 'Global Leadership Academy'; region = 'NE'; }
-        else if (cs.includes('roseville'))                         { network = 'Roseville';                  region = 'NE'; }
-        else if (cs.startsWith('ne'))                              { region = 'NE'; }
-        else if (cs.startsWith('sw'))                              { region = 'SW'; }
-      }
-      return {
-        name:       tap.name,
-        role:       (hrMatch && hrMatch.role)   || 'Tutor Apprentice',
-        site:       tap.placement || (hrMatch && hrMatch.site) || '',
-        district:   (hrMatch && hrMatch.district) || '',
-        network:    network,
-        region:     region,
-        apprentice: 'Yes',
-        cohort:     tap.cohort,
-        dateReg:    tap.dateReg,
-        folderLink: tap.folderLink,
-        email:      (hrMatch && hrMatch.email)  || '',
-        rehire:     (hrMatch && hrMatch.rehire) || '',
-        cycles:     (hrMatch && hrMatch.cycles) || '',
-      };
+    const nm  = s => (s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+    const fl2 = n => { const p = nm(n).split(' ').filter(w => w.length > 1); return p.length > 1 ? p[0] + ' ' + p[p.length - 1] : nm(n); };
+    const tapBy = {};
+    tapRoster.forEach(t => { tapBy[nm(t.name)] = t; tapBy[fl2(t.name)] = tapBy[fl2(t.name)] || t; });
+    const matched = new Set();
+    window.AP_DATA = (window.AP_DATA || []).map(r => {
+      if (r.apprentice !== 'Yes') return r;
+      const t = tapBy[nm(r.name)] || tapBy[fl2(r.name)];
+      if (!t) return r;
+      matched.add(t);
+      return Object.assign({}, r, {
+        cohort: t.cohort || '', dateReg: t.dateReg || '', folderLink: t.folderLink || '',
+        site: r.site || t.placement || '',
+      });
     });
-
-    // Supplement: HR-confirmed apprentices not yet in the Live Tracker.
-    // Guarded by the Live Tracker whitelist to prevent people removed from the tracker
-    // from being re-added via the HR master list.
-    const hrOnlyEnrolled = (window.AP_DATA || []).filter(r =>
-      r.apprentice === 'Yes' && !tapNames.has(nm(r.name)) &&
-      (_ltKeys.size === 0 || _inLT(r.name))
-    ).map(r => Object.assign({}, r, { _hrOnly: true }));
-    if (hrOnlyEnrolled.length) {
-      console.warn('[AP] ' + hrOnlyEnrolled.length + ' HR-confirmed apprentice(s) not in TAP sheet (excluded from count — add to TAP sheet to resolve):',
-        hrOnlyEnrolled.map(r => '"' + r.name + '"').join(', '));
+    const tapOnly = tapRoster.filter(t => !matched.has(t));
+    if (tapOnly.length) {
+      console.warn('[AP] ' + tapOnly.length + ' Live Apprentice Tracker entr' + (tapOnly.length === 1 ? 'y is' : 'ies are')
+        + ' not GAINS = Yes on the Onsite Tracker (not counted):', tapOnly.map(t => '"' + t.name + '"').join(', '));
     }
-
-    window.AP_DATA = hrEligible.concat(enrolled).concat(hrOnlyEnrolled);
-    console.log('[AP] Merged: ' + enrolled.length + ' enrolled (TAP) + ' +
-      hrOnlyEnrolled.length + ' enrolled (HR-only) + ' +
-      hrEligible.length + ' eligible (HR) = ' + window.AP_DATA.length + ' total');
+    console.log('[AP] Enrolled (Onsite Tracker GAINS = Yes): ' + ap_enrolled().length);
     // Sync apprentice status to HR_EMPS so Talent Analytics filter shows correct count
-    ap_syncHREmps(new Set(activeRoster.map(r => nm(r.name))));
+    ap_syncHREmps(new Set(ap_enrolled().map(r => (r.name || '').toLowerCase().replace(/\s+/g, ' ').trim())));
   };
 
   // Push TAP enrolled status into HR_EMPS so the Talent Analytics "Apprentice" filter works
@@ -1763,7 +1663,7 @@
   const ap_enrolled    = () => AP_DATA.filter(r => r.apprentice === 'Yes' && !r._hrOnly);
   const ap_eligible    = () => AP_DATA.filter(r => r.apprentice === 'No');
   const ap_notEligible = () => AP_DATA.filter(r => r.apprentice === 'Not eligible' || r.apprentice === '');
-  const ap_totalActive = () => AP_DATA.length;  // All active 2025-2026 staff from Master List
+  const ap_totalActive = () => AP_DATA.length;  // All active SY 2026-2027 staff (Onsite Tracker)
 
   const ap_byNetwork = () => {
     const map = {};
@@ -1930,7 +1830,7 @@
               return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6;"><div style="width:6px;height:6px;border-radius:50%;background:#B8960C;flex-shrink:0;"></div><span style="font-size:12px;color:#374151;flex:1;">' + m.name + '</span><span style="font-size:10px;color:#9CA3AF;">' + m.site.replace('iLearn Science & Arts Charter ','').replace('iLearn CMO','CMO') + '</span></div>';
             }).join('') + '</div>';
         }).join('');
-      ap_openModal('Active Apprentices — ' + enrolled.length + ' Enrolled · SY 2025-2026',
+      ap_openModal('Active Apprentices — ' + enrolled.length + ' Enrolled · SY 2026-2027',
         '<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">' +
         '<div style="background:#EFF6FF;border-radius:10px;padding:12px 16px;text-align:center;flex:1;"><div style="font-size:1.4rem;font-weight:800;color:#002855;">' + regionData.NE.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">NE Region</div></div>' +
         '<div style="background:#FFF9E6;border-radius:10px;padding:12px 16px;text-align:center;flex:1;"><div style="font-size:1.4rem;font-weight:800;color:#B8960C;">' + regionData.SW.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">SW Region</div></div>' +
@@ -2087,7 +1987,7 @@
           '<span id="ap-hr-roster-icon" style="color:rgba(255,255,255,0.7);font-size:14px;">' + (hrOpen ? '▾' : '▸') + '</span>' +
           '<div>' +
             '<div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Program Roster</div>' +
-            '<div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px;">' + enrolled.length + ' enrolled · SY 2025–2026 · click to expand</div>' +
+            '<div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px;">' + enrolled.length + ' enrolled · SY 2026–2027 · click to expand</div>' +
           '</div>' +
         '</div>' +
         (flagCount > 0 ? '<div style="background:#DC2626;color:white;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;">⚠ ' + flagCount + ' Flagged</div>' : '<div style="background:rgba(22,163,74,0.25);color:#86efac;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;">✅ No Flags</div>') +
@@ -2199,7 +2099,7 @@
         <!-- Title row + badges -->
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.625rem;margin-bottom:.75rem">
           <div>
-            <div style="font-size:.5rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.2rem">Tutor Apprenticeship Program · SY 2025–2026</div>
+            <div style="font-size:.5rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.2rem">Tutor Apprenticeship Program · SY 2026–2027</div>
             <div style="font-size:1rem;font-weight:800;letter-spacing:-.02em;line-height:1.2">TAP Central Dashboard</div>
           </div>
           <div style="display:flex;gap:.375rem;align-items:center;flex-wrap:wrap">
@@ -2373,7 +2273,7 @@
         <!-- Title + badges row -->
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.625rem;margin-bottom:.75rem">
           <div>
-            <div style="font-size:.5rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.2rem">Tutor Apprenticeship Program · SY 2025–2026</div>
+            <div style="font-size:.5rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.2rem">Tutor Apprenticeship Program · SY 2026–2027</div>
             <div style="font-size:1rem;font-weight:800;letter-spacing:-.02em;line-height:1.2">TAP Central Dashboard</div>
           </div>
           <div style="display:flex;gap:.375rem;align-items:center;flex-wrap:wrap">
@@ -2387,8 +2287,9 @@
         <!-- Compact KPI strip -->
         <div style="display:flex;flex-wrap:wrap;gap:.375rem;padding-top:.625rem;border-top:1px solid rgba(255,255,255,.08)">
           ${[
-            { v: enrolled.length,  l: 'Enrolled',    sub: networkCount+' networks',  c: '#93c5fd', def: 'TAP participants active in SY 2025–2026' },
+            { v: enrolled.length,  l: 'Enrolled',    sub: networkCount+' networks',  c: '#93c5fd', def: 'TAP participants active in SY 2026–2027' },
             { v: eligible.length,  l: 'Eligible',    sub: 'not yet enrolled',         c: '#fde68a', def: 'Active tutors who qualify but have not enrolled yet' },
+            { v: (window.AP_PREAPPS||[]).length, l: 'Pre-Apprentices', sub: (window.AP_PACE_GRADS||[]).length+' PACE grads on staff', c: '#c4b5fd', def: 'Current pre-apprentice roles on the Onsite Tracker · PACE grads = Summer 2026 PACE cohort now on SY 26-27 staff' },
             { v: totalNE,          l: 'NE',           sub: nePct+'% enrolled',        c: '#6ee7b7', def: 'iLearn, KIPP, Hoboken, Middlesex, Somerset, Bergen' },
             { v: totalSW,          l: 'SW',           sub: swPct+'% enrolled',        c: '#6ee7b7', def: 'Hamilton, Gloucester, Haddon, Pennsauken, First Philadelphia' },
             { v: flagged || '✓',   l: flagged?'Flagged':'No Flags', sub: flagged?'need follow-up':'all on track', c: flagged?'#fca5a5':'#86efac', def: 'Missing milestone, no site leader, or PM note' },
@@ -2910,10 +2811,10 @@
   const ap_initAll = async () => {
     // Fetch HR Master List and TAP sheet in parallel for fastest load
     await Promise.all([
-      ap_buildFromLive(),      // HR Master List → AP_DATA (enrolled + eligible)
-      ap_buildFromTAPSheet(),  // TAP sheet → AP_TAP_ROSTER (authoritative enrolled with folder links)
+      ap_buildFromLive(),      // Onsite Tracker → AP_DATA (enrolled = GAINS Yes, eligible, pre-apprentices)
+      ap_buildFromTAPSheet(),  // TAP sheet → AP_TAP_ROSTER (cohort / folder links)
     ]);
-    ap_mergeTAPData();  // TAP sheet overrides enrolled; HR keeps eligible list
+    ap_mergeTAPData();  // enrich enrolled apprentices with TAP sheet details
 
     // ── Program DB OTJ diagnostic ─────────────────────────────────────────
     // Enrollment is determined solely by HR Master List col K ("Yes").
