@@ -986,6 +986,9 @@
             ${_hireSource === 'census'
               ? `${isAll ? `${hrPeriod.label}: ` : ''}Source: <strong>HR Master List (${hrPeriod.hrYear})</strong> · hire month = <strong>Hire Date (ADP Census)</strong> · separations = Termination Date (ADP Termination Date if blank).
                  ${!window._hrDataFetched ? '<br>⏳ Loading HR Master List…' : ''}
+                 ${window._hrDataFetched && !(window.HR_EMPS || []).some(e => e._byYear && e._byYear[hrPeriod.hrYear])
+                   ? `<br><span style="color:#b91c1c"><strong>No ${hrPeriod.hrYear} rows were received from the HR Master List</strong>${window._njtcHRSource === 'published' ? ' — the portal fell back to the sheet\'s “Publish to web” copy, which is out of date. Share the sheet as “Anyone with the link can view” or turn on “Automatically republish when changes are made”, then click ⟳ Sync Live in Talent Analytics.' : '.'}</span>`
+                   : ''}
                  ${_censusPending.length ? `<br><span style="color:#b45309"><strong>${_censusPending.length}</strong> on the Master List with no ADP hire date yet — not counted: ${_censusPending.map(n => n.replace(/</g,'&lt;')).join(', ')}</span>` : ''}`
               : `${isAll ? `${hrPeriod.label}: ` : ''}Source: <strong>Onsite Tracker</strong> · hire month = <strong>Offer Accepted (DATE)</strong> · separations = Terminations tab.`}
           </div>` : ''}
