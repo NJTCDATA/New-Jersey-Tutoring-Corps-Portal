@@ -1899,8 +1899,8 @@
 
     // ── Internal (central-team) roles are not onsite staff ───────────────────────
     // Master (Instructional) Trainer is an internal NJTC role: those Master List rows are
-    // kept out of every onsite view/count (profiles, Talent stats, diversity, DOL) and
-    // surfaced on the Central Team card instead. Only the internal-role rows are removed,
+    // kept out of every onsite view/count (profiles, Talent stats, diversity, DOL). They are
+    // kept in window._njtcInternalStaff (not shown anywhere). Only the internal-role rows are removed,
     // so a person's earlier onsite years (e.g. Instructional Coach) stay in history.
     const _INTERNAL_ROLE_RE = /master\s*(instructional\s*)?trainer/i;
     window._njtcInternalStaff = liveRows.filter(r => _INTERNAL_ROLE_RE.test(r.role || ''));
@@ -2189,11 +2189,6 @@
     window._njtcLiveTerminatedCY   = window._njtcLiveTerminatedByYear[CUR_SY] || [];
 
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
-    // Central Team card lists internal staff from the Master List — refresh it now
-    try {
-      const _ctCard = document.getElementById('centralTeamRaceCard');
-      if (_ctCard && typeof _buildCentralTeamDiversityCard === 'function') _ctCard.innerHTML = _buildCentralTeamDiversityCard();
-    } catch(_ct) {}
     console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' · current SY '+CUR_SY+' · apprentices:', _rawApprSet.size, '· terminated (CY):', window._njtcLiveTerminatedCY.length);
   }
 
@@ -2239,14 +2234,21 @@
   }
   window._hrPearlSnapshot = _pearlSnapshot;
   // Capture the period Pearl currently holds (no-op until its data is loaded).
-  function _hrCapturePearl() {
+  // Survey/session stats scan every Pearl row, so a snapshot captured this session
+  // is reused for a few seconds when the tutor count hasn't changed.
+  const _pearlCapturedAt = {};
+  function _hrCapturePearl(force) {
     const _poReady = typeof po !== 'undefined' && po && typeof po.getTutorAttendanceMap === 'function';
     if (!_poReady) return null;
     const sy = _PEARL_PERIOD_SY[po.getActivePeriod ? po.getActivePeriod() : ''];
     if (!sy) return null;
     let att = {};
     try { att = po.getTutorAttendanceMap() || {}; } catch(e) {}
-    if (!Object.keys(att).length) return null;
+    const _n = Object.keys(att).length;
+    if (!_n) return null;
+    const _prev = _pearlBySY[sy];
+    if (!force && _prev && _pearlCapturedAt[sy] && Date.now() - _pearlCapturedAt[sy] < 15000 &&
+        Object.keys(_prev.tutors).length === _n) return _prev;
     const surv = {}, sess = {};
     try { (po.getTutorSurveyScores ? po.getTutorSurveyScores() : []).forEach(x => { surv[_hn(x.name)] = x; }); } catch(e) {}
     try { (po.getTutorSessionStats ? po.getTutorSessionStats() : []).forEach(x => { sess[_hn(x.name)] = x; }); } catch(e) {}
@@ -2262,12 +2264,22 @@
     }
     const snap = { sy, ts: Date.now(), tutors };
     _pearlBySY[sy] = snap;
+    _pearlCapturedAt[sy] = snap.ts;
     try { localStorage.setItem(_pearlLSKey(sy), JSON.stringify(snap)); } catch(e) {}
     return snap;
   }
   window._hrCapturePearl = _hrCapturePearl;
 
   // Match an HR employee to a Pearl tutor record (alias → exact → token subset → last+initial).
+  const _pearlKeyCache = new WeakMap();   // tutorMap → [[key, tokens[], tokenSet, record]]
+  function _pearlEntries(tutorMap) {
+    let ent = _pearlKeyCache.get(tutorMap);
+    if (!ent) {
+      ent = Object.entries(tutorMap).map(([pk, pd]) => { const a = pk.split(' '); return [pk, a, new Set(a), pd]; });
+      _pearlKeyCache.set(tutorMap, ent);
+    }
+    return ent;
+  }
   function _hrMatchPearl(emp, tutorMap) {
     const ek = _hn(emp.n);
     const ep = new Set(ek.split(' '));
@@ -2275,8 +2287,7 @@
     let t = _pearlAlias ? (tutorMap[_hn(_pearlAlias)] || null) : null;
     if (!t) t = tutorMap[ek];
     if (!t) {
-      for (const [pk, pd] of Object.entries(tutorMap)) {
-        const kp = new Set(pk.split(' '));
+      for (const [, , kp, pd] of _pearlEntries(tutorMap)) {
         if ((ep.size >= 2 && [...ep].every(x => kp.has(x))) || (kp.size >= 2 && [...kp].every(x => ep.has(x)))) { t = pd; break; }
       }
     }
@@ -2284,8 +2295,7 @@
       const epArr = ek.split(' ');
       if (epArr.length >= 2) {
         const lastName = epArr[epArr.length - 1], firstInit = epArr[0][0];
-        for (const [pk, pd] of Object.entries(tutorMap)) {
-          const pkArr = pk.split(' ');
+        for (const [, pkArr, , pd] of _pearlEntries(tutorMap)) {
           if (pkArr.includes(lastName) && pkArr.some(x => x[0] === firstInit)) { t = pd; break; }
         }
       }
@@ -2336,7 +2346,7 @@
     try { po.setPeriod(period); } catch(e) { _pearlSYLoading = null; return; }
     const t0 = Date.now();
     (function poll() {
-      const done = po.getActivePeriod() === period && _hrCapturePearl();
+      const done = po.getActivePeriod() === period && _hrCapturePearl(true);
       if (done || Date.now() - t0 > 180000) {
         if (back && back !== period) { try { po.setPeriod(back); } catch(e) {} }
         _pearlSYLoading = null;
@@ -2371,16 +2381,26 @@
     const sev = ['Recommended Termination','PGP','First Write Up - Employee Progress Report','On Watch','Yes'];
     const worse = (a, b) => (b && sev.indexOf(b) >= 0 && (sev.indexOf(a || '') < 0 || sev.indexOf(b) < sev.indexOf(a))) ? b : a;
     // Reset live concern counts
+    // Name keys/tokens computed once per overlay (not per concern × employee).
+    const _keyed = [];
     for (const emp of HR_EMPS) {
       emp._liveConcerns = 0; emp._liveHRAction = null; emp._liveConcernsAll = 0;
-      emp._concernsBySY = {}; emp._hrActionBySY = {};
+      emp._concernsBySY = {}; emp._hrActionBySY = {}; emp._concernRecs = [];
+      const ek = _hn(emp.n);
+      if (ek) _keyed.push({ emp, ek, ep: ek.split(' ') });
     }
     for (const c of CONCERNS) {
       if (!c.emp) continue;
-      const emp = HR_EMPS.find(e => _hrConcernMatches(e.n, c));
+      const k = _hn(c.emp);
+      if (!k) continue;
+      const kp = new Set(k.split(' '));
+      // Same rule (and same first-match order) as _hrConcernMatches.
+      const hit = _keyed.find(x => x.ek === k || x.ep.every(p => kp.has(p)) || [...kp].every(p => x.ep.includes(p)));
+      const emp = hit ? hit.emp : null;
       if (!emp) continue;
       const sy = sySOf(c);
       emp._liveConcernsAll++;
+      emp._concernRecs.push(c);
       if (sy) {
         emp._concernsBySY[sy] = (emp._concernsBySY[sy] || 0) + 1;
         emp._hrActionBySY[sy] = worse(emp._hrActionBySY[sy] || null, c.hr_action) || null;
@@ -2389,7 +2409,13 @@
     for (const emp of HR_EMPS) {
       emp._liveConcerns = emp._concernsBySY[curSY] || 0;
       emp._liveHRAction = emp._hrActionBySY[curSY] || null;
+      emp._concernRecs.sort((a, b) => new Date(b.ts) - new Date(a.ts));   // newest first
     }
+  }
+  // This person's concern records (newest first) — the same assignment the counts use.
+  function _hrConcernRecsOf(emp) {
+    if (emp && Array.isArray(emp._concernRecs)) return emp._concernRecs;
+    return (typeof CONCERNS!=='undefined'?CONCERNS:[]).filter(c=>_hrConcernMatches(emp.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   }
 
   // ── Async live HR fetch ───────────────────────────────────────────────────
@@ -3293,7 +3319,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
 
       // Concern badge
       // Most recent concern for this person — the badge opens its full entry directly.
-      const _latestC = hasConcern ? (window.CONCERNS||[]).filter(c=>_hrConcernMatches(e.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts))[0] : null;
+      const _latestC = hasConcern ? _hrConcernRecsOf(e)[0] : null;
       const concernBadge = hasConcern ? `<div ${_latestC?`data-ts="${esc(_latestC.ts)}" data-emp="${esc(_latestC.emp)}" onclick="event.stopPropagation();window._njtcShowConcernEntry(this.dataset.ts,this.dataset.emp)" title="Read the full concern entry"`:''} style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600;${_latestC?'cursor:pointer':''}">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}${_latestC?' · <span style="text-decoration:underline">read entry</span>':''}</div>` : '';
 
       // Rehire + status badges
@@ -3621,7 +3647,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open T&D Analytics or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
 
     // ── Concerns ─────────────────────────────────────────────────────
-    const _liveConcernRecs = (window.CONCERNS||[]).filter(c=>_hrConcernMatches(emp.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+    const _liveConcernRecs = _hrConcernRecsOf(emp);
     const _cSYOf = window._njtcConcernSY || (() => '');
     const _curCSY = _hrCurSY();
     const _cThisSY = _liveConcernRecs.filter(c => _cSYOf(c) === _curCSY).length;
@@ -3818,7 +3844,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window._hrInvalidateOverlay = function () {
     _hrInvalidateOverlay();
     // Pearl just (re)loaded a period — keep that SY's profile snapshot current.
-    try { if (typeof _hrCapturePearl === 'function') _hrCapturePearl(); } catch(e) {}
+    // Debounced: Pearl can fire several refresh signals in a row.
+    clearTimeout(window._hrPearlCaptureTimer);
+    window._hrPearlCaptureTimer = setTimeout(function () {
+      try { if (typeof _hrCapturePearl === 'function') _hrCapturePearl(true); } catch(e) {}
+    }, 1500);
   };
 
   // ── Callback: fired by T&D module after obs maps are built ───────────────
@@ -3999,20 +4029,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Only Active staff count in diversity stats. Retired members are noted separately.
     const _hrPool = (typeof HR_EMPS !== 'undefined') ? HR_EMPS : [];
     const _normalize = n => (n||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
-    // Internal staff on the HR Master List (e.g. Master Trainer) — current SY rows
-    const _curYr = (typeof window._hrCurSY === 'function') ? window._hrCurSY() : '';
-    const _internal = (window._njtcInternalStaff || []).filter(r => r.yr === _curYr);
-    const _internalPool = _internal.map(r => ({ n: r.name, _race: r.race || '', _ethnicity: r.ethnicity || '' }));
-    const _ctNames = new Set(CENTRAL_TEAM_STAFF.map(ct => _normalize(ct.n)));
-    const _ctList = CENTRAL_TEAM_STAFF.concat(
-      _internal.filter(r => !_ctNames.has(_normalize(r.name)))
-        .map(r => ({ n: r.name, _race: '', _ethnicity: '', s: /^active$/i.test(r.status || '') ? 'Active' : 'Inactive', _note: r.role }))
-    );
 
-    const merged = _ctList.map(ct => {
-      // Look up in HR_EMPS (or internal Master List rows) by normalized name for live race/ethnicity
-      const match = _hrPool.find(e => _normalize(e.n) === _normalize(ct.n))
-                 || _internalPool.find(e => _normalize(e.n) === _normalize(ct.n));
+    const merged = CENTRAL_TEAM_STAFF.map(ct => {
+      // Look up in HR_EMPS by normalized name for live race/ethnicity overlay
+      const match = _hrPool.find(e => _normalize(e.n) === _normalize(ct.n));
       const liveRace = (match && match._race  && match._race  !== '') ? match._race  : '';
       const liveEth  = (match && match._ethnicity && match._ethnicity !== '') ? match._ethnicity : '';
       return Object.assign({}, ct, {
@@ -4611,8 +4631,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
       // Concern log (expandable)
       const coId = 'ppco_'+emp.n.replace(/\W/g,'_');
-      const concernRows = (typeof CONCERNS!=='undefined'?CONCERNS:[])
-        .filter(c=>_hrConcernMatches(emp.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+      const concernRows = _hrConcernRecsOf(emp);
       const _qa = v => esc(String(v==null?'':v)).replace(/"/g,'&quot;');
       const _csy = c => { const y = window._njtcConcernSY ? window._njtcConcernSY(c) : ''; return y ? ' \u00b7 SY '+y.slice(2,4)+'-'+y.slice(7,9) : ''; };
       const concernHtml = concernRows.length>0
@@ -4960,7 +4979,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     _pPage    = 0;
     _hrRebuildProfiles();
   };
-  window._hrSetSY = sy => { _pSY = sy; _pSYUserSet = true; if (sy !== _hrCurSY()) _hrEnsurePearlSY(sy); _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetSY = sy => {
+    _pSY = sy; _pSYUserSet = true; if (sy !== _hrCurSY()) _hrEnsurePearlSY(sy);
+    // A closed School Year has no one Active (everyone separated or closed out) —
+    // open it on the Inactive tab so its roster shows instead of an empty list.
+    const anyActive = sy === 'all' || HR_EMPS.some(e => _hrInSY(e, sy) && _hrSYView(e, sy).s === 'Active');
+    _pViewTab = anyActive ? 'active' : 'inactive'; _pStatus = anyActive ? 'active' : 'terminated';
+    _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles();
+  };
   window._hrSetRole    = r  => { _pRole=r;   _pPage=0; _hrRebuildProfiles(); };
   window._hrSetStatus  = s  => { _pStatus=s; _pPage=0; _hrRebuildProfiles(); };
   window._hrDoSearch   = q  => {
@@ -7668,12 +7694,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     ];
 
     // Concerns list (from CONCERNS array)
-    const empConcernList = Array.isArray(window.CONCERNS)
-      ? window.CONCERNS.filter(c => _hn(c.emp||'') === _hn(e.n) || (() => {
-          const ep=new Set(_hn(e.n).split(' ')),cp=new Set(_hn(c.emp||'').split(' '));
-          return [...ep].every(p=>cp.has(p))||[...cp].every(p=>ep.has(p));
-        })())
-      : [];
+    const empConcernList = _hrConcernRecsOf(e);
 
     // Observations list
     const obsArr = [];
