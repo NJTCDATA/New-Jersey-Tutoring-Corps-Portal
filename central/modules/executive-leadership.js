@@ -2140,8 +2140,10 @@
         <!-- Compact KPI strip -->
         <div style="display:flex;flex-wrap:wrap;gap:.375rem;padding-top:.625rem;border-top:1px solid rgba(255,255,255,.08)">
           ${[
-            { v: enrolled.length,        l: 'Enrolled',    sub: Object.keys(netMap).length+' networks', c: '#93c5fd' },
+            { v: enrolled.length,        l: 'Active',      sub: enrolled.filter(function(r){return r.apCohort==='new';}).length+' new · '+enrolled.filter(function(r){return r.apCohort==='continuing';}).length+' continuing', c: '#93c5fd' },
+            { v: window.AP_PRIOR_SY_TOTAL || 0, l: 'SY ' + String(window.AP_PRIOR_SY||'2025-2026').replace(/^20(\d\d)-20(\d\d)$/,'$1-$2'), sub: 'apprentices that SY', c: '#a5b4fc' },
             { v: eligible.length,        l: 'Eligible',    sub: 'not yet enrolled',                     c: '#fde68a' },
+            { v: (window.AP_PREAPPS||[]).length, l: 'Pre-Apprentices', sub: (window.AP_PACE_GRADS||[]).length+' PACE grads on staff', c: '#c4b5fd' },
             { v: regions.NE.length,      l: 'NE',          sub: Math.round(regions.NE.length/Math.max(enrolled.length,1)*100)+'%', c: '#6ee7b7' },
             { v: regions.SW.length,      l: 'SW',          sub: Math.round(regions.SW.length/Math.max(enrolled.length,1)*100)+'%', c: '#6ee7b7' },
             { v: flagged.length || '✓',  l: flagged.length?'Flagged':'No Flags', sub: flagged.length?'follow-up':'all on track', c: flagged.length?'#fca5a5':'#86efac' },

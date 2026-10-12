@@ -1423,7 +1423,12 @@
 
   const HR_2PACX  = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID_MASTER = '911694457';  // Master List tab
-  const HR_CACHE_KEY  = 'njtc_hr_live_v3';
+  // The "Publish to web" (2PACX) copy only refreshes when the sheet's auto-republish
+  // setting is on — it went stale (no 2026-2027 rows, SY 25-26 still "Active"). Read the
+  // sheet itself via the export endpoint first (same as the Onsite Tracker; needs
+  // "Anyone with the link can view"), and fall back to the published copy.
+  const HR_SHEET_ID   = '1nH7O3NICIju_7ENR6DOG9mZWb_VGriS89VTVvGY2-gk';
+  const HR_CACHE_KEY  = 'njtc_hr_live_v4';
   const HR_TTL_MS     = 10 * 60 * 1000;  // 10-min cache — live changes visible within 10 min
 
   // ── Onsite Tracker — Summer 2026 → SY 2026-2027 rollover ─────────────────
@@ -2593,11 +2598,23 @@
       } catch(e) {}
     }
     const bust = force ? '&t='+Date.now() : '';
-    const url  = `https://docs.google.com/spreadsheets/d/e/${HR_2PACX}/pub?output=csv&gid=${HR_GID_MASTER}${bust}`;
+    const urls = [
+      `https://docs.google.com/spreadsheets/d/${HR_SHEET_ID}/export?format=csv&gid=${HR_GID_MASTER}`,
+      `https://docs.google.com/spreadsheets/d/e/${HR_2PACX}/pub?output=csv&gid=${HR_GID_MASTER}${bust}`,
+    ];
     try {
-      const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
+      // First source that returns a parsable Master List wins (export = live sheet).
+      let rows = [], res = { ok: false };
+      for (const u of urls) {
+        try {
+          const r = await fetch(u, {signal: AbortSignal.timeout(10000)});
+          if (!r.ok) continue;
+          const parsed = _parseHRMaster(await r.text());
+          if (parsed.length) { rows = parsed; res = r; window._njtcHRSource = u.includes('/export') ? 'sheet' : 'published'; break; }
+        } catch(_u) { /* try next source */ }
+      }
+      console.log('[HR Profiles] Master List source:', window._njtcHRSource || 'none');
       if (res.ok) {
-        const rows = _parseHRMaster(await res.text());
         if (rows.length > 0) {
           try { localStorage.setItem(HR_CACHE_KEY, JSON.stringify({ts:Date.now(),rows})); } catch(e){}
           _hrOverlayLive(rows);
