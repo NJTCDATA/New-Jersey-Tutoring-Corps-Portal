@@ -134,3 +134,31 @@ html, body { overflow-x: clip; }
 /* ── All widths: the content column may shrink; wide tables scroll in place ── */
 .ct-layout > .ct-main { min-width: 0; }
 .kpi-wrap { max-width: 100%; overflow-x: auto; }
+
+/* ── Phones: header, PIE button, Support Log rows ────────────────────────── */
+@media (max-width: 640px) {
+  /* Header buttons wrap onto the next line instead of running off the screen */
+  .nav-right { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: .4rem; min-width: 0; }
+  /* Compact header controls so Tutorial · department · alerts · Sign Out fit on one line */
+  .nav-right .ct-tour-btn { padding: .3rem .65rem; font-size: .75rem; }
+  .nav-right .dept-pill { display: inline-block; max-width: 30vw; }
+  .nav-right .btn-signout { padding: .3rem .65rem; font-size: .75rem; margin-left: auto; }
+
+  /* PIE: compact round button; the speech-bubble tip would cover the page */
+  #piePeek { display: none !important; }
+  .pie-trigger { padding: .3rem !important; gap: 0 !important; }
+  .pie-trigger-info { display: none !important; }
+  .ct-main { padding-bottom: 5.5rem; }   /* room so the PIE button never hides the last item */
+
+  /* Support Log: each entry becomes a small card so Resolve is always reachable
+     (status · date / employee / concern / HR action · resolution) */
+  .sl-col-heads { display: none !important; }
+  .sl-row { grid-template-columns: 1fr 1fr !important; row-gap: .35rem; padding: .75rem 1rem; }
+  .sl-row > * { display: block !important; min-width: 0; }
+  .sl-row > *:nth-child(2) { text-align: right; }
+  .sl-row > *:nth-child(3) { display: none !important; }            /* submitter — in the full entry */
+  .sl-row > *:nth-child(4), .sl-row > *:nth-child(5) { grid-column: 1 / -1; }
+  .sl-row > *:nth-child(5) { white-space: normal !important; display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .sl-row > *:nth-child(7) { text-align: right; }
+  .sl-row .sl-resolve-btn { width: 100%; text-align: center; justify-content: center; }
+}
