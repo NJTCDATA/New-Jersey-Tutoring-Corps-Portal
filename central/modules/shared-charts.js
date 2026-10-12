@@ -1293,7 +1293,8 @@
 
     window._talentForceRefresh = false;
     window._talentLoaded = true;
-    window._filteredConcerns = CONCERNS; // cached or seed data — available immediately
+    // cached or seed data — available immediately, filtered to the selected School Year
+    if (typeof window._recomputeTalentFilter === 'function') window._recomputeTalentFilter(); else window._filteredConcerns = CONCERNS;
     _updateTalentBadge(_talentLiveStatus === 'live' ? 'live' : 'pending');
 
     // Fire all background data fetches (non-blocking)
@@ -1349,7 +1350,10 @@
     // When concerns fetch completes, update badge and silently refresh concerns tab if active
     _concernsFetch.then(() => {
       _updateTalentBadge(_talentLiveStatus);
-      window._filteredConcerns = CONCERNS;
+      // Live concerns landed — refresh filter options (new SY months/staff) + SY filter
+      try { if (typeof window._populateTalentFilterOptions === 'function') window._populateTalentFilterOptions(); } catch(e) {}
+      try { if (typeof window._syncTalentYearBar === 'function') window._syncTalentYearBar(); } catch(e) {}
+      if (typeof window._recomputeTalentFilter === 'function') window._recomputeTalentFilter(); else window._filteredConcerns = CONCERNS;
       try {
         const _activeTab = document.querySelector('[data-tab].talent-tab-btn.active, .talent-tab.active');
         const _activeId  = _activeTab ? (_activeTab.dataset.tab || _activeTab.id || '') : '';
@@ -1419,7 +1423,7 @@
 
   const HR_2PACX  = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID_MASTER = '911694457';  // Master List tab
-  const HR_CACHE_KEY  = 'njtc_hr_live_v2';
+  const HR_CACHE_KEY  = 'njtc_hr_live_v3';
   const HR_TTL_MS     = 10 * 60 * 1000;  // 10-min cache — live changes visible within 10 min
 
   // ── Onsite Tracker — Summer 2026 → SY 2026-2027 rollover ─────────────────
@@ -1525,7 +1529,7 @@
       // Column order from form: Timestamp | Date | Employee Name | Location | Decision | Rationale | Decided By
       return lines.slice(1).map(line => {
         const c = _parseHiringCSVLine(line);
-        return { ts: c[0]||'', en: c[2]||'', loc: c[3]||'', d: c[4]||'', n: c[5]||'', by: c[6]||'', sy:'2025-2026', src:'sheet' };
+        return { ts: c[0]||'', en: c[2]||'', loc: c[3]||'', d: c[4]||'', n: c[5]||'', by: c[6]||'', sy:_hiringSYFromTs(c[0]), src:'sheet' };
       }).filter(r => r.en && r.d);
     } catch(e) { return []; }
   }
@@ -1631,10 +1635,15 @@
       termDate:   ciAny('termination date', 'term date', 'date of term', 'separation date', 'end date'),
       termReason: ciAny('reason category', 'term reason', 'reason for', 'separation reason', 'exit reason'),
       termType:   ciAny('termination type', 'term type', 'separation type', 'exit type', 'voluntary'),
+      // ADP Employee Census columns (added SY 26-27) — "Hire Date (ADP Census …)" /
+      // "Termination Date (ADP Census …)". Matched on "adp" so the plain
+      // "Termination Date" column above is never picked up here.
+      adpHire:    H.findIndex(h => h.includes('adp') && h.includes('hire')),
+      adpTerm:    H.findIndex(h => h.includes('adp') && h.includes('termination')),
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
-        yr:         (r[C.yr]          ||'').trim(),
+        yr:         (r[C.yr]          ||'').replace(/\s/g,''),
         name:       (r[C.name]        ||'').trim(),
         email:      (r[C.email]       ||'').trim().toLowerCase(),
         role:       (r[C.role]        ||'').trim(),
@@ -1652,6 +1661,8 @@
         termDate:   C.termDate   >= 0 ? (r[C.termDate]   ||'').trim() : (r[13]||'').trim(),
         termReason: C.termReason >= 0 ? (r[C.termReason] ||'').trim() : (r[14]||'').trim(),
         termType:   C.termType   >= 0 ? (r[C.termType]   ||'').trim() : (r[15]||'').trim(),
+        adpHire:    C.adpHire    >= 0 ? (r[C.adpHire]    ||'').trim() : '',
+        adpTerm:    C.adpTerm    >= 0 ? (r[C.adpTerm]    ||'').trim() : '',
       }))
       .map(r => {
         // If yr field is blank but a termination date exists, infer the academic year
@@ -1666,6 +1677,14 @@
         return r;
       })
       .filter(r => r.name && r.yr);
+  }
+
+  // School Year of a hiring decision from its timestamp (Aug–Dec → that fall's SY).
+  function _hiringSYFromTs(ts) {
+    const d = new Date(ts || '');
+    if (isNaN(d.getTime())) return '2025-2026';
+    const y = d.getFullYear();
+    return d.getMonth() >= 7 ? `${y}-${y+1}` : `${y-1}-${y}`;
   }
 
   // ── Generic CSV tokenizer (quoted multiline cells) — shared by the Onsite Tracker parsers ──
@@ -1870,6 +1889,37 @@
     }
     _hrLiveAddedKeys.clear();  // allow re-evaluation of new hires
 
+    // ── Current SY = newest "YYYY-YYYY" Academic Year on the Master List ─────────
+    // (2026-2027 once HR added the 26-27 rows). Every "current" view — Active status,
+    // apprentices, new-hire adds — keys off this, so the next rollover needs no code change.
+    const _validYrs = liveRows.map(r => r.yr).filter(y => /^\d{4}-\d{4}$/.test(y)).sort();
+    const CUR_SY = _validYrs.length ? _validYrs[_validYrs.length - 1] : '2025-2026';
+    window._njtcHRCurrentSY = CUR_SY;
+    window._njtcHRLiveYears = [...new Set(_validYrs)];
+    // Profiles default to the current SY until the user picks one from the dropdown.
+    if (!_pSYUserSet) _pSY = CUR_SY;
+    // One row per year for a person — duplicate rows in a year (role changes) prefer Active.
+    const _rowForYear = (rows, yr) => {
+      const ys = rows.filter(r => r.yr === yr);
+      return ys.find(r => /^active$/i.test(r.status || '')) || ys[0] || null;
+    };
+    // Per-year snapshot so year-specific views (SY selector, DOL SY 25-26, exports)
+    // read that year's status/role/termination instead of the person's current row.
+    const _byYearOf = rows => {
+      const out = {};
+      [...new Set(rows.map(r => r.yr).filter(Boolean))].forEach(yr => {
+        const r = _rowForYear(rows, yr);
+        out[yr] = {
+          s: r.status || (r.termDate ? 'Terminated' : 'Active'),
+          r: r.role || '', si: r.site || '', di: r.district || '',
+          rh: r.rehire || '', apprentice: r.apprentice || '',
+          termDate: r.termDate || '', termReason: r.termReason || '', termType: r.termType || '',
+          adpHire: r.adpHire || '', adpTerm: r.adpTerm || '',
+        };
+      });
+      return out;
+    };
+
     // Pre-build _hn() keyed set of canonical apprentice names for supplementary flagging
     const _apprHnSet = new Set();
     if (window._njtcAllApprenticeNames) {
@@ -1918,9 +1968,10 @@
         }
       }
       if (!rows.length) continue;
-      // Use the CURRENT SY row if available, else most recent
-      const curSYRows = rows.filter(r => r.yr === '2025-2026');
-      const latest = (curSYRows.length ? curSYRows : rows).sort((a,b)=>b.yr.localeCompare(a.yr))[0];
+      // Use the person's most recent SY row (the current SY row when they have one) —
+      // status/role/site on the profile reflect where they are now.
+      const _newestYr = rows.map(r => r.yr).filter(Boolean).sort().reverse()[0];
+      const latest = _rowForYear(rows, _newestYr) || rows[0];
       // Live sheet is source of truth — overwrite all fields
       if (latest.name)      emp.n          = latest.name;
       if (latest.role)      emp.r          = latest.role;
@@ -1935,9 +1986,12 @@
       emp._termDate   = latest.termDate   || '';
       emp._termReason = latest.termReason || '';
       emp._termType   = latest.termType   || '';
+      emp._adpHire    = latest.adpHire    || '';
+      emp._adpTerm    = latest.adpTerm    || '';
+      emp._byYear     = _byYearOf(rows);
       // Apprentice indicator from col K — flag if any current SY row is marked,
       // or if the employee's canonical name is in the ALL_APPRENTICES master list
-      const anyApprent    = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1|active/i.test(r.apprentice));
+      const anyApprent    = rows.some(r => r.yr === CUR_SY && r.apprentice && /yes|y|true|1|active/i.test(r.apprentice));
       const inApprList    = _apprHnSet.size > 0 && _apprHnSet.has(_hn(emp.n));
       emp._apprentice = (anyApprent || inApprList) ? 'Yes' : (emp._apprentice || '');
       // Track all SYs this person has appeared in
@@ -1968,15 +2022,23 @@
         }
       }
     }
+    // Embedded employees absent from the live Master List entirely can't be
+    // confirmed active for the current SY — never count them as Active.
+    for (const emp of HR_EMPS) {
+      if (!emp._live && emp.s === 'Active') { emp._snapshotStatus = emp.s; emp.s = 'Terminated'; emp._notInLive = true; }
+    }
 
     // ── Add NEW employees not yet tracked — current + immediately prior SY only ──
     // Includes 2024-2025 so terminated employees from last year (e.g. Mattelyn Bullock)
     // are visible in the inactive tab. Older SYs are excluded to avoid flooding the portal.
-    const PRIOR_SY = '2024-2025';
+    // Current SY and the two before it (e.g. 2024-2025 so last year's terminated
+    // staff like Mattelyn Bullock stay visible in the inactive tab).
+    const _cy0 = parseInt(CUR_SY, 10);
+    const ADD_SYS = new Set([0, 1, 2].map(d => `${_cy0 - d}-${_cy0 - d + 1}`));
     const embKeys = new Set(HR_EMPS.map(e => _hn(e.n)));
     const curByKey = {};
     for (const r of liveRows) {
-      if (r.yr !== '2025-2026' && r.yr !== PRIOR_SY) continue;
+      if (!ADD_SYS.has(r.yr)) continue;
       const k = _hn(r.name);
       if (!curByKey[k]) curByKey[k] = [];
       curByKey[k].push(r);
@@ -1997,15 +2059,16 @@
         }
       }
       if (found) continue;
-      const latest = rows.sort((a,b)=>b.yr.localeCompare(a.yr))[0];
+      const _allRows = byKey[k] || rows;   // every year this person appears in
+      const latest = _rowForYear(_allRows, _allRows.map(r=>r.yr).sort().reverse()[0]) || rows[0];
       if (!latest.name) continue; // skip rows with no name
       // Infer status: use sheet value if present; otherwise default to Active (blank = still employed),
       // or Terminated if a termination date is populated
       const inferredStatus = latest.status || (latest.termDate ? 'Terminated' : 'Active');
       HR_EMPS.push({
         n: latest.name, a:[], e: latest.email||'',
-        y: [latest.yr||'2025-2026'],
-        c: rows.reduce((m,r)=>Math.max(m,parseInt(r.cycles)||0),1),
+        y: [...new Set(_allRows.map(r=>r.yr).filter(Boolean))].sort().reverse(),
+        c: _allRows.reduce((m,r)=>Math.max(m,parseInt(r.cycles)||0),1),
         r: latest.role||'', rs:[], si: (latest.site||'').slice(0,45), sis:[latest.site||''],
         di: (latest.district||'').slice(0,45), dis:[], s: inferredStatus, t:'incomplete',
         mp:null, py:'', am:null, em:null, lm:null, acm:null,
@@ -2014,7 +2077,9 @@
         _race: latest.race||null, _ethnicity: latest.ethnicity||null,
         _apprentice: ((latest.apprentice && /yes|y|true|1|active/i.test(latest.apprentice)) || (_apprHnSet.size > 0 && _apprHnSet.has(k))) ? 'Yes' : '',
         _termDate: latest.termDate||'', _termReason: latest.termReason||'', _termType: latest.termType||'',
-        _live:true, _liveYears:['2025-2026'],
+        _adpHire: latest.adpHire||'', _adpTerm: latest.adpTerm||'',
+        _byYear: _byYearOf(_allRows),
+        _live:true, _liveYears:[...new Set(_allRows.map(r=>r.yr).filter(Boolean))].sort().reverse(),
       });
       _hrLiveAddedKeys.add(k);
       added++;
@@ -2052,7 +2117,7 @@
     const _apprEthMap  = {};
     let _apprNonWhite = 0, _apprHisp = 0, _apprWithRace = 0, _apprWithEth = 0;
     for (const r of liveRows) {
-      if (r.yr !== '2025-2026' || !r.apprentice || !/yes|y|true|1|active/i.test(r.apprentice) || !r.name) continue;
+      if (r.yr !== CUR_SY || !r.apprentice || !/yes|y|true|1|active/i.test(r.apprentice) || !r.name) continue;
       const nk = _hn(r.name);
       if (_rawApprSet.has(nk)) continue;  // deduplicate
       _rawApprSet.add(nk);
@@ -2081,13 +2146,10 @@
 
     // Cache CY-terminated employees directly from live rows — used by attrition widget so
     // count and reasons come from the source of truth, not HR_EMPS name-matching
-    const _liveTermCache = {};
+    const _liveTermByYear = {};
     liveRows.forEach(r => {
-      if (!r.name) return;
-      // Accept common year formats: '2025-2026', '2025/2026', 'SY 2025-2026', etc.
-      const normYr = (r.yr || '').replace(/\s/g, '');
-      const isCY = normYr === '2025-2026' || /2025.{0,3}2026/.test(normYr);
-      if (!isCY) return;
+      if (!r.name || !r.yr) return;
+      const _liveTermCache = _liveTermByYear[r.yr] || (_liveTermByYear[r.yr] = {});
       // Terminated = status field is non-blank and not 'Active',
       // OR status is blank but termDate or termReason confirms separation
       const hasStatus = r.status && !/^active$/i.test(r.status.trim());
@@ -2098,10 +2160,13 @@
       const k = r.name.trim().toLowerCase();
       if (!_liveTermCache[k]) _liveTermCache[k] = r;
     });
-    window._njtcLiveTerminated2526 = Object.values(_liveTermCache);
+    window._njtcLiveTerminatedByYear = {};
+    Object.keys(_liveTermByYear).forEach(y => { window._njtcLiveTerminatedByYear[y] = Object.values(_liveTermByYear[y]); });
+    window._njtcLiveTerminated2526 = window._njtcLiveTerminatedByYear['2025-2026'] || [];
+    window._njtcLiveTerminatedCY   = window._njtcLiveTerminatedByYear[CUR_SY] || [];
 
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
-    console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only) · apprentices:', _rawApprSet.size, '· terminated:', window._njtcLiveTerminated2526.length);
+    console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' · current SY '+CUR_SY+' · apprentices:', _rawApprSet.size, '· terminated (CY):', window._njtcLiveTerminatedCY.length);
   }
 
   // ── Overlay live Pearl Ops data onto HR_EMPS ─────────────────────────────
@@ -2118,20 +2183,20 @@
   };
   window._njtcPearlAliasMap = _PEARL_ALIAS_MAP;
 
-  // Talent/HR profiles are SY 2025-2026 (HR 26-27 not wired yet). Pearl data
+  // Talent/HR profiles follow the Master List's current SY (_hrCurSY). Pearl data
   // is only overlaid when Pearl Ops holds the SAME school year — never this
   // year's Pearl stats on last year's profiles.
   const _TALENT_SY_TO_PEARL = { '2025-2026': 'sy2526', '2026-2027': 'sy2627' };
   function _pearlMatchesTalentSY(sy) {
     const p = (window.po && typeof window.po.getActivePeriod === 'function') ? window.po.getActivePeriod() : null;
-    return !!p && _TALENT_SY_TO_PEARL[sy || '2025-2026'] === p;
+    return !!p && _TALENT_SY_TO_PEARL[sy || (window._njtcHRCurrentSY || '2025-2026')] === p;
   }
   window._pearlMatchesTalentSY = _pearlMatchesTalentSY;
 
   function _hrOverlayPearl() {
     const _poReady = typeof po !== 'undefined' && po && typeof po.getTutorAttendanceMap === 'function';
     if (!_poReady) { console.warn('[HR Profiles] Pearl overlay skipped — po not ready'); return; }
-    if (!_pearlMatchesTalentSY('2025-2026')) { console.info('[HR Profiles] Pearl overlay skipped — Pearl Ops is on a different school year than the SY 2025-2026 profiles'); return; }
+    if (!_pearlMatchesTalentSY(_hrCurSY())) { console.info('[HR Profiles] Pearl overlay skipped — Pearl Ops is on a different school year than the SY '+_hrCurSY()+' profiles'); return; }
     try {
       // getTutorAttendanceMap() reads live _personMap — current SY Pearl data only
       const tutorAttMap = po.getTutorAttendanceMap();
@@ -2229,28 +2294,44 @@
 
   // ── Overlay live Program Concerns onto HR_EMPS ────────────────────────────
   // CONCERNS array is already loaded by the Talent concerns fetch.
+  // NOTE: the embedded snapshot's `co` field is a copy of the cycle count (`c`), not a
+  // concern count — concern flags come only from the live Performance Concern log below.
+  // Performance concerns are counted per School Year (from the concern's date — see
+  // window._njtcConcernSY). Top-level _liveConcerns/_liveHRAction = current SY; the SY
+  // selector reads _concernsBySY/_hrActionBySY via _hrSYView. _liveConcernsAll = all time.
+  function _hrConcernMatches(empName, c) {
+    const k = _hn(c.emp || ''), ek = _hn(empName);
+    if (!k || !ek) return false;
+    if (ek === k) return true;
+    const ep = new Set(ek.split(' ')), kp = new Set(k.split(' '));
+    return [...ep].every(p=>kp.has(p)) || [...kp].every(p=>ep.has(p));
+  }
+  window._hrConcernMatches = _hrConcernMatches;
   function _hrOverlayConcerns() {
     if (!Array.isArray(CONCERNS) || !CONCERNS.length) return;
+    const sySOf = window._njtcConcernSY || (() => '');
+    const curSY = _hrCurSY();
+    const sev = ['Recommended Termination','PGP','First Write Up - Employee Progress Report','On Watch','Yes'];
+    const worse = (a, b) => (b && sev.indexOf(b) >= 0 && (sev.indexOf(a || '') < 0 || sev.indexOf(b) < sev.indexOf(a))) ? b : a;
     // Reset live concern counts
-    for (const emp of HR_EMPS) { emp._liveConcerns = 0; emp._liveHRAction = null; }
+    for (const emp of HR_EMPS) {
+      emp._liveConcerns = 0; emp._liveHRAction = null; emp._liveConcernsAll = 0;
+      emp._concernsBySY = {}; emp._hrActionBySY = {};
+    }
     for (const c of CONCERNS) {
-      const empName = c.emp || '';
-      if (!empName) continue;
-      const k = _hn(empName);
-      const emp = HR_EMPS.find(e => {
-        const ek = _hn(e.n);
-        if (ek === k) return true;
-        const ep = new Set(ek.split(' ')), kp = new Set(k.split(' '));
-        return [...ep].every(p=>kp.has(p)) || [...kp].every(p=>ep.has(p));
-      });
+      if (!c.emp) continue;
+      const emp = HR_EMPS.find(e => _hrConcernMatches(e.n, c));
       if (!emp) continue;
-      emp._liveConcerns = (emp._liveConcerns || 0) + 1;
-      // Keep most severe HR action
-      const sev = ['Recommended Termination','PGP','First Write Up - Employee Progress Report','On Watch','Yes'];
-      const cur = emp._liveHRAction || '';
-      if (c.hr_action && sev.indexOf(c.hr_action) < sev.indexOf(cur)) {
-        emp._liveHRAction = c.hr_action;
+      const sy = sySOf(c);
+      emp._liveConcernsAll++;
+      if (sy) {
+        emp._concernsBySY[sy] = (emp._concernsBySY[sy] || 0) + 1;
+        emp._hrActionBySY[sy] = worse(emp._hrActionBySY[sy] || null, c.hr_action) || null;
       }
+    }
+    for (const emp of HR_EMPS) {
+      emp._liveConcerns = emp._concernsBySY[curSY] || 0;
+      emp._liveHRAction = emp._hrActionBySY[curSY] || null;
     }
   }
 
@@ -2572,6 +2653,61 @@
 
   // ── Filter state ──────────────────────────────────────────────────────────
   let _pTier='all', _pRole='all', _pStatus='active', _pQ='', _pViewTab='active', _pSY='2025-2026', _pApprentice=false, _pPage=0;
+  let _pSYUserSet = false;  // true once the user picks a School Year — otherwise follow the current SY
+
+  // ── School-year helpers (Master List has one row per person per Academic Year) ──
+  // Current SY = newest Academic Year on the live Master List (set by _hrOverlayLive).
+  function _hrCurSY() { return window._njtcHRCurrentSY || '2025-2026'; }
+  window._hrCurSY = _hrCurSY;
+  // Is this person on the roster for `sy`? Live-matched people use their live years;
+  // embedded-only people are excluded from any SY the live sheet covers.
+  function _hrInSY(e, sy) {
+    if (!sy || sy === 'all') return true;
+    if (e._live) return (e._liveYears || e.y || []).includes(sy);
+    if ((window._njtcHRLiveYears || []).includes(sy)) return false;
+    return (e.y || []).includes(sy);
+  }
+  // Status / role / termination as recorded on that SY's Master List row.
+  function _hrSYStatus(e, sy) {
+    const y = sy && sy !== 'all' && e._byYear && e._byYear[sy];
+    return y ? y.s : e.s;
+  }
+  // Year-specific view of an employee (prototype-linked, so every other field and the
+  // name-based profile lookup are unchanged). Used by SY-filtered lists and exports.
+  function _hrSYView(e, sy) {
+    const y = sy && sy !== 'all' && e._byYear && e._byYear[sy];
+    if (!y) return e;
+    const v = Object.create(e);
+    v.s = y.s;
+    if (y.r)  v.r  = y.r;
+    if (y.si) v.si = y.si.slice(0, 45);
+    if (y.di) v.di = y.di.slice(0, 45);
+    if (y.rh) v.rh = y.rh;
+    v._termDate = y.termDate; v._termReason = y.termReason; v._termType = y.termType;
+    v._adpHire  = y.adpHire;  v._adpTerm    = y.adpTerm;
+    // Live Pearl fields belong to the current SY — a past-SY view falls back to that
+    // person's static (historical) attendance/survey/location instead.
+    if (sy !== _hrCurSY()) { v._liveAtt = undefined; v._liveSurveyEntry = null; v._liveSchools = null; }
+    if (e._concernsBySY) {
+      v._liveConcerns = e._concernsBySY[sy] || 0;
+      v._liveHRAction = (e._hrActionBySY && e._hrActionBySY[sy]) || null;
+    }
+    return v;
+  }
+  window._hrInSY = _hrInSY; window._hrSYStatus = _hrSYStatus; window._hrSYView = _hrSYView;
+  // Staff "active" for a SY: the current SY uses live status; a closed SY (whose
+  // Master List rows are all "Terminated") counts everyone on that year's roster
+  // with no recorded separation (termination date/type/reason) — i.e. who finished the year.
+  function _hrActiveInSY(sy) {
+    return HR_EMPS.filter(e => {
+      if (!_hrInSY(e, sy)) return false;
+      if (sy === _hrCurSY()) return _hrSYStatus(e, sy) === 'Active';
+      const y = e._byYear && e._byYear[sy];
+      if (!y) return e.s === 'Active';
+      return !(y.termDate || y.termType || y.termReason);
+    }).length;
+  }
+  window._hrActiveInSY = _hrActiveInSY;
 
   // ── Programming Profile view filter state ────────────────────────────────
   let _ppStatus='all', _ppRegion='all', _ppQ='';
@@ -2582,14 +2718,14 @@
     // The inactive tab is exempt — terminated staff from any SY should always be browseable.
     // Also exclude stale embedded employees absent from live 2025-2026 sheet
     // (e.g. someone removed from HR Master whose embed data hasn't been purged yet).
-    if (_pSY && _pSY !== 'all' && _pViewTab !== 'inactive') {
-      list = list.filter(e => {
-        if (!((e.y||[]).includes(_pSY) || (e._liveYears||[]).includes(_pSY))) return false;
-        if (_pSY === '2025-2026' && e._notInLive2526) return false;
-        return true;
-      });
+    // Past SYs scope both tabs to that year's roster (every row of a closed year is
+    // Terminated on the Master List, so its people live in the inactive tab).
+    const _scoped = _pSY && _pSY !== 'all';
+    if (_scoped && (_pViewTab !== 'inactive' || _pSY !== _hrCurSY())) {
+      list = list.filter(e => _hrInSY(e, _pSY)).map(e => _hrSYView(e, _pSY));
     }
     // Tab-aware status filter: 'active' tab = Active only; 'inactive' tab = all non-Active
+    // (status as recorded for the selected SY).
     if (_pViewTab === 'active')   list = list.filter(e => e.s === 'Active');
     if (_pViewTab === 'inactive') list = list.filter(e => e.s !== 'Active');
     // Additional tier and role filters
@@ -2615,8 +2751,8 @@
     }
     // Sort: concerns first, then by name
     list.sort((a,b) => {
-      const ca = (a._liveConcerns||0)>0||a.co===1 ? 1 : 0;
-      const cb = (b._liveConcerns||0)>0||b.co===1 ? 1 : 0;
+      const ca = (a._liveConcerns||0)>0 ? 1 : 0;
+      const cb = (b._liveConcerns||0)>0 ? 1 : 0;
       if (cb !== ca) return cb - ca;  // concerns first
       return (a.n||'').localeCompare(b.n||'');
     });
@@ -2656,7 +2792,7 @@
     const atRisk  = byTier.needs_support;
     const multiCy = HR_EMPS.filter(e=>e.c>=2).length;
     const noRehire= HR_EMPS.filter(e=>e.rh==='No'||e.rh===false).length;
-    const concerns= HR_EMPS.filter(e=>(e._liveConcerns||0)>0||e.co===1).length;
+    const concerns= HR_EMPS.filter(e=>(e._liveConcerns||0)>0).length;
     const getAtt  = e => e._liveAtt!==undefined ? e._liveAtt : e.att;
     const attRisk = HR_EMPS.filter(e=>e.s==='Active'&&getAtt(e)!==null&&getAtt(e)<80).length;
     const src     = _hrStatus==='live' ? '🟢 Live' : '📋 Snapshot';
@@ -2751,7 +2887,7 @@
                           .sort((a,b)=>getAtt(a)-getAtt(b));
     const ns      = HR_EMPS.filter(e=>e.t==='needs_support').length;
     const noRehire= HR_EMPS.filter(e=>(e.rh||'').toLowerCase().startsWith('no')).length;
-    const concern = HR_EMPS.filter(e=>e._liveConcerns>0||e.co===1).length;
+    const concern = HR_EMPS.filter(e=>e._liveConcerns>0).length;
     return `
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem">
   ${[
@@ -2969,16 +3105,12 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
   function _hrViewFull() {
     // Available SYs from embedded data + live overlay years
     const allSYs = [...new Set(HR_EMPS.flatMap(e => e.y||[]))].sort().reverse();
-    const curSY  = _pSY || '2025-2026';
+    const curSY  = _pSY || _hrCurSY();
 
-    // Filter to selected SY for stats — mirror _hrBuildExportPool's _notInLive2526 exclusion
+    // Filter to selected SY for stats — same pool + per-year status as _hrBuildExportPool
     // so the portal active count matches the PDF report count.
     const syEmps    = curSY === 'all' ? HR_EMPS
-                    : HR_EMPS.filter(e => {
-                        if (!((e.y||[]).includes(curSY)||(e._liveYears||[]).includes(curSY))) return false;
-                        if (curSY === '2025-2026' && e._notInLive2526) return false;
-                        return true;
-                      });
+                    : HR_EMPS.filter(e => _hrInSY(e, curSY)).map(e => _hrSYView(e, curSY));
     const allEmps   = syEmps;
     const active    = allEmps.filter(e => e.s === 'Active');
     const inactive  = allEmps.filter(e => e.s !== 'Active');
@@ -2994,7 +3126,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     });
     const withAtt   = active.filter(e => (e._liveAtt ?? e.att) !== null && (e._liveAtt ?? e.att) !== undefined);
     const avgAtt    = withAtt.length ? Math.round(withAtt.reduce((s,e)=>(s + (e._liveAtt ?? e.att)),0) / withAtt.length) : null;
-    const concerns  = active.filter(e => (e._liveConcerns||0) > 0 || e.co === 1).length;
+    const concerns  = active.filter(e => (e._liveConcerns||0) > 0).length;
     const noRehire  = active.filter(e => e.rh === 'No' || e.rh === false).length;
     const attColor  = avgAtt == null ? 'var(--muted)' : avgAtt >= 90 ? '#0d6e3a' : avgAtt >= 80 ? '#d97706' : '#b91c1c';
 
@@ -3017,7 +3149,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     // so the dropdown always reflects the actual roles present in the current data.
     const _roleBase = (() => {
       let l = HR_EMPS;
-      if (_pSY && _pSY !== 'all') l = l.filter(e => (e.y||[]).includes(_pSY)||(e._liveYears||[]).includes(_pSY));
+      if (_pSY && _pSY !== 'all') l = l.filter(e => _hrInSY(e, _pSY)).map(e => _hrSYView(e, _pSY));
       if (_pViewTab === 'active')   l = l.filter(e => e.s === 'Active');
       if (_pViewTab === 'inactive') l = l.filter(e => e.s !== 'Active');
       return l;
@@ -3027,7 +3159,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     // ── Card builder ─────────────────────────────────────────────
     const buildCard = (e) => {
       const cfg          = _tier(e._liveT || e.t);
-      const hasConcern   = (e._liveConcerns||0) > 0 || e.co === 1;
+      const hasConcern   = (e._liveConcerns||0) > 0;
       const att          = e._liveAtt !== undefined ? e._liveAtt : e.att;
       const concernCount = e._liveConcerns || 0;
       const hrActionRaw  = e._liveHRAction || e.hn || null;
@@ -3084,7 +3216,9 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
 </div>` : '';
 
       // Concern badge
-      const concernBadge = hasConcern ? `<div style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}</div>` : '';
+      // Most recent concern for this person — the badge opens its full entry directly.
+      const _latestC = hasConcern ? (window.CONCERNS||[]).filter(c=>_hrConcernMatches(e.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts))[0] : null;
+      const concernBadge = hasConcern ? `<div ${_latestC?`data-ts="${esc(_latestC.ts)}" data-emp="${esc(_latestC.emp)}" onclick="event.stopPropagation();window._njtcShowConcernEntry(this.dataset.ts,this.dataset.emp)" title="Read the full concern entry"`:''} style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600;${_latestC?'cursor:pointer':''}">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}${_latestC?' · <span style="text-decoration:underline">read entry</span>':''}</div>` : '';
 
       // Rehire + status badges
       // SY Rehire column = "Yes" means this person was a rehire from a previous cycle (returning staff).
@@ -3408,18 +3542,23 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open T&D Analytics or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
 
     // ── Concerns ─────────────────────────────────────────────────────
-    const _liveConcernRecs = (window.CONCERNS||[]).filter(c=>c.emp===emp.n).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-    const concernBody = (concernCount>0||emp.co===1||_liveConcernRecs.length>0) ? `
+    const _liveConcernRecs = (window.CONCERNS||[]).filter(c=>_hrConcernMatches(emp.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+    const _cSYOf = window._njtcConcernSY || (() => '');
+    const _curCSY = _hrCurSY();
+    const _cThisSY = _liveConcernRecs.filter(c => _cSYOf(c) === _curCSY).length;
+    const _cSYLabel = sy => sy ? 'SY ' + sy.slice(2,4) + '-' + sy.slice(7,9) : '';
+    const concernBody = (concernCount>0||_liveConcernRecs.length>0) ? `
 <div style="padding:.75rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px">
-  <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.5rem">⚠️ Performance Concern${_liveConcernRecs.length>0?' ('+_liveConcernRecs.length+' on record)':''}</div>
+  <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.5rem">⚠️ Performance Concern${_liveConcernRecs.length>0?' ('+_cThisSY+' this SY · '+_liveConcernRecs.length+' on record)':''}</div>
   ${_liveConcernRecs.length>0
     ? _liveConcernRecs.map(c=>`<div style="margin-bottom:.5rem;padding:.4rem .6rem;background:#fff;border:1px solid #fed7aa;border-radius:6px">
         <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
           <span style="font-size:.78rem;font-weight:700;color:#92400e">${esc(c.concern_label||c.concern_type||'Concern')}</span>
           ${c.hr_action?`<span style="font-size:.68rem;padding:.1rem .4rem;background:#fee2e2;border-radius:4px;color:#b91c1c;font-weight:600">${esc(c.hr_action)}</span>`:''}
-          <span style="margin-left:auto;font-size:.68rem;color:var(--muted)">${esc((c.ts||'').substring(0,10))}</span>
+          <span style="margin-left:auto;font-size:.68rem;color:var(--muted)">${esc((c.ts||'').split(' ')[0])}${_cSYOf(c)?` · <span style="font-weight:700;color:${_cSYOf(c)===_curCSY?'#b45309':'#94a3b8'}">${_cSYLabel(_cSYOf(c))}</span>`:''}</span>
         </div>
         ${c.concern_detail?`<div style="font-size:.72rem;color:#78350f;margin-top:.25rem">${esc(c.concern_detail)}</div>`:''}
+        <button data-ts="${esc(c.ts)}" data-emp="${esc(c.emp)}" onclick="event.stopPropagation();window._njtcShowConcernEntry(this.dataset.ts,this.dataset.emp)" style="margin-top:.35rem;padding:.2rem .55rem;border-radius:6px;border:1px solid #fdba74;background:#fff7ed;color:#9a3412;font-size:.7rem;font-weight:700;cursor:pointer">📄 Read full entry</button>
         ${c.hr_followup?`<div style="margin-top:.3rem;padding:.25rem .5rem;background:#eff6ff;border-left:2px solid #3b82f6;border-radius:0 4px 4px 0;font-size:.72rem;color:#1e40af"><span style="font-weight:700">HR Follow-Up:</span> ${esc(c.hr_followup)}</div>`:''}
       </div>`).join('')
     : `${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
@@ -3491,7 +3630,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     if (!['hr','data'].includes(_d)) return '';
     const _ek = uid;
     const _en = emp.n;
-    const _sy = '2025-2026';
+    const _sy = _hrCurSY();
     const existingRecs = _hiringGet(_ek).sort((a,b)=>b.ts.localeCompare(a.ts));
     const latestRec = existingRecs[0];
     const latestBadge = latestRec
@@ -3739,7 +3878,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const appRaceRows = Object.entries(ard.raceMap).sort((a,b)=>b[1]-a[1]);
     return `<div style="margin-top:.875rem;padding:.75rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
       <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#854d0e;letter-spacing:.08em;margin-bottom:.5rem">🎓 DOL Apprentices (${ard.total}) — Race & Ethnicity
-        <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem">col K · Live HR Dashboard · 2025-2026</span>
+        <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem">col K · Live HR Dashboard · ${_hrCurSY()}</span>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
         ${ard.withRace ? `<div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
@@ -3981,7 +4120,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     if (_pSummerMode && ['hr','data'].includes(dept)) {
       const toggle = `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
         <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Period</span>
-        <button onclick="window._hrSetSummerMode(false)" style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--navy);cursor:pointer;font-weight:600">📅 SY 2025-2026</button>
+        <button onclick="window._hrSetSummerMode(false)" style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--navy);cursor:pointer;font-weight:600">📅 School Year</button>
         <button style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:2px solid #059669;background:#d1fae5;color:#065f46;cursor:pointer;font-weight:700">☀️ Summer 2026</button>
       </div>`;
       return toggle + _buildSummerProfiles(dept);
@@ -3990,7 +4129,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Period toggle strip — prepend to full SY view for HR and Data
     const _syToggle = showFull ? `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
         <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Period</span>
-        <button style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:2px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer;font-weight:700">📅 SY 2025-2026</button>
+        <button style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:2px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer;font-weight:700">📅 School Year</button>
         <button onclick="window._hrSetSummerMode(true)" style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--navy);cursor:pointer;font-weight:600">☀️ Summer 2026</button>
       </div>` : '';
     if (dept==='kb')           return _hrViewKB();
@@ -4054,7 +4193,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // would cost ~550k iterations for 50 employees. We build maps keyed by
     // normName once, then do O(1) lookups in buildMetrics.
     // Same-year guard: only use Pearl when it holds the school year being viewed
-    const _pearlOk    = _pearlMatchesTalentSY(typeof _pSY !== 'undefined' ? _pSY : '2025-2026');
+    const _pearlOk    = _pearlMatchesTalentSY(typeof _pSY !== 'undefined' ? _pSY : _hrCurSY());
     const attMap      = (_pearlOk && window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
     const lateFilers  = (_pearlOk && window.po && window.po.getLateFilerStats)    ? window.po.getLateFilerStats().flagged : [];
     const lateFilerMap = {}; // normName → { late, lateRate }
@@ -4134,7 +4273,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // Support Status: evaluates 6 signals, returns { level:'ok'|'warn'|'critical', reasons:[] }
     function supportStatus(emp, m) {
-      const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
+      const co = emp._liveConcerns || 0;  // live concern log only (snapshot `co` = cycle count)
       const reasons=[]; let level='ok';
       const bump = (to) => { if (to==='critical') level='critical'; else if (to==='warn'&&level==='ok') level='warn'; };
       if (m.att!=null&&m.att<70)  { reasons.push('Attendance critical (<70%)');          bump('critical'); }
@@ -4324,7 +4463,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const { att, survComp, lateSurveys, lateRate, incompleteCount, incompleteRate, totalSessions,
               returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry,
               scholarCount, tutorSchools } = metrics;
-      const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
+      const co = emp._liveConcerns || 0;  // live concern log only (snapshot `co` = cycle count)
 
       const attVal   = att!=null ? att.toFixed(1)+'%' : '\u2014';
       const attColor = att==null?'#94a3b8':att<70?'#b91c1c':att<80?'#d97706':'#059669';
@@ -4377,7 +4516,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Concern log (expandable)
       const coId = 'ppco_'+emp.n.replace(/\W/g,'_');
       const concernRows = (typeof CONCERNS!=='undefined'?CONCERNS:[])
-        .filter(c=>c.emp===emp.n).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+        .filter(c=>_hrConcernMatches(emp.n, c)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+      const _qa = v => esc(String(v==null?'':v)).replace(/"/g,'&quot;');
+      const _csy = c => { const y = window._njtcConcernSY ? window._njtcConcernSY(c) : ''; return y ? ' \u00b7 SY '+y.slice(2,4)+'-'+y.slice(7,9) : ''; };
       const concernHtml = concernRows.length>0
         ? '<div style="margin-top:.5rem;border-top:1px solid #f1f5f9;padding-top:.4rem">'
           +'<button id="'+coId+'_btn" onclick="_hrToggle(\''+coId+'\')" style="font-size:.7rem;background:none;border:none;color:#94a3b8;cursor:pointer;padding:0">'
@@ -4386,8 +4527,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           +concernRows.map(c=>'<div style="font-size:.72rem;padding:.3rem .5rem;background:#fef2f2;border-radius:5px;margin-bottom:.25rem">'
             +'<span style="font-weight:600;color:#b91c1c">'+esc(c.concern_type||'Concern')+'</span>'
             +(c.hr_action?'<span style="margin-left:.4rem;font-size:.68rem;color:#92400e;background:#fffbeb;padding:.1rem .3rem;border-radius:3px">'+esc(c.hr_action)+'</span>':'')
-            +'<span style="float:right;color:#94a3b8">'+esc((c.ts||'').substring(0,10))+'</span>'
+            +'<span style="float:right;color:#94a3b8">'+esc((c.ts||'').split(' ')[0])+_csy(c)+'</span>'
             +(c.concern_detail?'<div style="margin-top:.2rem;color:#64748b">'+esc(c.concern_detail)+'</div>':'')
+            +'<button data-ts="'+_qa(c.ts)+'" data-emp="'+_qa(c.emp)+'" onclick="event.stopPropagation();window._njtcShowConcernEntry(this.dataset.ts,this.dataset.emp)" style="margin-top:.3rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #fca5a5;background:#fff;color:#b91c1c;font-size:.66rem;font-weight:700;cursor:pointer">\ud83d\udcc4 Read full entry</button>'
             +(c.hr_followup?'<div style="margin-top:.25rem;padding:.2rem .4rem;background:#eff6ff;border-left:2px solid #3b82f6;border-radius:0 4px 4px 0;color:#1e40af;font-size:.68rem"><span style="font-weight:700">HR Follow-Up:</span> '+esc(c.hr_followup)+'</div>':'')
             +'</div>').join('')
           +'</div></div>'
@@ -4722,7 +4864,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     _pPage    = 0;
     _hrRebuildProfiles();
   };
-  window._hrSetSY = sy => { _pSY = sy; _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetSY = sy => { _pSY = sy; _pSYUserSet = true; _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
   window._hrSetRole    = r  => { _pRole=r;   _pPage=0; _hrRebuildProfiles(); };
   window._hrSetStatus  = s  => { _pStatus=s; _pPage=0; _hrRebuildProfiles(); };
   window._hrDoSearch   = q  => {
@@ -4839,7 +4981,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     if (!emp) return;
     const modal = document.getElementById('hrEmpModal');
     const inner = document.getElementById('hrEmpModalInner');
-    if (modal && inner) { inner.innerHTML = _hrModal(emp); modal.style.display='block'; }
+    // Open in the School Year selected on the Profiles view (status/role/term for that year)
+    const _v = (_pSY && _pSY !== 'all' && _hrInSY(emp, _pSY)) ? _hrSYView(emp, _pSY) : emp;
+    if (modal && inner) { inner.innerHTML = _hrModal(_v); modal.style.display='block'; }
   };
 
   // ── Programming Profile (Onsite Performance) filter/tooltip handlers ──────
@@ -5584,15 +5728,25 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     Q3: { months: 'Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
     Q4: { months: 'Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
   };
-  const _qtrRetentionRate = q => {
-    const d = QUARTERLY_RETENTION_2526[q];
+  // SY 26-27 quarters — fill in as HR finalizes each quarter (Pending until then).
+  const QUARTERLY_RETENTION_2627 = {
+    Q1: { months: 'Sep–Nov', startCount: null, retainedCount: null, asOfStart: null, asOfEnd: null },
+    Q2: { months: 'Dec–Feb', startCount: null, retainedCount: null, asOfStart: null, asOfEnd: null },
+    Q3: { months: 'Mar–May', startCount: null, retainedCount: null, asOfStart: null, asOfEnd: null },
+    Q4: { months: 'Jun–Aug', startCount: null, retainedCount: null, asOfStart: null, asOfEnd: null },
+  };
+  const QUARTERLY_RETENTION_BY_SY = { '2025-2026': QUARTERLY_RETENTION_2526, '2026-2027': QUARTERLY_RETENTION_2627 };
+  const _qtrTable = sy => QUARTERLY_RETENTION_BY_SY[sy] || QUARTERLY_RETENTION_2627;
+  const _qtrRetentionRate = (q, sy) => {
+    const d = _qtrTable(sy || _hrCurSY())[q];
     if (!d || d.startCount == null || d.retainedCount == null) return null;
     return Math.round((d.retainedCount / d.startCount) * 10000) / 100;
   };
 
   // ── HR & Data — Termination Analytics home widget ───────────────────────
   function _buildTermAnalyticsWidget() {
-    const CY = '2025-2026';
+    const CY = _hrCurSY();   // current SY on the live Master List
+    const QR = _qtrTable(CY);
     // If live HR fetch is still in flight, render a skeleton and auto-refresh when it lands
     if (!window._hrDataFetched) {
       // Poll until live data arrives, then swap in real widget
@@ -5626,19 +5780,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>`;
     }
     // Normalize year strings to handle spacing variants like '2025 - 2026' vs '2025-2026'
-    const _normY = y => (y||'').replace(/\s/g,'');
-    const _normCY = _normY(CY);
-    const yearEmps = HR_EMPS.filter(e => {
-      const yrs = [...(e.y||[]), ...(e._liveYears||[])];
-      return yrs.some(y => _normY(y) === _normCY);
-    });
-    const activeEmps = yearEmps.filter(e => e.s === 'Active');
+    const yearEmps = HR_EMPS.filter(e => _hrInSY(e, CY));
+    const activeEmps = yearEmps.filter(e => _hrSYStatus(e, CY) === 'Active');
     // Use live-sheet terminated data directly so count and reasons match the HR Master List
     // exactly — bypasses HR_EMPS name-matching failures that caused Unknown entries
-    const _liveTerm = window._njtcLiveTerminated2526 || [];
+    const _liveTerm = (window._njtcLiveTerminatedByYear || {})[CY] || [];
     const termEmps = _liveTerm.length > 0
       ? _liveTerm.map(r => ({ _termReason: r.termReason||'', _termType: r.termType||'', _termDate: r.termDate||'' }))
-      : yearEmps.filter(e => e.s !== 'Active');
+      : yearEmps.filter(e => _hrSYStatus(e, CY) !== 'Active');
     const total = (activeEmps.length + termEmps.length) || 1;  // avoid div/0
 
     // Quarter helper (academic year quarters: Q1=Sep-Nov, Q2=Dec-Feb, Q3=Mar-May, Q4=Jun-Aug)
@@ -5661,7 +5810,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Quarterly retention — HR's own formula (retained ÷ start-of-quarter headcount), sourced
     // from QUARTERLY_RETENTION_2526 above rather than derived from termination counts alone,
     // since the live sheet has no hire-date field to reconstruct start-of-quarter cohorts.
-    const curQRate    = _qtrRetentionRate(curQ);
+    const curQRate    = _qtrRetentionRate(curQ, CY);
     const curQPending = curQRate == null;
 
     // Reason breakdown
@@ -5720,7 +5869,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       { v: activeEmps.length, l: 'Active Staff',    c: '#1d4ed8' },
       { v: termEmps.length,   l: 'Separated',       c: termEmps.length > 0 ? '#dc2626' : '#059669' },
       { v: Math.round(activeEmps.length / total * 100) + '%', l: 'Retention Rate', c: '#059669' },
-      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' (' + QUARTERLY_RETENTION_2526[curQ].months + ')', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
+      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' (' + QR[curQ].months + ')', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
       { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
     ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
       <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
@@ -5749,8 +5898,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         ${['Q1','Q2','Q3','Q4'].map(q => {
           const cnt   = qtrCounts[q];
           const isCur = q === curQ;
-          const rate  = _qtrRetentionRate(q);
-          const d     = QUARTERLY_RETENTION_2526[q];
+          const rate  = _qtrRetentionRate(q, CY);
+          const d     = QR[q];
           const rateLabel = rate == null ? 'Pending' : rate + '% retention';
           const rateColor = rate == null ? '#94a3b8' : (rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626');
           const dateRange = d.asOfStart && d.asOfEnd ? `${d.asOfStart}–${d.asOfEnd}` : d.months;
@@ -5927,19 +6076,20 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   // ── Programming — Staff Retention Rate home widget ───────────────────────
   function _buildRetentionWidget() {
-    const CY = '2025-2026';
-    const PY = '2024-2025';
-    const activeEmps  = HR_EMPS.filter(e => e.s === 'Active' && ((e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY)));
-    const cyEmps      = HR_EMPS.filter(e => (e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY));
-    const pyEmps      = HR_EMPS.filter(e => (e.y||[]).includes(PY));
+    const CY = _hrCurSY();                                     // e.g. 2026-2027
+    const PY = `${parseInt(CY,10)-1}-${parseInt(CY,10)}`;      // e.g. 2025-2026
+    const cyEmps      = HR_EMPS.filter(e => _hrInSY(e, CY));
+    const activeEmps  = cyEmps.filter(e => _hrSYStatus(e, CY) === 'Active');
+    const pyEmps      = HR_EMPS.filter(e => _hrInSY(e, PY));
     // Multi-cycle staff = active staff who also appear in a prior year
     const returning   = activeEmps.filter(e => e.c != null && e.c >= 2).length;
     const cyTotal     = cyEmps.length || 1;
     const retentionPct = Math.round(returning / cyTotal * 100);
 
-    // Year-over-year headcount
-    const cyActive    = cyEmps.filter(e => e.s === 'Active').length;
-    const pyActive    = pyEmps.filter(e => e.s === 'Active').length;
+    // Year-over-year headcount — this SY's active staff vs. last SY's full roster
+    // (a closed SY's Master List rows are all Terminated, so its Active count is 0).
+    const cyActive    = activeEmps.length;
+    const pyActive    = pyEmps.length;
     const yoyDelta    = cyActive - pyActive;
     const yoyColor    = yoyDelta >= 0 ? '#059669' : '#dc2626';
     const yoyIcon     = yoyDelta >= 0 ? '↑' : '↓';
@@ -6015,7 +6165,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.3rem">Year-over-Year</div>
         <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem">
           <span><strong style="color:#1d4ed8">${cyActive}</strong> <span style="color:#64748b">active ${CY}</span></span>
-          <span><strong style="color:#64748b">${pyActive}</strong> <span style="color:#94a3b8">active ${PY}</span></span>
+          <span><strong style="color:#64748b">${pyActive}</strong> <span style="color:#94a3b8">on ${PY} roster</span></span>
           <span style="font-weight:700;color:${yoyColor}">${yoyDelta >= 0 ? '+' : ''}${yoyDelta} YoY</span>
         </div>
       </div>
@@ -6492,7 +6642,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var blob = doc.output('blob');
       var url  = URL.createObjectURL(blob);
       var a    = document.createElement('a');
-      a.href   = url; a.download = 'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.pdf';
+      a.href   = url; a.download = 'NJTC_Quarterly_Summary_Q'+latestQ+'_'+_kSY().pptx+'.pdf';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
     });
@@ -6838,7 +6988,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         bodyFontSize:7,bodyColor:'1E293B',bodyFill:{color:'F7F9FC'}
       });
 
-      pptx.writeFile({fileName:'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.pptx'})
+      pptx.writeFile({fileName:'NJTC_Quarterly_Summary_Q'+latestQ+'_'+_kSY().pptx+'.pptx'})
         .catch(function(e){ console.error('PPTX export error:',e); alert('PPTX generation failed — check console for details.'); });
     });
   }
@@ -7313,7 +7463,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     var blob = new Blob(['﻿' + html], {type:'application/msword'});
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
-    a.href = url; a.download = 'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.doc';
+    a.href = url; a.download = 'NJTC_Quarterly_Summary_Q'+latestQ+'_'+_kSY().pptx+'.doc';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
   }
@@ -7554,12 +7704,8 @@ ${latestHiring||hiringRecs.length?`<div class="section">
 
   // ── Shared pool builder (PDF + CSV use same filter logic) ────────────────
   function _hrBuildExportPool(scope, value, sy) {
-    sy = sy || _pSY || '2025-2026';
-    let pool = HR_EMPS.filter(e => {
-      if (sy !== 'all' && !((e.y||[]).includes(sy)||(e._liveYears||[]).includes(sy))) return false;
-      if (sy === '2025-2026' && e._notInLive2526) return false;
-      return true;
-    });
+    sy = sy || _pSY || _hrCurSY();
+    let pool = HR_EMPS.filter(e => _hrInSY(e, sy)).map(e => _hrSYView(e, sy));
     if (scope === 'district' && value && value !== 'all') {
       pool = pool.filter(e => (e.di||'').toLowerCase() === value.toLowerCase());
     } else if (scope === 'school' && value && value !== 'all') {
@@ -7625,7 +7771,7 @@ ${latestHiring||hiringRecs.length?`<div class="section">
       'Perf Score (/4)','Att Target','Scholar Enjoyment','Scholar Learning','Acad Improvement',
       'iReady % Scholars Advanced','iReady Scholar Count',
       'Concerns Count','HR Action',
-      'Term Date','Term Reason','Term Type',
+      'Term Date','Term Reason','Term Type','ADP Hire Date','ADP Term Date',
       'Hiring Decision','Hiring Notes','Hiring By','Hiring Date',
       'Race','Ethnicity','Data Status Note']);
     const row = _csvLine([
@@ -7639,7 +7785,7 @@ ${latestHiring||hiringRecs.length?`<div class="section">
       e.am!=null?e.am:'', e.em!=null?e.em:'', e.lm!=null?e.lm:'', acadImprove!=null?acadImprove:'',
       e._acadPctMoved!=null?e._acadPctMoved:'', e._acadScholars!=null?e._acadScholars:'',
       e._liveConcerns||0, e._liveHRAction||e.hn||'',
-      _fmtDate(e._termDate||''), e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'', e._termType&&e._termType!=='#VALUE!'?e._termType:'',
+      _fmtDate(e._termDate||''), e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'', e._termType&&e._termType!=='#VALUE!'?e._termType:'', _fmtDate(e._adpHire||''), _fmtDate(e._adpTerm||''),
       hd?hd.d:'', hd?hd.n:'', hd?hd.by:'', hd?_fmtDate(hd.ts):'',
       e._race||'', e._ethnicity||'', dataNote,
     ]);
@@ -7649,7 +7795,7 @@ ${latestHiring||hiringRecs.length?`<div class="section">
 
   // ── Aggregate PDF (split active / terminated) ─────────────────────────────
   window._hrExportAggregatePDF = function(scope, value, sy) {
-    sy = sy || _pSY || '2025-2026';
+    sy = sy || _pSY || _hrCurSY();
     const pool = _hrBuildExportPool(scope, value, sy);
     if (!pool.length) { alert('No employees found for this filter.'); return; }
 
@@ -7671,7 +7817,7 @@ ${latestHiring||hiringRecs.length?`<div class="section">
     const avgSurv  = withSurv.length ? (withSurv.reduce((s,e)=>s+(e.je!=null?e.je:e._liveSurveyEntry.enjoyment),0)/withSurv.length).toFixed(1) : null;
     const withAcad = active.filter(e => e._acadPctMoved!=null);
     const avgAcad  = withAcad.length ? Math.round(withAcad.reduce((s,e)=>s+e._acadPctMoved,0)/withAcad.length) : null;
-    const totalConcerns = active.filter(e => (e._liveConcerns||0)>0||e.co===1).length;
+    const totalConcerns = active.filter(e => (e._liveConcerns||0)>0).length;
 
     // Active table row builder
     const activeRow = e => {
@@ -7787,7 +7933,7 @@ ${inactive.length ? `
 
   // ── Aggregate CSV export (Data dept only) ────────────────────────────────
   window._hrExportCSV = function(scope, value, sy) {
-    sy = sy || _pSY || '2025-2026';
+    sy = sy || _pSY || _hrCurSY();
     const pool = _hrBuildExportPool(scope, value, sy);
     if (!pool.length) { alert('No employees found for this filter.'); return; }
 
@@ -7803,7 +7949,7 @@ ${inactive.length ? `
       'Perf Score (/4)','Att Target','Scholar Enjoyment','Scholar Learning','Acad Improvement',
       'iReady % Scholars Advanced','iReady Scholar Count',
       'Concerns Count','HR Action',
-      'Term Date','Term Reason','Term Type',
+      'Term Date','Term Reason','Term Type','ADP Hire Date','ADP Term Date',
       'Hiring Decision','Hiring Decision Notes','Hiring Decision By','Hiring Decision Date',
       'Race','Ethnicity',
       'Data Status Note',
@@ -7840,7 +7986,7 @@ ${inactive.length ? `
         e.am!=null?e.am:'', e.em!=null?e.em:'', e.lm!=null?e.lm:'', acadImprove!=null?acadImprove:'',
         e._acadPctMoved!=null?e._acadPctMoved:'', e._acadScholars!=null?e._acadScholars:'',
         e._liveConcerns||0, e._liveHRAction||e.hn||'',
-        _fmtDate(e._termDate||''), e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'', e._termType&&e._termType!=='#VALUE!'?e._termType:'',
+        _fmtDate(e._termDate||''), e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'', e._termType&&e._termType!=='#VALUE!'?e._termType:'', _fmtDate(e._adpHire||''), _fmtDate(e._adpTerm||''),
         hd?hd.d:'', hd?hd.n:'', hd?hd.by:'', hd?_fmtDate(hd.ts):'',
         e._race||'', e._ethnicity||'',
         dataNote,
@@ -7874,7 +8020,7 @@ ${inactive.length ? `
     const recs = _hiringLoad();
     const rec = {
       id:   Date.now() + '_' + Math.random().toString(36).slice(2,7),
-      ek, en: en, d: decision, n: notes || '', sy: '2025-2026',
+      ek, en: en, d: decision, n: notes || '', sy: _hrCurSY(),
       ts:   new Date().toISOString(), by: sess.name || 'Unknown', role: sess.dept || 'unknown',
       loc:  empSite,
     };
@@ -8081,7 +8227,7 @@ ${inactive.length ? `
     },
     apprentice: {
       label: 'TAP Apprentice',
-      source: 'HR Master List col K · 2025-2026',
+      source: 'HR Master List col K · current SY',
       description: 'DOL-registered apprentice enrolled in NJTC Tutor Apprenticeship Program (TAP). Count from raw live HR data before name-matching.',
     },
   };
@@ -8212,7 +8358,7 @@ ${inactive.length ? `
     // ── Section 4: Pearl Live Data ────────────────────────────────────────────
     const pearlBody =
       `<div style="font-size:.68rem;color:var(--navy);margin-bottom:.625rem;line-height:1.6">
-        For the current SY (2025-2026), the following data is pulled <b>live from Pearl Operations</b> and overlaid on each tutor's profile. A blue <span style="color:#38bdf8;font-weight:700">●</span> indicator appears next to any field using live data. Pearl data is cached and refreshes up to <b>every 10 minutes</b>, or instantly via the <b>⟳ Sync Live</b> button on the Profiles view.
+        For the current SY, the following data is pulled <b>live from Pearl Operations</b> and overlaid on each tutor's profile. A blue <span style="color:#38bdf8;font-weight:700">●</span> indicator appears next to any field using live data. Pearl data is cached and refreshes up to <b>every 10 minutes</b>, or instantly via the <b>⟳ Sync Live</b> button on the Profiles view.
       </div>
       <div style="display:flex;flex-direction:column;gap:0;margin-bottom:.625rem">
         ${row('Att ● (Attendance)', 'Live from Pearl', 'Sessions attended ÷ sessions scheduled; only instructors with ≥1 attendance record', '#38bdf8')}

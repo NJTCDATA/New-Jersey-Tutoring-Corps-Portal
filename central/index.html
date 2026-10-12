@@ -6194,10 +6194,8 @@
       </div>
       <!-- Year filter row for talent panel -->
       <div id="talentYearBar" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.875rem;flex-wrap:wrap">
-        <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Year</span>
-        <button class="pst-tab active" id="tyrBtn-all" onclick="setTalentYear('all',this)">All Years</button>
-        <button class="pst-tab" id="tyrBtn-2026" onclick="setTalentYear(2026,this)">2026 <span style="font-size:.65rem;opacity:.6">SY25-26</span></button>
-        <button class="pst-tab" id="tyrBtn-2025" onclick="setTalentYear(2025,this)">2025 <span style="font-size:.65rem;opacity:.6">SY24-25</span></button>
+        <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">School Year</span>
+        <!-- School Year buttons built from the concerns data by _syncTalentYearBar() (shared-utils.js) -->
         <span id="tyrCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
       </div>
       <div id="talentContent"><!-- filled by JS --></div>
@@ -6861,31 +6859,31 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=34"></script>
-<script src="modules/shared-charts.js?v=14"></script>
+<script src="modules/shared-utils.js?v=35"></script>
+<script src="modules/shared-charts.js?v=15"></script>
 <script src="modules/shared-filters.js?v=4"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
-<script src="modules/leadership.js?v=7"></script>
+<script src="modules/leadership.js?v=8"></script>
 <script src="modules/training-development.js?v=8"></script>
 <script src="modules/data-department.js?v=9"></script>
 <script src="modules/hr-department.js?v=2"></script>
-<script src="modules/dol-report.js?v=3"></script>
-<script src="modules/programming.js?v=20"></script>
+<script src="modules/dol-report.js?v=4"></script>
+<script src="modules/programming.js?v=21"></script>
 <script src="modules/pdf-export.js?v=7"></script>
 <script src="modules/field-support.js?v=3"></script>
 <script src="modules/portal-tour.js?v=1"></script>
 <script src="../partner/partner-report.js?v=3"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=2"></script>
-<script src="modules/finance.js?v=4"></script>
+<script src="modules/finance.js?v=5"></script>
 <script src="../alerts/asana-service.js?v=1"></script>
 <script src="../alerts/deadline-alerts.js?v=1"></script>
 <script src="../alerts/asana-service2.js?v=1"></script>
 <script src="../alerts/deadline-alerts2.js?v=1"></script>
 
 <script id="irlabDataScript" src="data-irlab-embedded.js?v=1"></script>
-<script src="modules/executive-leadership.js?v=13"></script>
+<script src="modules/executive-leadership.js?v=14"></script>
 <script src="modules/impact-report.js?v=2"></script>
 <script src="modules/survey-feedback.js?v=10"></script>
 <script src="modules/scholar-feedback.js?v=2"></script>

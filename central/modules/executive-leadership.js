@@ -148,7 +148,7 @@
       var sy  = base + (isSummer ? 'background:rgba(255,255,255,.12);color:rgba(255,255,255,.55);' : 'background:#fff;color:#1e40af;');
       var sum = base + (isSummer ? 'background:#fbbf24;color:#1e3a5f;'                             : 'background:rgba(255,255,255,.12);color:rgba(255,255,255,.55);');
       return '<div style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem">'+
-        '<button style="'+sy+'" onclick="window._execSetPeriod(\'sy\')">&#127979; SY 2025-2026</button>'+
+        '<button style="'+sy+'" onclick="window._execSetPeriod(\'sy\')">&#127979; '+(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27')+'</button>'+
         '<button style="'+sum+'" onclick="window._execSetPeriod(\'summer\')">&#9728; Summer 2026</button>'+
         (isSummer ? '<span style="font-size:.64rem;color:#fbbf24;opacity:.85">&#128247; Snapshot &mdash; programs in progress</span>' : '')+
       '</div>';
@@ -328,7 +328,7 @@
           operational: 'Your district is part of a '+(sya.sites||'—')+'-site, '+(sya.districts||'—')+'-district network. All data flows into Pearl in real time.'
         };
         cards.push({color:'blue',label:'Scale & Reach',
-          headline:(sya.sites||'—')+' school sites · '+(sya.districts||'—')+' districts · SY 2025-26',
+          headline:(sya.sites||'—')+' school sites · '+(sya.districts||'—')+' districts · '+(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27'),
           body:scFrames[tone]||scFrames.policy, source:'SY Analytics · Live Google Sheet'});
       }
 
@@ -480,7 +480,7 @@
         };
         cards.push({color:'blue',label:'Organizational Health',
           headline:kpi.met.length+' of '+kpi.total+' annual KPI goals already Met at mid-year',
-          body:kFrames[tone]||kFrames.policy, source:'KPI Dashboard · Live Google Sheet · Mid-Year SY 2025-26'});
+          body:kFrames[tone]||kFrames.policy, source:'KPI Dashboard · Live Google Sheet · Mid-Year '+((typeof window.kpiSYConfig==='function' && window.kpiSYConfig() && window.kpiSYConfig().short) || 'SY 26-27')});
       }
 
       // ── 10. ACCOUNTABILITY / TRANSPARENCY (legislature + partner only) ──
@@ -873,7 +873,7 @@
       }
       printEl.innerHTML=
         '<div class="adv-print-header">'+
-          '<div class="adv-print-logo-area"><h1>New Jersey Tutoring Corps</h1><p>SY 2025-2026 &middot; Program Impact Brief &middot; '+aud.label+'</p><p style="font-size:8.5pt;color:#4a5568;font-style:italic;margin-top:2pt">'+aud.intro+'</p></div>'+
+          '<div class="adv-print-logo-area"><h1>New Jersey Tutoring Corps</h1><p>'+(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27')+' &middot; Program Impact Brief &middot; '+aud.label+'</p><p style="font-size:8.5pt;color:#4a5568;font-style:italic;margin-top:2pt">'+aud.intro+'</p></div>'+
           '<div style="text-align:right"><div class="adv-print-badge">CONFIDENTIAL</div><div style="font-size:8pt;color:#7d8fa1;margin-top:4px">'+today+'</div><div style="font-size:8pt;color:#7d8fa1">Prepared by '+(dLbl[dept]||'NJTC Leadership')+'</div></div>'+
         '</div>'+
         '<div class="adv-print-section-title">Current Program Metrics &mdash; Live Pearl, SYA &amp; iReady Data</div>'+

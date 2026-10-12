@@ -696,12 +696,18 @@
       })() : null;
       const _hrStaff = _syTracker != null ? _syTracker
         : (_activePeriod !== 'sy2627' && window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
-        ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
+        // SY 25-26 is a closed year on the Master List (every row "Terminated"), so its
+        // staff total is that year's staff with no recorded separation — not today's
+        // Active count (which is SY 26-27).
+        ? (typeof window._hrActiveInSY === 'function'
+            ? window._hrActiveInSY('2025-2026')
+            : HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length)
+        : null;
       const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
       const _pearlActiveStaff = (_poStats && _poStats.activePeriod === 'sy2627' && _poStats.activeInstructorsCurrent != null) ? _poStats.activeInstructorsCurrent : null;
       setText('syStatStaffSub', _syTracker != null ? 'SY Database roster (reference)' + (_pearlActiveStaff != null ? ' · ' + _pearlActiveStaff.toLocaleString() + ' active in Pearl' : '') + (_syPending ? ' · ' + _syPending + ' offer pending' : '')
-        : _hrStaff != null ? 'Active FT staff · HR Master List' : 'Total staffing · Locations tab');
+        : _hrStaff != null ? (typeof window._hrInSY === 'function' ? 'Active through SY 25-26 · HR Master List' : 'Active FT staff · HR Master List') : 'Total staffing · Locations tab');
       // Cache stats for Exec Dashboard period selector
       window._syaStats = window._syaStats || {};
       window._syaStats[_activePeriod] = {
@@ -1724,8 +1730,18 @@
       try {
         if (_activePeriod === 'sy2526') {
           (window.HR_EMPS||[]).forEach(e => {
-            if (e.s === 'Active') return;
             if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
+            // Live Master List: use the 2025-2026 row. The closed year's rows are all
+            // "Terminated", so only a recorded separation (date/type/reason) counts —
+            // staff who simply completed the program are not flagged as separated.
+            const y = e._byYear && e._byYear['2025-2026'];
+            if (y) {
+              if (!(y.termDate || y.termType || y.termReason)) return;
+              const nk = normFn(e.n||'');
+              if (nk) out[nk] = { date: y.termDate||'', reason: y.termReason||'' };
+              return;
+            }
+            if (e.s === 'Active') return;
             const nk = normFn(e.n||'');
             if (nk) out[nk] = { date: e._termDate||'', reason: e._termReason||'' };
           });
