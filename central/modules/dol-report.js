@@ -22,7 +22,7 @@
     {
       id: 'sy2627',
       label: 'SY 26-27',
-      start: new Date(2026, 8, 1),
+      start: new Date(2026, 7, 1),   // Aug 1, 2026 — SY 26-27 hiring begins in August
       end:   new Date(2027, 5, 30),
       source: 'tracker',
       cycleKey: 'school year 26-27',
@@ -232,6 +232,14 @@
 
   const ROLE_BUCKETS = ['Tutor', 'Site Coordinator', 'Instructional Coach', 'Dual Role'];
 
+  // "Site Leader" is the Dual Role position in the Locations tab
+  // ("Site Leader (Dual Role) Positions"), so it rolls up there.
+  function roleBucket(role) {
+    const r = (role || '').toLowerCase();
+    if (r.includes('site leader')) return 'Dual Role';
+    return ROLE_BUCKETS.find(b => r.includes(b.toLowerCase())) || null;
+  }
+
   // ── Date helpers ─────────────────────────────────────────────────────────────
   function parseDate(str) {
     if (!str) return null;
@@ -300,6 +308,23 @@
       isSY:       row.isSY,
       location:   row.location || '',
       district:   row.district || '',
+    };
+  }
+
+  // Terminations tab row (window._njtcOnsiteTerms2627, parsed in shared-charts.js).
+  // Separated staff are moved off the Onsite Tracker tab, so this is their only record.
+  // Hire date: Offer Accepted, else Offer Letter Sent (rows pasted in from the
+  // tracker can land one column left). No date → counted in headcount, not as a hire.
+  function normalizeTerminationRow(t) {
+    if (/pre-?apprentice|\bpace\b/i.test(t.role || '')) return null;
+    return {
+      name:       t.name,
+      role:       t.role || '',
+      startDate:  parseDate(t.offerAccepted) || parseDate(t.offerSent) || null,
+      termDate:   parseDate(t.termDate),
+      terminated: true,
+      resignType: (t.termType || t.termReason || '').toLowerCase(),
+      cycle:      (t.cycle || '').toLowerCase(),
     };
   }
 
@@ -438,7 +463,7 @@
     const byRole = {};
     ROLE_BUCKETS.forEach(r => { byRole[r] = 0; });
     active.forEach(e => {
-      const key = ROLE_BUCKETS.find(r => e.role.toLowerCase().includes(r.toLowerCase())) || 'Other';
+      const key = roleBucket(e.role) || 'Other';
       byRole[key] = (byRole[key] || 0) + 1;
     });
 
@@ -489,7 +514,7 @@
     ROLE_BUCKETS.forEach(r => { buckets[r] = { filled: 0, total: 0 }; });
     rows.forEach(r => {
       if (r.isPreApp) return;
-      const roleKey = ROLE_BUCKETS.find(b => (r.role || '').toLowerCase().includes(b.toLowerCase()));
+      const roleKey = roleBucket(r.role);
       if (!roleKey) return;
       buckets[roleKey].total++;
       if (r.isActive && !r.isTerminated) buckets[roleKey].filled++;
@@ -702,21 +727,62 @@
       if (today >= p.start && today <= p.end) { _activePeriodId = p.id; break; }
     }
 
+    // Onsite Tracker roster: Site Analytics' parse if loaded, else the HR
+    // widget's live roster (loaded below via fetchLiveOnsiteData).
+    function trackerRows() {
+      if (window.NJTC_ONSITE_TRACKER && window.NJTC_ONSITE_TRACKER.length) return window.NJTC_ONSITE_TRACKER;
+      return (window._njtcOnsiteRoster2627 || []).map(r => ({
+        cycle:         r.cycle,
+        role:          r.role,
+        fullName:      r.name,
+        offerAccepted: r.offerAccepted,
+        isPreApp:      /pre-?apprentice|\bpace\b/i.test(r.role || ''),
+        isTerminated:  (r.terminated || '').toLowerCase() === 'yes',
+        termDate:      r.termDate,
+        resignType:    r.resignType,
+      }));
+    }
+
     function getEmployees(period) {
       if (period.source === 'hr_emps') return normalizeHREmps();
-      const tracker = window.NJTC_ONSITE_TRACKER;
-      if (!tracker || !tracker.length) return [];
       const cycleMatch = period.cycleKey.toLowerCase();
-      return tracker
-        .filter(r  => (r.cycle || '').toLowerCase().includes(cycleMatch))
-        .map(r     => normalizeTrackerRow(r, period.start))
+      const inCycle    = r => (r.cycle || '').toLowerCase().includes(cycleMatch);
+      const nk         = n => (n || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+
+      const employees = trackerRows()
+        .filter(inCycle)
+        .map(r => normalizeTrackerRow(r, period.start))
         .filter(Boolean);
+
+      // Merge the Terminations tab — attach to an existing roster entry when the
+      // person is still listed there, otherwise add them as a separated employee.
+      const byName = new Map(employees.map(e => [nk(e.name), e]));
+      (window._njtcOnsiteTerms2627 || [])
+        .filter(inCycle)
+        .map(normalizeTerminationRow)
+        .filter(Boolean)
+        .forEach(t => {
+          const existing = byName.get(nk(t.name));
+          if (existing) {
+            existing.terminated = true;
+            existing.termDate   = t.termDate || existing.termDate;
+            existing.resignType = t.resignType || existing.resignType;
+          } else {
+            employees.push(t);
+            byName.set(nk(t.name), t);
+          }
+        });
+      return employees;
     }
 
     function render() {
       const period    = PERIODS.find(p => p.id === _activePeriodId);
       const employees = getEmployees(period);
-      const months    = monthsInRange(period.start, period.end);
+      // Live tracker periods stop at the current month so in-progress months
+      // count acceptances "thus far" and future months aren't shown.
+      const rangeEnd  = (period.source === 'tracker' && today < period.end)
+        ? new Date(today.getFullYear(), today.getMonth(), 1) : period.end;
+      const months    = monthsInRange(period.start, rangeEnd);
       const newHireOverride = period.id === 'sy2526' ? SY2526_NEW_HIRE_COUNTS : null;
       // Pass period into computeMonthStats so program-end path knows the source
       const stats     = months.map(mk => computeMonthStats(employees, mk, newHireOverride, period));
@@ -791,13 +857,24 @@
             <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem">
               ${renderOpeningsTable(openings)}
             </div>
-            ${period.source === 'tracker' && !window.NJTC_ONSITE_TRACKER ? '<p style="color:#d97706;font-size:.78rem;margin-top:.5rem">⚠ Tracker not loaded — switch to SY 26-27 in Site Analytics to load it, then return here.</p>' : ''}
+            ${period.source === 'tracker' && !trackerRows().length ? `<p style="color:#d97706;font-size:.78rem;margin-top:.5rem">${_loading ? '⏳ Loading Onsite Tracker…' : '⚠ Onsite Tracker could not be loaded — try refreshing the page.'}</p>` : ''}
           </div>
         </div>`;
 
       window.__dolSetPeriod = function(id) { _activePeriodId = id; render(); };
       window.__dolExportCSV = function() { exportCSV(stats, period.label); };
       window.__dolExportPDF = function() { exportPDF(stats, period.label, openings); };
+    }
+
+    // Load the Onsite Tracker + Terminations tabs directly so the report doesn't
+    // depend on Site Analytics having been opened first. Uses the shared 10-min
+    // cache; re-renders once fresh data arrives so new acceptances show up.
+    let _loading = false;
+    if (typeof window.fetchLiveOnsiteData === 'function') {
+      _loading = true;
+      Promise.resolve(window.fetchLiveOnsiteData())
+        .catch(e => console.warn('[DOL] Onsite data load failed:', e && e.message))
+        .then(() => { _loading = false; if (container.isConnected) render(); });
     }
 
     render();

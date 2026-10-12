@@ -1437,7 +1437,7 @@
   const ONSITE_SHEET_ID   = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
   const ONSITE_GID_ROSTER = '0';          // "Onsite Tracker" tab — active/onboarding roster
   const ONSITE_GID_TERM   = '1788942666'; // Terminations tab
-  const ONSITE_CACHE_KEY  = 'njtc_onsite_live_v1';
+  const ONSITE_CACHE_KEY  = 'njtc_onsite_live_v2';  // v2: terms carry role + offer dates
   const ONSITE_TTL_MS     = 10 * 60 * 1000;
   let _onsiteStatus = 'pending';
 
@@ -1739,7 +1739,8 @@
     const H = rows[hIdx].map(h => (h||'').trim().toLowerCase());
     const ci = s => H.findIndex(h => h.includes(s.toLowerCase()));
     const C = {
-      cycle: ci('cycle'), first: ci('first name'), last: ci('last name'), email: ci('email'),
+      cycle: ci('cycle'), role: ci('role'), first: ci('first name'), last: ci('last name'), email: ci('email'),
+      offerSent: ci('offer letter sent'), offerAccepted: ci('offer accepted'),
       termDate: ci('termination date'), termQuarter: ci('termination quarter'),
       termReason: ci('termination reason'), comments: ci('comments'),
     };
@@ -1749,7 +1750,12 @@
         // cycle (e.g. "Summer 2026") — a bare "Q4" must not become a cycle group.
         cycle:      ((r[C.cycle]||'').trim() || (/^Q[1-4]\b/i.test((r[C.termQuarter]||'').trim()) ? '' : (r[C.termQuarter]||'').trim())),
         name:       `${(r[C.first]||'').trim()} ${(r[C.last]||'').trim()}`.trim(),
+        role:       C.role >= 0 ? (r[C.role] || '').trim() : '',
         email:      (r[C.email]      || '').trim().toLowerCase(),
+        // Hire dates — used by the DOL report to place a separated person's hire month
+        // (they're removed from the Onsite Tracker tab once moved here).
+        offerSent:     C.offerSent     >= 0 ? (r[C.offerSent]     || '').trim() : '',
+        offerAccepted: C.offerAccepted >= 0 ? (r[C.offerAccepted] || '').trim() : '',
         termDate:   (r[C.termDate]   || '').trim(),
         termReason: (r[C.termReason] || '').trim(),
         // Type isn't a separate column here — same convention as last year's tracker, reason
