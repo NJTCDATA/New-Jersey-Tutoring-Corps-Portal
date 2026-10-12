@@ -2207,104 +2207,133 @@
   }
   window._pearlMatchesTalentSY = _pearlMatchesTalentSY;
 
-  function _hrOverlayPearl() {
+  // ── Per-school-year Pearl snapshots for profiles ─────────────────────────
+  // Pearl Ops holds ONE period in memory, so each SY's per-tutor Pearl metrics
+  // (attendance, survey, sessions, schools) are captured whenever that period is
+  // loaded and kept in localStorage. SY 25-26 is closed, so its snapshot never
+  // changes; SY 26-27 refreshes every time Pearl reloads. Profiles read the
+  // snapshot for the School Year being viewed.
+  const _PEARL_PERIOD_SY = { sy2526: '2025-2026', sy2627: '2026-2027' };
+  const _SY_PEARL_PERIOD = { '2025-2026': 'sy2526', '2026-2027': 'sy2627' };
+  const _pearlBySY = {};
+  const _pearlLSKey = sy => 'njtc_pearl_profile_' + sy + '_v1';
+  function _pearlSnapshot(sy) {
+    if (!_pearlBySY[sy]) {
+      try { const c = JSON.parse(localStorage.getItem(_pearlLSKey(sy)) || 'null'); if (c && c.tutors) _pearlBySY[sy] = c; } catch(e) {}
+    }
+    return _pearlBySY[sy] || null;
+  }
+  window._hrPearlSnapshot = _pearlSnapshot;
+  // Capture the period Pearl currently holds (no-op until its data is loaded).
+  function _hrCapturePearl() {
     const _poReady = typeof po !== 'undefined' && po && typeof po.getTutorAttendanceMap === 'function';
-    if (!_poReady) { console.warn('[HR Profiles] Pearl overlay skipped — po not ready'); return; }
-    if (!_pearlMatchesTalentSY(_hrCurSY())) { console.info('[HR Profiles] Pearl overlay skipped — Pearl Ops is on a different school year than the SY '+_hrCurSY()+' profiles'); return; }
-    try {
-      // getTutorAttendanceMap() reads live _personMap — current SY Pearl data only
-      const tutorAttMap = po.getTutorAttendanceMap();
-      console.log('[HR Profiles] Pearl overlay called — tutorAttMap size:', Object.keys(tutorAttMap||{}).length,
-        '| surveyFn:', typeof po.getTutorSurveyScores, '| sessionFn:', typeof po.getTutorSessionStats);
-      if (!tutorAttMap || !Object.keys(tutorAttMap).length) { console.warn('[HR Profiles] Pearl overlay skipped — empty tutorAttMap'); return; }
+    if (!_poReady) return null;
+    const sy = _PEARL_PERIOD_SY[po.getActivePeriod ? po.getActivePeriod() : ''];
+    if (!sy) return null;
+    let att = {};
+    try { att = po.getTutorAttendanceMap() || {}; } catch(e) {}
+    if (!Object.keys(att).length) return null;
+    const surv = {}, sess = {};
+    try { (po.getTutorSurveyScores ? po.getTutorSurveyScores() : []).forEach(x => { surv[_hn(x.name)] = x; }); } catch(e) {}
+    try { (po.getTutorSessionStats ? po.getTutorSessionStats() : []).forEach(x => { sess[_hn(x.name)] = x; }); } catch(e) {}
+    const tutors = {};
+    for (const [k, t] of Object.entries(att)) {
+      const pk = _hn(t.name);
+      const sd = sess[pk] || null;
+      tutors[k] = {
+        name: t.name, att: t.attRate, total: t.total, attended: t.attended, absent: t.absent,
+        school: t.school || '', district: t.district || '',
+        surv: surv[pk] || null, sess: sd, schools: sd ? (sd.schools || []).filter(Boolean) : [],
+      };
+    }
+    const snap = { sy, ts: Date.now(), tutors };
+    _pearlBySY[sy] = snap;
+    try { localStorage.setItem(_pearlLSKey(sy), JSON.stringify(snap)); } catch(e) {}
+    return snap;
+  }
+  window._hrCapturePearl = _hrCapturePearl;
 
-      // Pre-build survey and session maps keyed by _hn(pearlName) for O(1) lookup
-      // once the attendance fuzzy-match has identified the canonical Pearl name.
-      const survMap = {}, sessMap = {};
-      try {
-        if (po.getTutorSurveyScores) {
-          po.getTutorSurveyScores().forEach(s => { survMap[_hn(s.name)] = s; });
-        }
-      } catch(e) { console.warn('[HR Profiles] Pearl survey pre-build error:', e); }
-      try {
-        if (po.getTutorSessionStats) {
-          po.getTutorSessionStats().forEach(s => { sessMap[_hn(s.name)] = s; });
-        }
-      } catch(e) { console.warn('[HR Profiles] Pearl session pre-build error:', e); }
-
-      let matched = 0;
-      for (const emp of HR_EMPS) {
-        const ek = _hn(emp.n);  // sorted token key for emp name
-        const ep = new Set(ek.split(' '));
-
-        // 0. Pearl alias resolution — in priority order:
-        //    (a) HR sheet "Pearl Name" column (emp._pearlName set by _hrOverlayLive)
-        //    (b) Hardcoded alias map for known nickname/legal-name mismatches
-        const _pearlAlias = (emp._pearlName && emp._pearlName.trim())
-          ? emp._pearlName.trim()
-          : (_PEARL_ALIAS_MAP[ek] || null);
-        let tutorData = _pearlAlias ? (tutorAttMap[_hn(_pearlAlias)] || null) : null;
-
-        // 1. Exact _hn() key match on HR name
-        if (!tutorData) tutorData = tutorAttMap[ek];
-
-        if (!tutorData) {
-          // Subset token match: every token in shorter name exists in longer
-          for (const [pk, pd] of Object.entries(tutorAttMap)) {
-            const kp = new Set(pk.split(' '));
-            if (
-              (ep.size >= 2 && [...ep].every(t => kp.has(t))) ||
-              (kp.size >= 2 && [...kp].every(t => ep.has(t)))
-            ) { tutorData = pd; break; }
-          }
-        }
-
-        if (!tutorData) {
-          // Nickname/suffix fallback: match on last name + first initial only
-          const epArr = ek.split(' ');  // already sorted
-          if (epArr.length >= 2) {
-            const lastName = epArr[epArr.length - 1];
-            const firstInit = epArr[0][0];
-            for (const [pk, pd] of Object.entries(tutorAttMap)) {
-              const pkArr = pk.split(' ');
-              if (pkArr.includes(lastName) && pkArr.some(t => t[0] === firstInit)) {
-                tutorData = pd; break;
-              }
-            }
-          }
-        }
-
-        if (!tutorData) continue;
-
-        // Write live Pearl current-SY attendance to employee record
-        emp._liveAtt          = tutorData.attRate;
-        emp._liveAttTotal     = tutorData.total;
-        // Store the resolved Pearl display name so PIE can use it for direct lookups
-        // without re-running alias resolution (critical for LaShanee→Renee, Elizabeth→Betsy)
-        emp._resolvedPearlName = tutorData.name;
-        matched++;
-
-        // Use the matched Pearl name to do O(1) lookups for survey + session data.
-        // This avoids re-running the fuzzy match for each additional data type.
-        const pearlKey = _hn(tutorData.name);
-        const survData = survMap[pearlKey] || null;
-        const sessData = sessMap[pearlKey] || null;
-
-        // Store full survey entry — used by buildCard() (compact grid) and
-        // buildMetrics() fallback (programming view) for hyphenated-name cases.
-        if (survData) emp._liveSurveyEntry = survData;
-
-        // Store full session entry + schools array — used by buildCard() for
-        // location display and by buildMetrics() fallback.
-        if (sessData) {
-          emp._liveSessEntry  = sessData;
-          // Schools where this tutor ran ≥1 Pearl session this SY (active locations)
-          emp._liveSchools    = (sessData.schools || []).filter(Boolean);
+  // Match an HR employee to a Pearl tutor record (alias → exact → token subset → last+initial).
+  function _hrMatchPearl(emp, tutorMap) {
+    const ek = _hn(emp.n);
+    const ep = new Set(ek.split(' '));
+    const _pearlAlias = (emp._pearlName && emp._pearlName.trim()) ? emp._pearlName.trim() : (_PEARL_ALIAS_MAP[ek] || null);
+    let t = _pearlAlias ? (tutorMap[_hn(_pearlAlias)] || null) : null;
+    if (!t) t = tutorMap[ek];
+    if (!t) {
+      for (const [pk, pd] of Object.entries(tutorMap)) {
+        const kp = new Set(pk.split(' '));
+        if ((ep.size >= 2 && [...ep].every(x => kp.has(x))) || (kp.size >= 2 && [...kp].every(x => ep.has(x)))) { t = pd; break; }
+      }
+    }
+    if (!t) {
+      const epArr = ek.split(' ');
+      if (epArr.length >= 2) {
+        const lastName = epArr[epArr.length - 1], firstInit = epArr[0][0];
+        for (const [pk, pd] of Object.entries(tutorMap)) {
+          const pkArr = pk.split(' ');
+          if (pkArr.includes(lastName) && pkArr.some(x => x[0] === firstInit)) { t = pd; break; }
         }
       }
-      console.log('[HR Profiles] Pearl overlay: matched', matched, 'of', Object.keys(tutorAttMap).length, 'instructors');
+    }
+    return t || null;
+  }
+
+  function _hrOverlayPearl() {
+    try {
+      _hrCapturePearl();                      // refresh whichever SY Pearl holds now
+      const curSY = _hrCurSY();
+      const sys = Object.keys(_SY_PEARL_PERIOD).filter(sy => _pearlSnapshot(sy));
+      let matched = 0;
+      for (const emp of HR_EMPS) {
+        emp._pearlBySY = {};
+        for (const sy of sys) {
+          const t = _hrMatchPearl(emp, _pearlSnapshot(sy).tutors);
+          if (t) emp._pearlBySY[sy] = t;
+        }
+        // Top-level "live" fields = the current SY (profiles default view)
+        const cur = emp._pearlBySY[curSY];
+        if (cur) {
+          emp._liveAtt = cur.att; emp._liveAttTotal = cur.total; emp._resolvedPearlName = cur.name;
+          emp._liveSurveyEntry = cur.surv || undefined;
+          emp._liveSessEntry = cur.sess || undefined;
+          emp._liveSchools = cur.schools && cur.schools.length ? cur.schools : undefined;
+          matched++;
+        } else {
+          delete emp._liveAtt; delete emp._liveAttTotal; delete emp._resolvedPearlName;
+          delete emp._liveSurveyEntry; delete emp._liveSessEntry; delete emp._liveSchools;
+        }
+      }
+      console.log('[HR Profiles] Pearl overlay: SY snapshots', sys.join(', ') || 'none', '· current SY', curSY, 'matched', matched);
     } catch(e) { console.warn('[HR Profiles] Pearl overlay error:', e); }
   }
+
+  // One-time background load of a closed SY's Pearl data (e.g. SY 25-26) when its
+  // profiles are opened and no snapshot exists yet: switch Pearl to that period,
+  // capture, then switch Pearl back to where it was.
+  let _pearlSYLoading = null;
+  function _hrEnsurePearlSY(sy) {
+    const period = _SY_PEARL_PERIOD[sy];
+    if (!period || _pearlSnapshot(sy) || _pearlSYLoading) return;
+    const _poReady = typeof po !== 'undefined' && po && typeof po.setPeriod === 'function';
+    if (!_poReady) return;
+    const back = po.getActivePeriod();
+    _pearlSYLoading = sy;
+    try { po.setPeriod(period); } catch(e) { _pearlSYLoading = null; return; }
+    const t0 = Date.now();
+    (function poll() {
+      const done = po.getActivePeriod() === period && _hrCapturePearl();
+      if (done || Date.now() - t0 > 180000) {
+        if (back && back !== period) { try { po.setPeriod(back); } catch(e) {} }
+        _pearlSYLoading = null;
+        _hrInvalidateOverlay();
+        try { if (_pSY === sy) _hrRebuildProfiles(); } catch(e) {}
+        return;
+      }
+      setTimeout(poll, 1500);
+    })();
+  }
+  window._hrEnsurePearlSY = _hrEnsurePearlSY;
 
   // ── Overlay live Program Concerns onto HR_EMPS ────────────────────────────
   // CONCERNS array is already loaded by the Talent concerns fetch.
@@ -2713,7 +2742,14 @@
     v._adpHire  = y.adpHire;  v._adpTerm    = y.adpTerm;
     // Live Pearl fields belong to the current SY — a past-SY view falls back to that
     // person's static (historical) attendance/survey/location instead.
-    if (sy !== _hrCurSY()) { v._liveAtt = undefined; v._liveSurveyEntry = null; v._liveSchools = null; }
+    if (sy !== _hrCurSY()) {
+      const pb = e._pearlBySY && e._pearlBySY[sy];
+      v._liveAtt = pb ? pb.att : undefined;
+      v._liveAttTotal = pb ? pb.total : undefined;
+      v._liveSurveyEntry = pb && pb.surv ? pb.surv : null;
+      v._liveSessEntry = pb && pb.sess ? pb.sess : null;
+      v._liveSchools = pb && pb.schools && pb.schools.length ? pb.schools : null;
+    }
     if (e._concernsBySY) {
       v._liveConcerns = e._concernsBySY[sy] || 0;
       v._liveHRAction = (e._hrActionBySY && e._hrActionBySY[sy]) || null;
@@ -3302,7 +3338,10 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
   <div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;font-weight:600">${label}</div>
 </div>`;
 
-    const summaryBar = `
+    const _pearlNote = (curSY !== 'all' && curSY !== _hrCurSY() && _SY_PEARL_PERIOD[curSY] && !_pearlSnapshot(curSY))
+      ? `<div style="font-size:.72rem;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.45rem .75rem;margin-bottom:.75rem">⏳ Loading ${curSY} Pearl details (attendance, survey, sites) — one-time load, saved for next time.</div>`
+      : '';
+    const summaryBar = _pearlNote + `
 <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:stretch">
   ${statCard(active.length, 'Active Staff', 'var(--navy)')}
   ${statCard(inactive.length, 'Inactive / Term.', '#64748b')}
@@ -3760,6 +3799,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   let _hrLastOverlayVersion = -1;
 
   function _hrInvalidateOverlay() { _hrOverlayVersion++; }  // call when data changes
+  // Pearl Ops, concerns and Data dept call this by name from other script files —
+  // it must be global or those refresh signals are silently dropped.
+  window._hrInvalidateOverlay = function () {
+    _hrInvalidateOverlay();
+    // Pearl just (re)loaded a period — keep that SY's profile snapshot current.
+    try { if (typeof _hrCapturePearl === 'function') _hrCapturePearl(); } catch(e) {}
+  };
 
   // ── Callback: fired by T&D module after obs maps are built ───────────────
   // Re-renders the profiles tab (if active) so obs timelines appear immediately
@@ -4890,7 +4936,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     _pPage    = 0;
     _hrRebuildProfiles();
   };
-  window._hrSetSY = sy => { _pSY = sy; _pSYUserSet = true; _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetSY = sy => { _pSY = sy; _pSYUserSet = true; if (sy !== _hrCurSY()) _hrEnsurePearlSY(sy); _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
   window._hrSetRole    = r  => { _pRole=r;   _pPage=0; _hrRebuildProfiles(); };
   window._hrSetStatus  = s  => { _pStatus=s; _pPage=0; _hrRebuildProfiles(); };
   window._hrDoSearch   = q  => {
