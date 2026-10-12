@@ -585,7 +585,9 @@
       if (filtered.length) {
         const buckets = {};
         ROLE_BUCKETS.forEach(r => { buckets[r] = { filled: 0, total: 0 }; });
-        const num = v => { const n = parseFloat((v || '').toString().replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : Math.round(n); };
+        // Exact values — sites can have half positions (e.g. 0.5 shared tutor); rounding
+        // per site overstated totals. Totals are rounded to 1 decimal after summing.
+        const num = v => { const n = parseFloat((v || '').toString().replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : n; };
         filtered.forEach(r => {
           buckets['Tutor'].total              += num(r.tutorPos);
           buckets['Tutor'].filled             += num(r.tutorFill);
@@ -595,6 +597,10 @@
           buckets['Instructional Coach'].filled += num(r.icFill);
           buckets['Dual Role'].total            += num(r.drPos);
           buckets['Dual Role'].filled           += num(r.drFill);
+        });
+        ROLE_BUCKETS.forEach(r => {
+          buckets[r].total  = Math.round(buckets[r].total  * 10) / 10;
+          buckets[r].filled = Math.round(buckets[r].filled * 10) / 10;
         });
         return buckets;
       }
@@ -744,34 +750,64 @@
   // Locations tab position columns: "Site Leader (Dual Role) Positions" is the Dual Role bucket.
   const OPENING_LABEL = { 'Dual Role': 'Site Leader / Dual Role' };
 
-  function renderOpeningsTable(openings) {
-    if (!openings) return '<p style="color:var(--muted);font-size:.85rem">Open position data requires Tracker data to be loaded.</p>';
-    const rows = ROLE_BUCKETS.map(r => {
-      const d    = openings[r] || { filled: 0, total: 0 };
-      const open = Math.max(0, d.total - d.filled);
-      return `<tr>
-        <td style="padding:.5rem .75rem;font-weight:600;color:var(--navy)">${OPENING_LABEL[r] || r}</td>
-        <td style="padding:.5rem .75rem;text-align:center">${d.total}</td>
-        <td style="padding:.5rem .75rem;text-align:center;color:#059669">${d.filled}</td>
-        <td style="padding:.5rem .75rem;text-align:center;color:${open > 0 ? '#dc2626' : '#059669'};font-weight:700">${open}</td>
-      </tr>`;
-    }).join('');
+  // Locations-tab position groups ↔ roster roles (canonicalRole names).
+  const OPENING_GROUP_ROLES = {
+    'Tutor':               ['Tutor', 'Certified Tutor', 'Sub-Tutor', 'Certified Sub-Tutor'],
+    'Site Coordinator':    ['Site Coordinator'],
+    'Instructional Coach': ['Instructional Coach'],
+    'Dual Role':           ['Site Leader', 'Dual Role'],
+  };
+  // One row per position group: Locations positions + Locations "filled" next to the
+  // staff actually active on the selected roster (same source as Staff by Role), so
+  // the table follows the period / hire-date toggle. Vacancies = Positions − Filled
+  // (Locations tab), as before.
+  function buildOpeningRows(openings, roles) {
+    const byRole = {}; (roles || []).forEach(r => { byRole[r.role] = r; });
+    const rows = ROLE_BUCKETS.map(b => {
+      const d = openings ? (openings[b] || { filled: 0, total: 0 }) : null;
+      const members = OPENING_GROUP_ROLES[b].filter(r => byRole[r] && byRole[r].activeEnd > 0);
+      return {
+        label:     OPENING_LABEL[b] || b,
+        roles:     members.map(r => r + ' ' + byRole[r].activeEnd).join(' · ') || '—',
+        positions: d ? d.total : null,
+        filled:    d ? d.filled : null,
+        active:    OPENING_GROUP_ROLES[b].reduce((a, r) => a + (byRole[r] ? byRole[r].activeEnd : 0), 0),
+        vacancies: d ? Math.max(0, Math.round((d.total - d.filled) * 10) / 10) : null,
+      };
+    });
+    const grouped = new Set([].concat(...Object.values(OPENING_GROUP_ROLES)));
+    const other = (roles || []).filter(r => !grouped.has(r.role) && r.activeEnd > 0);
+    return { rows, other: other.map(r => r.role + ' ' + r.activeEnd).join(' · ') };
+  }
+
+  function renderOpeningsTable(openings, roles) {
+    const { rows, other } = buildOpeningRows(openings, roles);
+    const th = 'padding:.5rem .75rem;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em';
+    const v  = x => x == null ? '—' : x;
+    const body = rows.map(r => `<tr>
+        <td style="padding:.5rem .75rem;font-weight:600;color:var(--navy)">${r.label}<div style="font-size:.7rem;font-weight:400;color:var(--muted)">${r.roles}</div></td>
+        <td style="padding:.5rem .75rem;text-align:center">${v(r.positions)}</td>
+        <td style="padding:.5rem .75rem;text-align:center;color:#059669">${v(r.filled)}</td>
+        <td style="padding:.5rem .75rem;text-align:center;font-weight:700">${r.active}</td>
+        <td style="padding:.5rem .75rem;text-align:center;color:${r.vacancies > 0 ? '#dc2626' : '#059669'};font-weight:700">${v(r.vacancies)}</td>
+      </tr>`).join('');
     return `
       <table style="width:100%;border-collapse:collapse;font-size:.85rem">
-        <thead>
-          <tr style="border-bottom:2px solid var(--border)">
-            <th style="padding:.5rem .75rem;text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Role</th>
-            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Positions</th>
-            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Filled</th>
-            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Vacancies</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+        <thead><tr style="border-bottom:2px solid var(--border)">
+          <th style="${th};text-align:left">Position Group (roster roles)</th>
+          <th style="${th};text-align:center">Positions</th>
+          <th style="${th};text-align:center">Filled (Locations tab)</th>
+          <th style="${th};text-align:center">Active on Roster</th>
+          <th style="${th};text-align:center">Vacancies</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      ${other ? `<div style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Not a budgeted position on the Locations tab: ${other}</div>` : ''}
+      ${!openings ? '<div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">Positions / Filled load from the Locations tab (open SY Site Analytics once if blank).</div>' : ''}`;
   }
 
   // ── CSV export ────────────────────────────────────────────────────────────────
-  function exportCSV(stats, periodLabel, roles) {
+  function exportCSV(stats, periodLabel, roles, openings) {
     const rows = [
       ['Period','Month','Total Employees','New Hires','Voluntary Terminations','Involuntary Terminations','Program Completion Separations','Total Separations'],
       ...stats.map(s => [s.periodLabel || periodLabel, s.label, s.total, s.newHires, s.voluntary, s.involuntary, s.programEnd, s.termTotal]),
@@ -781,6 +817,14 @@
       rows.push(['Staff by Role — ' + periodLabel]);
       rows.push(['Role','Employees','New Hires','Voluntary Terminations','Involuntary Terminations','Program Completion Separations','Active at Period End']);
       roles.forEach(r => rows.push([r.role, r.employees, r.newHires == null ? '' : r.newHires, r.voluntary, r.involuntary, r.programEnd, r.activeEnd]));
+    }
+    if (openings !== undefined && roles) {
+      const op = buildOpeningRows(openings, roles);
+      rows.push([]);
+      rows.push(['Open Positions — ' + periodLabel]);
+      rows.push(['Position Group','Roster Roles','Positions','Filled (Locations tab)','Active on Roster','Vacancies']);
+      op.rows.forEach(r => rows.push([r.label, r.roles, r.positions == null ? '' : r.positions, r.filled == null ? '' : r.filled, r.active, r.vacancies == null ? '' : r.vacancies]));
+      if (op.other) rows.push(['Not a budgeted position', op.other]);
     }
     const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -821,16 +865,15 @@
         <td style="text-align:center">${rSum('voluntary')}</td><td style="text-align:center">${rSum('involuntary')}</td>
         <td style="text-align:center">${rSum('programEnd')}</td><td style="text-align:center">${rSum('activeEnd')}</td>
       </tr>` : '');
-    const openRows = openings ? ROLE_BUCKETS.map(r => {
-      const d    = openings[r] || { filled: 0, total: 0 };
-      const open = Math.max(0, d.total - d.filled);
-      return `<tr>
-        <td>${OPENING_LABEL[r] || r}</td>
-        <td style="text-align:center">${d.total}</td>
-        <td style="text-align:center">${d.filled}</td>
-        <td style="text-align:center;color:${open > 0 ? '#dc2626' : '#059669'}">${open}</td>
-      </tr>`;
-    }).join('') : '';
+    const _op = buildOpeningRows(openings, roles);
+    const _ov = x => x == null ? '—' : x;
+    const openRows = _op.rows.map(r => `<tr>
+        <td>${r.label}<div style="font-size:7.5pt;color:#64748b">${r.roles}</div></td>
+        <td style="text-align:center">${_ov(r.positions)}</td>
+        <td style="text-align:center">${_ov(r.filled)}</td>
+        <td style="text-align:center;font-weight:700">${r.active}</td>
+        <td style="text-align:center;color:${r.vacancies > 0 ? '#dc2626' : '#059669'}">${_ov(r.vacancies)}</td>
+      </tr>`).join('');
 
     const totalProgEnd  = stats.reduce((a, s) => a + s.programEnd, 0);
     const totalVol      = stats.reduce((a, s) => a + s.voluntary, 0);
@@ -900,11 +943,12 @@
     <thead><tr><th>Role</th><th style="text-align:center">Employees</th><th style="text-align:center">New Hires</th><th style="text-align:center">Voluntary</th><th style="text-align:center">Involuntary</th><th style="text-align:center">Program Completions</th><th style="text-align:center">Active at Period End</th></tr></thead>
     <tbody>${roleRows}</tbody>
   </table>` : ''}
-  ${openings ? `<h2>Open Positions (Locations tab)</h2>
+  ${(openings || roleList.length) && !showPeriod ? `<h2>Open Positions</h2>
   <table>
-    <thead><tr><th>Role</th><th style="text-align:center">Positions</th><th style="text-align:center">Filled</th><th style="text-align:center">Vacancies</th></tr></thead>
+    <thead><tr><th>Position Group (roster roles)</th><th style="text-align:center">Positions</th><th style="text-align:center">Filled (Locations tab)</th><th style="text-align:center">Active on Roster</th><th style="text-align:center">Vacancies</th></tr></thead>
     <tbody>${openRows}</tbody>
-  </table>` : ''}
+  </table>
+  ${_op.other ? `<p style="font-size:8pt;color:#64748b">Not a budgeted position on the Locations tab: ${_op.other}</p>` : ''}` : ''}
   <div class="footer">
     NJTC Central Team Portal &bull; Confidential — For internal DOL reporting use only &bull; Impact Solutions Group LLC
   </div>
@@ -1137,9 +1181,9 @@
 
           <!-- Open positions -->
           <div>
-            <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Open Positions (Locations tab)</div>
+            <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Open Positions</div>
             <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem">
-              ${isAll ? '<p style="color:var(--muted);font-size:.85rem">Select a single period to see open positions.</p>' : renderOpeningsTable(openings)}
+              ${isAll ? '<p style="color:var(--muted);font-size:.85rem">Select a single period to see open positions.</p>' : renderOpeningsTable(openings, roles)}
             </div>
             ${period.source === 'tracker' && !trackerRows().length ? `<p style="color:#d97706;font-size:.78rem;margin-top:.5rem">${_loading ? '⏳ Loading Onsite Tracker…' : '⚠ Onsite Tracker could not be loaded — try refreshing the page.'}</p>` : ''}
           </div>
@@ -1156,7 +1200,7 @@
       };
       // Downloads are submitted to DOL: they carry only the selected source's counts —
       // never the source name or the on-screen "not counted" / discrepancy notes.
-      window.__dolExportCSV = function() { exportCSV(stats, period.label, roles); };
+      window.__dolExportCSV = function() { exportCSV(stats, period.label, roles, isAll ? undefined : openings); };
       window.__dolExportPDF = function() { exportPDF(stats, period.label, openings, isAll, roles); };
     }
 
