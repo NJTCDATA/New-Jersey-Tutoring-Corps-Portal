@@ -162,3 +162,11 @@ html, body { overflow-x: clip; }
   .sl-row > *:nth-child(7) { text-align: right; }
   .sl-row .sl-resolve-btn { width: 100%; text-align: center; justify-content: center; }
 }
+
+/* ── Data Compass and PIE both live bottom-right ─────────────────────────────
+   Laptops: the Compass sits just left of the PIE button (portal-status.js measures
+   PIE's width, which changes with its label). Phones: PIE is a small round button
+   with no speech bubble, so the Compass stacks above it. */
+@media (max-width: 640px) {
+  #govBeacon { bottom: calc(1.5rem + 60px + .6rem) !important; right: calc(1.5rem + 3px) !important; }
+}

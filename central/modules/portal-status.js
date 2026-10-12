@@ -233,7 +233,20 @@
   `;
   document.head.appendChild(css);
 
-  setInterval(() => { if (!document.hidden) render(); }, 3000);
+  // Keep the Data Compass button beside the PIE button (laptops) so PIE never covers it
+  function placeCompass() {
+    const g = document.getElementById('govBeacon'), p = document.getElementById('pieTrigger');
+    if (!g) return;
+    if (window.innerWidth <= 640 || !p || getComputedStyle(p).display === 'none') { g.style.right = ''; g.style.bottom = ''; return; }
+    const r = p.getBoundingClientRect();
+    if (!r.width) return;
+    g.style.right = Math.round(window.innerWidth - r.left + 12) + 'px';
+    g.style.bottom = Math.round(window.innerHeight - r.bottom + (r.height - 44) / 2) + 'px';
+  }
+  window.addEventListener('resize', placeCompass, { passive: true });
+
+  setInterval(() => { if (!document.hidden) { render(); placeCompass(); } }, 3000);
+  setTimeout(placeCompass, 1200);
   document.addEventListener('click', () => setTimeout(render, 400), true);   // after page switches
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render); else render();
 })();
