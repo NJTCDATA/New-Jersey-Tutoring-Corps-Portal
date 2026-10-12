@@ -3372,10 +3372,18 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     const hasMore = filtered.length > PAGE_SIZE;
 
     // ── Header summary stats ──────────────────────────────────────
+    const _PTIPS = {
+      'Active Staff':     'Staff marked Active on the HR Master List for the school year selected above.',
+      'Inactive / Term.': 'Staff on the HR Master List for this school year who are no longer Active: separated, or closed out when the year ended.',
+      'High Performers':  'Active staff whose performance score is Stellar (75% or higher) or Strong (55–74%).',
+      'Active Concerns':  'Active staff with at least one performance concern filed during this school year.',
+      'Avg Attendance':   'Average Pearl attendance rate of the active staff who have attendance data.',
+      'New This SY':      'Active staff who are first-time hires (not rehires) on the HR Master List.',
+    };
     const statCard = (val, label, color='var(--navy)') =>
       `<div style="text-align:center;padding:.75rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:90px">
   <div style="font-size:1.5rem;font-weight:900;color:${color};line-height:1">${val}</div>
-  <div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;font-weight:600">${label}</div>
+  <div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;font-weight:600">${label}${_PTIPS[label] && window.njtcTip ? window.njtcTip(_PTIPS[label]) : ''}</div>
 </div>`;
 
     const _pearlNote = (curSY !== 'all' && curSY !== _hrCurSY() && _SY_PEARL_PERIOD[curSY] && !_pearlSnapshot(curSY))

@@ -46,6 +46,8 @@
         { t: ['#homeTitle'], title: 'Your department home', text: d => isExec(d)
             ? 'This is your home base. Everything here is live, and it refreshes on its own.'
             : 'This is your home base: your department\'s goals, shortcuts and next meeting, all in one place.' },
+        { t: ['#njtcSearchBtn'], title: 'Search', text: 'Find a staff member, a school or a page in one step. Click here or press the / key, start typing, and pick a result.' },
+        { t: ['.panel.active .njtc-status'], title: 'Updated time & Report a problem', text: 'Under each page title: when that page\'s data was last updated, or a warning if something didn\'t load. If a number looks wrong, use ⚑ Report a problem and it goes to the Data & Evaluation team.' },
         { t: ['#homeShortcuts .hs-row'], title: 'Your shortcuts', text: 'One click to the pages your team uses every day.' },
         { t: ['#homeShortcuts .hs-att'], title: 'Needs your attention', text: 'Anything waiting on you, with a count. "Show list" lists the names (click one to open their profile), and the dark button opens the page where you fix it. It updates on its own as data loads.' },
         { t: ['#lbMeetingPill'], title: 'Next team meeting', text: 'The next biweekly team meeting is always shown here, so you never have to look it up.' },
