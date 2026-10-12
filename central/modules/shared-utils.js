@@ -5497,6 +5497,7 @@
   }
   // ── Talent live-data status ─────────────────────────────────────────────────
   let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
+  window._njtcConcernsStatus = () => _talentLiveStatus;   // read by Home → Needs attention (Data)
 
   // Published CSV URL — must use pub?output=csv (not /export which requires login)
   // Base URL targets Form Responses tab via gid=274671201

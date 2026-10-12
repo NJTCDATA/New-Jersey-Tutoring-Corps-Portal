@@ -47,7 +47,7 @@
             ? 'This is your home base. Everything here is live, and it refreshes on its own.'
             : 'This is your home base: your department\'s goals, shortcuts and next meeting, all in one place.' },
         { t: ['#homeShortcuts .hs-row'], title: 'Your shortcuts', text: 'One click to the pages your team uses every day.' },
-        { t: ['#homeShortcuts .hs-att'], only: ['hr', 'programming'], title: 'Needs your attention', text: 'Anything waiting on you, with a count. "Show list" lists the names (click one to open their profile), and the dark button opens the page where you fix it. It updates on its own as data loads.' },
+        { t: ['#homeShortcuts .hs-att'], title: 'Needs your attention', text: 'Anything waiting on you, with a count. "Show list" lists the names (click one to open their profile), and the dark button opens the page where you fix it. It updates on its own as data loads.' },
         { t: ['#lbMeetingPill'], title: 'Next team meeting', text: 'The next biweekly team meeting is always shown here, so you never have to look it up.' },
         { t: ['#execDashboard'], only: EXEC, title: 'Executive Command Center', text: 'The whole program at a glance. Use the school-year buttons to compare SY 25-26, Summer 2026 and SY 26-27, and ↺ Refresh to pull the latest data.' },
         { t: ['#homeDeptWidget'], only: ['hr', 'leadership', 'data', 'kb'], title: 'Staff attrition & onboarding', text: 'HR & Data termination analytics and the onsite onboarding tracker: who has left, why, and how new staff are moving through onboarding.' },

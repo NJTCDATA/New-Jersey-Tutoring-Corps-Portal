@@ -68,7 +68,7 @@
     leadership:  ['execCenter', 'kpi', 'talent', 'tapDash', 'annual', 'drive'],
     kb:          ['execCenter', 'kpi', 'talent', 'tapDash', 'annual', 'drive'],
   };
-  const ATTENTION_DEPTS = ['hr', 'programming'];
+  const ATTENTION_DEPTS = ['hr', 'programming', 'data', 'training', 'finance', 'leadership', 'kb'];
 
   // ── Shared name matching (ignores middle names/initials and punctuation) ──
   const toks = n => (n || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(t => t.length > 1);
@@ -215,7 +215,7 @@
     return _fsCache;
   }
 
-  function programmingItems() {
+  function programmingItems(withWeek) {
     const items = [], loading = [];
     const F = fieldSupportResults();
     if (!F) { loading.push('Pearl session data'); return { items, loading }; }
@@ -233,12 +233,181 @@
     if (T.blankReasons) items.push({ icon: '❔', tone: 'amber', count: T.blankReasons,
       text: 'Absence' + (T.blankReasons === 1 ? '' : 's') + ' with no reason entered', rows: tutorRows('blankReasons'),
       open: 'Open Field Support Report', go: () => fieldSupport() });
+    if (withWeek === false) return { items, loading };
     const low = F.week.schools.filter(s => s.scholarAttendance !== null && s.scholarAttendance < 80)
       .sort((a, b) => a.scholarAttendance - b.scholarAttendance)
       .map(s => ({ n: s.school, sub: s.scholarAttendance + '% scholar attendance · ' + s.delivered + ' sessions' }));
     if (low.length) items.push({ icon: '📉', tone: 'red', count: low.length,
       text: 'Campus' + (low.length === 1 ? '' : 'es') + ' below the 80% scholar attendance target in the last 7 days', rows: low,
       open: 'Open Field Support Report', go: () => fieldSupport(F.wkFrom, F.wkTo) });
+    return { items, loading };
+  }
+
+  // ── Shared pieces for the remaining departments ───────────────────────────
+  const syLabel = sy => sy ? 'SY ' + sy.slice(2, 4) + '-' + sy.slice(7, 9) : 'this school year';
+  const plural = (n, one, many) => n === 1 ? one : (many || one + 's');
+
+  // Apprentices flagged for OTJ follow-up — the same rule and list as the
+  // "TAP Central Dashboard" card (executive-leadership.js → njtcAPCache.hasFlag).
+  function otjFlagItem(goLabel, goFn) {
+    const AP = window.AP_DATA, cache = window.njtcAPCache;
+    if (!Array.isArray(AP) || !AP.length || !cache) return { loading: 'Apprentice roster' };
+    const rows = AP.filter(r => r.apprentice === 'Yes' && !r._hrOnly && cache[r.name] && cache[r.name].hasFlag)
+      .map(r => {
+        const st = cache[r.name].otjStatus || {};
+        const why = [];
+        if (/not started/i.test(st.beginning || '')) why.push('Beginning OTJ: ' + st.beginning);
+        if (!st.siteLeader || st.siteLeader === '—') why.push('no site leader listed');
+        if (!why.length) why.push('Beginning ' + (st.beginning || '—') + ' · Middle ' + (st.middle || '—'));
+        return { n: r.name, sub: [r.site, why.join(' · ')].filter(Boolean).join(' · '), profile: (window.HR_EMPS || []).some(e => e.n === r.name) };
+      }).sort((a, b) => a.n.localeCompare(b.n));
+    if (!rows.length) return {};
+    return { item: { icon: '🎓', tone: 'red', count: rows.length,
+      text: plural(rows.length, 'Apprentice') + ' flagged for OTJ follow-up', rows, open: goLabel, go: goFn } };
+  }
+
+  // TAP Master Roster (loaded on demand — the TAP Dashboard normally loads it)
+  let _tapAsked = false;
+  function tapRoster() {
+    const R = window._njtcTapRoster;
+    if (R && Array.isArray(R.apprentices)) return R.apprentices;
+    if (!_tapAsked && typeof window.fetchTapRoster === 'function') {
+      _tapAsked = true;
+      Promise.resolve(window.fetchTapRoster()).catch(() => {}).then(scheduleRender);
+    }
+    return null;
+  }
+  const isApprenticeTrack = a => typeof window._roleCategory === 'function'
+    ? window._roleCategory(a) === 'Apprentice'
+    : (!String(a.programTrack || '').trim() || /^apprentice/i.test(a.programTrack));
+
+  // ── Data & Evaluation ─────────────────────────────────────────────────────
+  function dataItems() {
+    const items = [], loading = [];
+    // Anything that didn't load (checked after the page has had time to load)
+    if (_since && Date.now() - _since > 90000) {
+      const down = [];
+      if (!window._hrDataFetched || !(window.HR_EMPS || []).length) down.push({ n: 'HR Master List', sub: 'not loaded — staff numbers use the saved copy' });
+      else if (window._njtcHRSource === 'published') down.push({ n: 'HR Master List', sub: 'read from the out-of-date "Publish to web" copy' });
+      if (!(window._njtcOnsiteRoster2627 || []).length) down.push({ n: 'Onsite Tracker', sub: 'roster not loaded' });
+      const st = typeof window._njtcConcernsStatus === 'function' ? window._njtcConcernsStatus() : '';
+      if (st === 'fallback') down.push({ n: 'Performance concern log', sub: 'not loaded — showing the saved copy' });
+      const po = window.po;
+      const att = po && typeof po.getFieldSupportInput === 'function' ? (po.getFieldSupportInput('ALL').attRows || []) : [];
+      if (!att.length) down.push({ n: 'Pearl session data', sub: 'not loaded' });
+      if (window._njtcTapRosterError) down.push({ n: 'TAP Master Roster', sub: window._njtcTapRosterError });
+      if (down.length) items.push({ icon: '⚠️', tone: 'red', count: down.length,
+        text: 'Data ' + plural(down.length, 'source') + ' that didn\'t load correctly', rows: down,
+        open: 'Open Data Sources', go: () => nav('data-cabinet') });
+    }
+    const P = programmingItems(false);
+    return { items: items.concat(P.items), loading: P.loading };
+  }
+
+  // ── Training & Development ────────────────────────────────────────────────
+  function trainingItems() {
+    const items = [], loading = [];
+    const f = otjFlagItem('Open Apprentice Analytics', () => nav('tap-standalone'));
+    if (f.loading) loading.push(f.loading);
+    if (f.item) items.push(f.item);
+    // Eligible staff not yet enrolled — same list as the TAP card's "Eligible" tile
+    if (Array.isArray(window.AP_DATA) && window.AP_DATA.length) {
+      const rows = window.AP_DATA.filter(r => r.apprentice === 'No')
+        .map(r => ({ n: r.name, sub: [r.role, r.site].filter(Boolean).join(' · '), profile: (window.HR_EMPS || []).some(e => e.n === r.name) }))
+        .sort((a, b) => a.n.localeCompare(b.n));
+      if (rows.length) items.push({ icon: '🌱', tone: 'blue', count: rows.length,
+        text: 'Staff eligible for the apprenticeship who aren\'t enrolled yet' + (window.AP_SY ? ' (' + syLabel(window.AP_SY) + ')' : ''), rows,
+        open: 'Open Apprentice Analytics', go: () => nav('tap-standalone') });
+    }
+    return { items, loading };
+  }
+
+  // ── Finance ───────────────────────────────────────────────────────────────
+  function financeItems() {
+    const items = [], loading = [];
+    const apps = tapRoster();
+    if (!apps) loading.push('TAP Master Roster');
+    else {
+      const appr = apps.filter(isApprenticeTrack);
+      // Pay rate on the roster is below the wage tier their OJT hours have reached
+      if (typeof window.njtcWageTier === 'function') {
+        const rows = appr.map(a => {
+          const tier = window.njtcWageTier(a.ojtHours || 0);
+          const cur = parseFloat(String(a.wage || '').replace(/[^0-9.]/g, '')) || 0;
+          return cur > 0 && cur < tier.wage ? { n: a.name, sub: (a.ojtHours || 0).toLocaleString() + ' OJT hrs · roster $' + cur.toFixed(2) + ' · ' + tier.label + ' tier $' + tier.wage.toFixed(2) } : null;
+        }).filter(Boolean).sort((a, b) => a.n.localeCompare(b.n));
+        if (rows.length) items.push({ icon: '💰', tone: 'red', count: rows.length,
+          text: plural(rows.length, 'Apprentice') + ' whose pay rate is below the wage tier their OJT hours have reached', rows,
+          open: 'Open TAP Dashboard', go: () => nav('tap-standalone') });
+      }
+      const noId = appr.filter(a => !(a.usdol || '').trim())
+        .map(a => ({ n: a.name, sub: [a.site, a.region].filter(Boolean).join(' · ') })).sort((a, b) => a.n.localeCompare(b.n));
+      if (noId.length) items.push({ icon: '🪪', tone: 'amber', count: noId.length,
+        text: plural(noId.length, 'Apprentice') + ' with no USDOL Apprentice ID yet', rows: noId,
+        open: 'Open TAP Dashboard', go: () => nav('tap-standalone') });
+    }
+    // High-risk districts — same calculation as the Partnership Risk page
+    if (typeof window.njtcFinanceRisk === 'function') {
+      const R = window.njtcFinanceRisk();
+      const rows = R.distMatrix.filter(d => d.riskScore >= 4).map(d => ({ n: d.dist,
+        sub: [d.hr.concerns + ' ' + plural(d.hr.concerns, 'concern'), d.hr.escalated ? d.hr.escalated + ' escalated' : '',
+              d.tutorAtt !== null ? 'tutor attendance ' + d.tutorAtt + '%' : ''].filter(Boolean).join(' · ') }));
+      if (rows.length) items.push({ icon: '🏢', tone: 'red', count: rows.length,
+        text: 'High-risk ' + plural(rows.length, 'district') + ' on Partnership Risk', rows,
+        open: 'Open Partnership Risk', go: () => nav('finance-analytics') });
+    }
+    return { items, loading };
+  }
+
+  // ── Leadership / Executive ────────────────────────────────────────────────
+  function leadershipItems() {
+    const items = [], loading = [];
+    // KPIs not met — same status rule as the Home goal tiles
+    const K = window.KPI_DATA;
+    if (Array.isArray(K) && K.length) {
+      const hasEOY = K.some(k => k.endStatus && k.endStatus.trim());
+      const getS = k => (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
+      const rows = K.filter(k => getS(k) === 'Has Not Met').map(k => ({ n: k.target, sub: k.goal }));
+      if (rows.length) items.push({ icon: '🎯', tone: 'red', count: rows.length,
+        text: 'KPI ' + plural(rows.length, 'target') + ' not met' + (window.NJTC_KPI_SY ? ' (' + (/^sy/i.test(window.NJTC_KPI_SY) ? '' : 'SY ') + window.NJTC_KPI_SY + ')' : ''), rows,
+        open: 'Open KPI Targets', go: () => { nav('kpi'); setTimeout(() => { if (typeof window.setKpiFilter === 'function') window.setKpiFilter('Has Not Met'); }, 100); } });
+    }
+    // Staff at a formal HR step this school year (write-up, PGP, termination)
+    const HR = window.HR_EMPS || [];
+    const curSY = typeof window._hrCurSY === 'function' ? window._hrCurSY() : '';
+    if (!window._hrDataFetched || !curSY) loading.push('HR Master List');
+    else if (Array.isArray(window.CONCERNS) && typeof window._hrConcernMatches === 'function') {
+      const sySOf = window._njtcConcernSY || (() => '');
+      const formal = a => /write\s*up|progress report|\bpgp\b|terminat/i.test(a || '');
+      const by = new Map();
+      window.CONCERNS.forEach(c => {
+        if (!c.emp || sySOf(c) !== curSY || !formal(c.hr_action)) return;
+        const emp = HR.find(e => window._hrConcernMatches(e.n, c));
+        if (!emp || ((emp._byYear || {})[curSY] || {}).s !== 'Active') return;   // still on staff this SY
+        const k = emp.n;
+        const cur = by.get(k);
+        if (!cur || new Date(c.ts) > new Date(cur.ts)) by.set(k, c);
+      });
+      const rows = [...by.entries()].map(([n, c]) => ({ n, sub: c.hr_action + ' · ' + (c.ts || '').split(' ')[0] }))
+        .sort((a, b) => a.n.localeCompare(b.n));
+      if (rows.length) items.push({ icon: '⚠️', tone: 'red', count: rows.length,
+        text: 'Active ' + plural(rows.length, 'staff member') + ' at a formal HR step in ' + syLabel(curSY) + ' (write-up, PGP or recommended termination)', rows,
+        open: 'Open Performance Concerns', go: () => nav('perf') });
+    }
+    // Campuses needing high support — Field Support Report rating
+    const F = fieldSupportResults();
+    if (!F) loading.push('Pearl session data');
+    else {
+      const rows = F.all.schools.filter(s => s.support === 'High').map(s => ({ n: s.school,
+        sub: [s.scholarAttendance !== null ? s.scholarAttendance + '% scholar attendance' : '', s.tutorAttendance !== null ? s.tutorAttendance + '% tutor attendance' : '',
+              s.dataFixes ? s.dataFixes + ' data ' + plural(s.dataFixes, 'fix', 'fixes') : ''].filter(Boolean).join(' · ') }));
+      if (rows.length) items.push({ icon: '🏫', tone: 'amber', count: rows.length,
+        text: plural(rows.length, 'Campus', 'Campuses') + ' rated High support on the Field Support Report', rows,
+        open: 'Open Pearl Operations', go: () => nav('pearl-ops') });
+    }
+    const f = otjFlagItem('Open TAP Dashboard', () => nav('tap-standalone'));
+    if (f.loading) loading.push(f.loading);
+    if (f.item) items.push(f.item);
     return { items, loading };
   }
 
@@ -267,7 +436,14 @@
 
   function attentionHTML(dept) {
     if (!ATTENTION_DEPTS.includes(dept)) return '';
-    const res = dept === 'hr' ? hrItems() : programmingItems();
+    const res = dept === 'hr' ? hrItems()
+              : dept === 'programming' ? programmingItems()
+              : dept === 'data' ? dataItems()
+              : dept === 'training' ? trainingItems()
+              : dept === 'finance' ? financeItems()
+              : leadershipItems();
+    // The Leadership view has no staff profiles — show names without profile links there.
+    if (dept === 'leadership') res.items.forEach(it => (it.rows || []).forEach(r => { r.profile = false; }));
     _items = res.items;
     const body = res.items.length
       ? res.items.map((it, i) => {
