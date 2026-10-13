@@ -963,8 +963,8 @@
     };
   }
 
-  // Pearl "zzz"-prefixed schools/districts are archived — never shown.
-  const _isArchived = v => /^\s*z{3}/i.test(v || '');
+  // Pearl "zzz"-prefixed schools/districts are archived — never shown. "NJTC" = internal test site, also hidden.
+  const _isArchived = v => /^\s*(z{3}|njtc\s*$)/i.test(v || '');
   const _liveRows = rows => (rows || []).filter(r => !_isArchived(r['School'] || r['Site']) && !_isArchived(r['District'] || r['district']));
 
   function filterData(rawAtt, rawStu, rawSess, rawLogin, rawEnhancement, leaderDistricts, leaderName) {

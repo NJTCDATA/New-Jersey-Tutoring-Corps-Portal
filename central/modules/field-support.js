@@ -95,7 +95,7 @@
     const from = input.from || '', to = input.to || '';
 
     const inScope = (school, district) => {
-      if (!school || /^\s*z{3}/i.test(school) || /^\s*z{3}/i.test(district || '')) return false;
+      if (!school || /^\s*(z{3}|njtc\s*$)/i.test(school) || /^\s*(z{3}|njtc\s*$)/i.test(district || '')) return false;
       if (schoolF && school !== schoolF) return false;
       if (region !== 'ALL' && input.regionOf(school, district) !== region) return false;
       return true;

@@ -563,7 +563,21 @@
   `;
   document.head.appendChild(css);
 
-  window.njtcHome = { render, refresh: scheduleRender };
+  // PIE reads the same list Home shows, so its answers always match the page.
+  function attention(dept) {
+    dept = dept || _dept;
+    try {
+      return dept === 'hr' ? hrItems()
+           : dept === 'programming' ? programmingItems()
+           : dept === 'data' ? dataItems()
+           : dept === 'training' ? trainingItems()
+           : dept === 'finance' ? financeItems()
+           : (dept === 'leadership' || dept === 'kb') ? leadershipItems()
+           : { items: [], loading: [] };
+    } catch (e) { return { items: [], loading: ['portal data'] }; }
+  }
+
+  window.njtcHome = { render, refresh: scheduleRender, attention };
   // Home may already be built if this file loads late
   try { if (window._currentDept && document.getElementById('panel-home')) render(window._currentDept); } catch (e) {}
 })();
