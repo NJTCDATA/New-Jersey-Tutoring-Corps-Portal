@@ -53,7 +53,7 @@
     if (!(links() && links().canOpenPanel('pearl-ops'))) return [];
     let names = [];
     try { names = po.getFieldSupportInput('ALL').schoolNames || []; } catch (e) {}
-    return names.filter(n => n && !/^\s*z{3}/i.test(n)).map(n => ({ kind: 'School', label: n, sub: 'Pearl Operations',
+    return names.filter(n => n && !/^\s*(z{3}|njtc\s*$)/i.test(n)).map(n => ({ kind: 'School', label: n, sub: 'Pearl Operations',
       go: () => { links().go('#/pearl-ops'); setTimeout(() => { try { po.drillSchool(n); } catch (e) {} }, 400); } }));
   }
 

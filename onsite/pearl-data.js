@@ -303,8 +303,9 @@
     if (attRes.status === 'rejected') throw attRes.reason;
 
     // Pearl marks archived schools/districts with a "zzz" prefix — never shown.
+    // A school or district named exactly "NJTC" is the internal Pearl test site — also hidden.
     // (Header row 0 is always kept.)
-    const zzz = v => /^\s*z{3}/i.test(v || '');
+    const zzz = v => /^\s*(z{3}|njtc\s*$)/i.test(v || '');
     const live = (rows, sIdx, dIdx) => rows.filter((r, i) => i === 0 || (!zzz(r[sIdx]) && !zzz(r[dIdx])));
     const attRows  = live(normalizeAttRows(attRes.value), ATT.SCHOOL, ATT.DISTRICT);
     const instRows = instRes.status === 'fulfilled' ? live(instRes.value, INST.SCHOOL, INST.DISTRICT) : [];

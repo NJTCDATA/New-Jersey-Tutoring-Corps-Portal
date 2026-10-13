@@ -80,7 +80,8 @@ var SW_KW_D = ['american paradigm','first philadelphia','first philly','philadel
                'hamilton township','pemberton township','gloucester township'];
 // SY 26-27 SW sites checked before NE (iLearn CMO) — mirrors programming.js _SW_PRIORITY
 var SW_PRIORITY = ['pemberton','denbo','crichton','greenwood',
-                   'hamilton township','hamilton twp','lea - hamilton','lea- hamilton'];
+                   'hamilton township','hamilton twp','lea - hamilton','lea- hamilton',
+                   'global leadership','glaw'];
 // School-level: SW explicit list (mirrors programming.js SW_SCHOOLS)
 var SW_SCHOOLS_LIST = ['erial','loring flemming','field street','penns grove middle',
                        'van sciver','strawbridge','first philadelphia prep','first philly prep',
@@ -90,7 +91,7 @@ var SW_SCHOOLS_LIST = ['erial','loring flemming','field street','penns grove mid
 function getRegion(school, district) {
   var s = (school  || '').toLowerCase().trim();
   var d = (district|| '').toLowerCase().trim();
-  if (s.startsWith('zzz')) return null;
+  if (/^\s*(z{3}|njtc\s*$)/i.test(s)) return null;
   for (var i=0;i<SW_PRIORITY.length;i++) if (d.includes(SW_PRIORITY[i]) || s.includes(SW_PRIORITY[i])) return 'SW';
   // District match (highest priority)
   for (var i=0;i<NE_KW_D.length;i++) if (d.includes(NE_KW_D[i])) return 'NE';
@@ -273,7 +274,7 @@ function processRows(attRows, selectedIds, region, dateRange, districtFilter, sc
   var events = [];
   attRows.forEach(function(r) {
     var school = r[C.SCHOOL] || '';
-    if (school.toLowerCase().startsWith('zzz')) return;
+    if (/^\s*(z{3}|njtc\s*$)/i.test(school)) return;
     if (r[C.ROLE] !== 'Student') return;
     if (r[C.ATT_STATUS] !== 'Missed') return;
     var date = parseDateStr(r[C.SESS_DATE]);
@@ -435,7 +436,7 @@ function populateDistrictSchool() {
   rows.forEach(function(r) {
     var school = r[C.SCHOOL] || '';
     var dist   = r[C.DISTRICT] || '';
-    if (!school || school.toLowerCase().startsWith('zzz')) return;
+    if (!school || /^\s*(z{3}|njtc\s*$)/i.test(school)) return;
     if (dist) districtSet[dist] = true;
     if (!schoolByDist[dist]) schoolByDist[dist] = {};
     schoolByDist[dist][school] = true;

@@ -39,7 +39,7 @@
     return n >= 1 ? n : 0;
   }
 
-  function isArchived(s) { return /^\s*zzz/i.test(String(s || '')); }
+  function isArchived(s) { return /^\s*(z{3}|njtc\s*$)/i.test(String(s || '')); }
 
   /**
    * compute(rows, { classify(row) -> 'attended'|'absent'|'service_interruption'|...,

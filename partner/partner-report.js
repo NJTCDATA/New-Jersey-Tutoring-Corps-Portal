@@ -65,7 +65,8 @@
 
   // Pearl marks retired/archived schools and districts with a "zzz" prefix —
   // not part of any program, so they never reach any dashboard or report.
-  function isArchivedName(v) { return /^\s*z{3}/i.test(v || ''); }
+  // A school or district named exactly "NJTC" is the internal Pearl test site — also dropped.
+  function isArchivedName(v) { return /^\s*(z{3}|njtc\s*$)/i.test(v || ''); }
 
   // Canonical formats (the SY 25-26 published export): dates "MM/DD/YYYY",
   // attendance start "h:mm AM", timestamps "MM/DD/YYYY h:mm:ss AM". Session

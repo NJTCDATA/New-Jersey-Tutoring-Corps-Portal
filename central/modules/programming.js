@@ -382,7 +382,7 @@
         const district = (cols2[CM.DISTRICT] || '').replace(/\n/g, ' ').trim();
         const school   = (cols2[CM.SCHOOL]   || '').replace(/\n/g, ' ').trim();
         if (!district || !school) continue;  // INCLUSION RULE — non-negotiable
-        if (/^\s*z{3}/i.test(district) || /^\s*z{3}/i.test(school)) continue;  // "zzz" = archived, not in program
+        if (/^\s*(z{3}|njtc\s*$)/i.test(district) || /^\s*(z{3}|njtc\s*$)/i.test(school)) continue;  // "zzz" = archived, not in program
 
         const g = idx => idx >= 0 ? (cols2[idx] || '').replace(/\n/g, ' ').trim() : '';
         const n = idx => { if (idx < 0) return 0; const v = g(idx); if (!v) return 0; const f = parseFloat(v); return isNaN(f) ? 0 : f; };
@@ -1694,8 +1694,9 @@
     }
 
     // Pearl prefixes retired/archived schools and districts with "zzz" — not
-    // part of any program, so they're excluded from every Pearl view.
-    function _isArchivedName(v) { return /^\s*z{3}/i.test(v || ''); }
+    // part of any program, so they're excluded from every Pearl view. A school or
+    // district named exactly "NJTC" is the internal Pearl test site — also excluded.
+    function _isArchivedName(v) { return /^\s*(z{3}|njtc\s*$)/i.test(v || ''); }
     // Every "HADDON TWP ONLY -- …" reason (whole group support, program
     // redevelopment, …) is Haddon Township-only. Logged anywhere else (e.g. iLearn CMO) it is treated
     // as "NJTC Internal Issue/Error" — even if Pearl's backend has it that way.
@@ -1936,14 +1937,16 @@
     // SY 26-27 South-West sites — the ONLY SW districts that year; every other site
     // (all of iLearn CMO included) is NE. Checked before the NE keywords.
     //   Pemberton Township → Denbo-Crichton School;  Hamilton Township → Greenwood ES
+    //   Global Leadership Academy (district = school) → SW team
     const _SW_PRIORITY = ['pemberton','denbo','crichton','greenwood',
-                          'hamilton township','hamilton twp','lea - hamilton','lea- hamilton'];
+                          'hamilton township','hamilton twp','lea - hamilton','lea- hamilton',
+                          'global leadership','glaw'];
     function _isSWPriority(school, district) {
       const s = (school||'').toLowerCase(), d = (district||'').toLowerCase();
       return _SW_PRIORITY.some(k => d.includes(k) || s.includes(k));
     }
     // Region override shared by every Pearl Ops region helper. SY 26-27: Pemberton /
-    // Hamilton → SW, everything else → NE. Earlier periods: null = use keyword lists.
+    // Hamilton / Global Leadership → SW, everything else → NE. Earlier periods: null = use keyword lists.
     function _periodRegion(school, district) {
       if (_isSWPriority(school, district)) return 'SW';
       return _activePeriod === 'sy2627' ? 'NE' : null;
@@ -8291,7 +8294,7 @@
       // Hands the report the raw Pearl rows plus the SAME classification and
       // region rules the dashboard uses, so its numbers can never drift.
       getFieldSupportInput: function() {
-        const isArch = v => /^\s*z{3}/i.test(v || '');
+        const isArch = v => /^\s*(z{3}|njtc\s*$)/i.test(v || '');
         return {
           attRows: _attRows || [], instRows: _instRows || [], stuRows: _stuRows || [],
           sessions: Object.values(_sessMap || {}),
@@ -8329,7 +8332,7 @@
         ];
 
         function isExcluded(school) {
-          return !!school && school.toLowerCase().startsWith('zzz');
+          return !!school && /^\s*(z{3}|njtc\s*$)/i.test(school);
         }
         function schoolRegion(school, district) {
           const s = (school  || '').toLowerCase().trim();

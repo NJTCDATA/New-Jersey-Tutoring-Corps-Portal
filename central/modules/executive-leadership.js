@@ -1438,8 +1438,8 @@
 
   const ap_deriveRegion = (site, district) => {
     const net = ap_deriveNetwork(site, district);
-    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep','Lyndhurst','Vernon'].includes(net)) return 'NE';
-    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy','Pemberton Township'].includes(net)) return 'SW';
+    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep','Lyndhurst','Vernon'].includes(net)) return 'NE';
+    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy','Pemberton Township','Global Leadership Academy'].includes(net)) return 'SW';
     return 'Unassigned';
   };
 
@@ -2322,7 +2322,7 @@
             { v: eligible.length,  l: 'Eligible',    sub: 'not yet enrolled',         c: '#fde68a', def: 'Active tutors who qualify but have not enrolled yet' },
             { v: (window.AP_PREAPPS||[]).length, l: 'Pre-Apprentices', sub: (window.AP_PACE_GRADS||[]).length+' PACE grads on staff', c: '#c4b5fd', def: 'Current pre-apprentice roles on the Onsite Tracker · PACE grads = Summer 2026 PACE cohort now on SY 26-27 staff' },
             { v: totalNE,          l: 'NE',           sub: nePct+'% enrolled',        c: '#6ee7b7', def: 'iLearn, KIPP, Hoboken, Middlesex, Somerset, Bergen' },
-            { v: totalSW,          l: 'SW',           sub: swPct+'% enrolled',        c: '#6ee7b7', def: 'Hamilton, Gloucester, Haddon, Pennsauken, First Philadelphia' },
+            { v: totalSW,          l: 'SW',           sub: swPct+'% enrolled',        c: '#6ee7b7', def: 'Hamilton, Gloucester, Haddon, Pemberton, Global Leadership, Penns Grove, Lawrence, LEAP' },
             { v: flagged || '✓',   l: flagged?'Flagged':'No Flags', sub: flagged?'need follow-up':'all on track', c: flagged?'#fca5a5':'#86efac', def: 'Missing milestone, no site leader, or PM note' },
           ].map(function(t){ return `<div title="${t.def||''}" style="text-align:center;padding:.3rem .625rem;background:rgba(255,255,255,.05);border-radius:8px;flex:1;min-width:58px;cursor:default">
             <div style="font-size:1.25rem;font-weight:900;color:${t.c};line-height:1;letter-spacing:-.025em">${t.v}</div>
