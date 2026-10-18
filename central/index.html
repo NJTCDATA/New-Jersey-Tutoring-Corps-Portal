@@ -5730,7 +5730,7 @@
         <div class="ph-text">
           <div class="ph-eyebrow" id="poEyebrow">SY 2026–2027 · Live Pearl Data</div>
           <h2 class="ph-title">Pearl Operations Intelligence</h2>
-          <p class="ph-subtitle" id="poSubtitle">Live attendance, surveys, HIT compliance, and service interruption tracking across all sites. Auto-refreshes every 5 minutes.</p>
+          <p class="ph-subtitle" id="poSubtitle">Live attendance, surveys, HIT compliance, and missed-session tracking (undelivered sessions, cancellations, tutor coverage) across all sites. Auto-refreshes every 5 minutes.</p>
         </div>
         <div class="ph-actions">
           <span class="sync-dot loading" id="poSyncDot"></span>
@@ -5774,9 +5774,9 @@
       <!-- Executive Stats Strip -->
       <div class="stats-strip" id="poStatsStrip">
         <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Scholar Attendance</div><div class="st-sub">Attended + Late</div></div>
-        <div class="stat-tile" style="--accent-color:#0ea5e9"><div class="st-icon">🎓</div><div class="st-value" id="poStatInstAtt">—</div><div class="st-label">Tutor Attendance</div><div class="st-sub">Tutor rate</div></div>
+        <div class="stat-tile" style="--accent-color:#0ea5e9"><div class="st-icon">🎓</div><div class="st-value" id="poStatInstAtt">—</div><div class="st-label">Tutor Attendance</div><div class="st-sub" id="poStatInstAttSub">Recorded rate (official)</div></div>
         <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">📅</div><div class="st-value" id="poStatSessions">—</div><div class="st-label">Sessions Delivered</div><div class="st-sub" id="poStatSessionsSub">Full + Partial attended</div></div>
-        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Service Interruptions</div><div class="st-sub">Non-absence disruptions</div></div>
+        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Undelivered Sessions</div><div class="st-sub" id="poStatInterruptionsSub">Tutor absent / vacancy · not counted against attendance</div></div>
         <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurveyScholar">—</div><div class="st-label">Scholar Survey Avg</div><div class="st-sub">Confidence · Learning · Overall</div></div>
         <div class="stat-tile" style="--accent-color:#a855f7"><div class="st-icon">📋</div><div class="st-value" id="poStatSurveyTutor">—</div><div class="st-label">Tutor Survey Avg</div><div class="st-sub" id="poStatSurveyTutorSub">Engagement · Quality · Overall</div></div>
         <div class="stat-tile" style="--accent-color:var(--gold)"><div class="st-icon">🕐</div><div class="st-value" id="poStatSchedIncomplete">—</div><div class="st-label">Pending Sessions</div><div class="st-sub">Scheduled / not yet completed</div></div>
@@ -5800,6 +5800,9 @@
         <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
         <div id="poDurationPill" style="display:none;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border-radius:20px;padding:.35rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(30,58,95,.25);flex-shrink:0"></div>
       </div>
+
+      <!-- Missed sessions by category · cancellations · tutor coverage (programming.js renderMissedCoverage) -->
+      <div id="poMissedCoverage" style="display:none"></div>
 
       <!-- Main content area — swaps between school grid, school detail, person detail -->
       <div id="poMainContent"></div>
@@ -5966,7 +5969,7 @@
           <!-- Quick-Select Preset Buttons -->
           <div class="irb-quick-btns">
             <button class="irb-qbtn" onclick="irb.applyPreset('all')">All Reasons</button>
-            <button class="irb-qbtn" onclick="irb.applyPreset('si')">All Service Interruptions</button>
+            <button class="irb-qbtn" onclick="irb.applyPreset('si')">All Not Counted vs. Attendance</button>
             <button class="irb-qbtn" onclick="irb.applyPreset('scholar')">All Scholar Reasons</button>
             <button class="irb-qbtn" onclick="irb.applyPreset('tutor')">Tutor-Related Only</button>
             <button class="irb-qbtn" onclick="irb.applyPreset('closures')">School Closures</button>
@@ -5976,7 +5979,7 @@
           <!-- Reason Selector -->
           <div class="irb-section-hdr">Select Missed Reasons</div>
           <div class="irb-reason-box">
-            <div class="irb-reason-group-hdr">SERVICE INTERRUPTIONS</div>
+            <div class="irb-reason-group-hdr">NOT COUNTED VS. ATTENDANCE</div>
 
             <div class="irb-reason-subgroup">TUTOR-RELATED</div>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-T1"> Tutor Absent</label>
@@ -6936,16 +6939,18 @@
 <script src="modules/home-shortcuts.js?v=3"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
-<script src="modules/leadership.js?v=9"></script>
+<script src="modules/leadership.js?v=10"></script>
 <script src="modules/training-development.js?v=8"></script>
-<script src="modules/data-department.js?v=9"></script>
+<script src="modules/data-department.js?v=10"></script>
 <script src="modules/hr-department.js?v=3"></script>
 <script src="modules/dol-report.js?v=11"></script>
-<script src="modules/programming.js?v=22"></script>
-<script src="modules/pdf-export.js?v=7"></script>
-<script src="modules/field-support.js?v=4"></script>
-<script src="modules/portal-tour.js?v=5"></script>
-<script src="../partner/partner-report.js?v=5"></script>
+<script src="../shared/pearl-categories.js?v=1"></script>
+<script src="modules/pearl-coverage.js?v=1"></script>
+<script src="modules/programming.js?v=23"></script>
+<script src="modules/pdf-export.js?v=8"></script>
+<script src="modules/field-support.js?v=5"></script>
+<script src="modules/portal-tour.js?v=6"></script>
+<script src="../partner/partner-report.js?v=6"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=2"></script>
 <script src="modules/finance.js?v=6"></script>
@@ -6955,14 +6960,14 @@
 <script src="../alerts/deadline-alerts2.js?v=1"></script>
 
 <script id="irlabDataScript" src="data-irlab-embedded.js?v=1"></script>
-<script src="modules/executive-leadership.js?v=18"></script>
-<script src="modules/impact-report.js?v=3"></script>
+<script src="modules/executive-leadership.js?v=19"></script>
+<script src="modules/impact-report.js?v=4"></script>
 <script src="modules/survey-feedback.js?v=10"></script>
 <script src="modules/scholar-feedback.js?v=2"></script>
 <script src="modules/onsite-feedback.js?v=3"></script>
 <script src="modules/annual-report.js?v=1"></script>
 <script src="modules/pulse-weekly.js?v=3"></script>
-<script src="modules/program-data-summary.js?v=3"></script>
+<script src="modules/program-data-summary.js?v=4"></script>
 <script src="modules/apprentice-impact-report.js?v=11"></script>
 
 <script>
@@ -8918,6 +8923,6 @@
 <script src="modules/responsive-nav.js?v=1"></script>
 <script src="modules/portal-links.js?v=1"></script>
 <script src="modules/portal-search.js?v=2"></script>
-<script src="modules/portal-status.js?v=4"></script>
+<script src="modules/portal-status.js?v=5"></script>
 </body>
 </html>

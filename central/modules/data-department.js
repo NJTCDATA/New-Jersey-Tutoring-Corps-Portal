@@ -5218,7 +5218,7 @@
           if (hasPearlData && (tutorImpact.some(t => t.siTutor > 0 || t.siSchool > 0))) {
             if (p3y > 252) { doc.addPage(); p3y = 20; }
             doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-            doc.text('SERVICE INTERRUPTION ANALYSIS \u00B7 TUTOR-CAUSED vs SCHOOL-CAUSED', 20, p3y);
+            doc.text('MISSED SESSIONS NOT COUNTED AGAINST ATTENDANCE \u00B7 TUTOR-CAUSED vs SCHOOL-CAUSED', 20, p3y);
             p3y += 4;
             // Top tutors by tutor-caused SIs (excluding zero)
             const withSI = tutorImpact.filter(t => t.siTutor > 0 || t.siSchool > 0)
@@ -5669,10 +5669,10 @@
           },
           ...(opsMap?[{
             title: 'Use Tutor Tier Data to Drive Coaching Conversations',
-            detail: 'Pearl data is loaded. Review tutors in the Needs Support tier (page 3) and schedule coaching conversations with their Program Managers. Focus on schools with the highest tutor-caused service interruption counts.',
+            detail: 'Pearl data is loaded. Review tutors in the Needs Support tier (page 3) and schedule coaching conversations with their Program Managers. Focus on schools with the highest counts of tutor-caused missed sessions.',
           }]:[{
             title: 'Load Pearl Data to Unlock Tutor-Level Analysis',
-            detail: 'Pearl operational data was not available for this export. Load Pearl data and re-export the PDF to enable tutor impact matching, instructional hours correlations, and service interruption analysis by tutor and school.',
+            detail: 'Pearl operational data was not available for this export. Load Pearl data and re-export the PDF to enable tutor impact matching, instructional hours correlations, and missed-session analysis by tutor and school.',
           }]),
           ...(NET.rushFlags&&NET.rushFlags.red>0?[{
             title: 'Review '+NET.rushFlags.red+' Red Rush Flag Scholar'+(NET.rushFlags.red!==1?'s':''),
@@ -5711,7 +5711,7 @@
           doc.setTextColor(...NAVY); doc.setFontSize(7); doc.setFont('helvetica','bold');
           doc.text('WHAT IS THIS PAGE?', 28, p5y+5);
           doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(30,50,90);
-          const p5intro = 'This page connects what happened in sessions (service interruptions, attendance, surveys) with how much scholars learned. ' +
+          const p5intro = 'This page connects what happened in sessions (missed sessions not counted against attendance, attendance, surveys) with how much scholars learned. ' +
             'Use it to understand where operational challenges may have limited growth, and where tutors delivered strong outcomes despite disruptions.';
           doc.text(doc.splitTextToSize(safe(p5intro), 162).slice(0,2), 28, p5y+9.5);
           p5y += 20;
@@ -5754,7 +5754,7 @@
 
           // SI vs Months table
           doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-          doc.text('SERVICE INTERRUPTIONS vs MONTHS OF LEARNING GAINED · BY TUTOR', 20, p5y);
+          doc.text('MISSED SESSIONS NOT COUNTED vs MONTHS OF LEARNING GAINED · BY TUTOR', 20, p5y);
           doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,120,145);
           doc.text('Tutors with high SIs but strong growth demonstrate resilience. High SIs + low growth = coaching conversation needed.', 20, p5y+4);
           p5y += 8;
@@ -6502,7 +6502,7 @@
             .sort((a, b) => b.total - a.total).slice(0, 5);
           html += `<div style="background:#fff8f0;border:1px solid #fed7aa;border-radius:10px;padding:.875rem 1rem;margin-bottom:1rem">
             <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#92400e;margin-bottom:.625rem">
-              Service Interruptions — ${_moySubject} · ${totalSiTutor + totalSiSchool + totalSiOther} total events
+              Not Counted vs. Attendance — ${_moySubject} · ${totalSiTutor + totalSiSchool + totalSiOther} total events
             </div>
             <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.625rem">
               <div style="font-size:.8125rem;color:#92400e">
@@ -6551,7 +6551,7 @@
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar attendance rate (attended ÷ attended+absent, SIs excluded)">Att%</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar absences (scholar-caused misses)">Abs</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Classroom Teacher pull-outs (counted as scholar absence)">CT Pulls</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Service interruptions: Tutor-caused / School-caused / Other">SIs (T/S/O)</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Missed sessions not counted against attendance: Tutor-caused / School-caused / Other">SIs (T/S/O)</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar post-session satisfaction avg">Scholar Sat.</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Instructor post-session survey avg">Tutor Survey</th>
               ` : ''}
@@ -6650,8 +6650,8 @@
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total scholar absences (scholar-caused misses)">Scholar Abs</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:#7c3aed;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Classroom Teacher pull-outs (scholars kept from tutoring by teacher)">CT Pulls</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total interrupted sessions (not scholar's fault)">Total SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Tutor/coverage-caused service interruptions">Tutor SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School/site/testing-caused service interruptions">School SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Tutor/coverage-caused missed sessions not counted against attendance">Tutor SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School/site/testing-caused missed sessions not counted against attendance">School SIs</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholar post-session satisfaction avg">Scholar Sat.</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Instructor post-session survey avg">Tutor Survey</th>
                 </tr></thead>

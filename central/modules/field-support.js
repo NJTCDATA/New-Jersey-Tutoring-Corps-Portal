@@ -52,7 +52,11 @@
     wrongScholar:   'Tutor absent but scholar given a scholar reason',
     wholeGroupCT:   'Review: whole-group teacher pull-out logged as tutor Missed',
     archived:       'Archived scholar still on session roster',
+    cancelNoReason: 'Session cancelled with no Canceled Reason',
+    shouldCancel:   'Cancellation reason logged as a missed reason (cancel the session in Pearl instead)',
   };
+  // Cancellations are done by Site Leaders (tutors cannot cancel in Pearl)
+  const SITE_LEADER_FIX = new Set(['cancelNoReason', 'shouldCancel']);
   // Which issues are counted as tutor data-entry fixes (the rest are review/site items)
   const TUTOR_FIX = new Set(['incomplete', 'blankScholar', 'blankTutor', 'notRecorded', 'attWithMissed',
     'partialAllAtt', 'mbsWithAtt', 'mbsTutorNotAtt', 'tutorMissedAtt', 'tutorRowMissed', 'wrongTutorAbs', 'wrongScholar']);
@@ -139,7 +143,7 @@
     const sessBase = s => ({ date: toYMD(s.start), school: s.school || '', tutor: s.instructor || '', session: s.title || '', sessionId: s.id || '',
       status: s.status || '', sessionAttendance: s.attendance || '' });
     const addIssue = (s, key, extra) => {
-      issues.push(Object.assign(sessBase(s), { issue: ISSUE[key], issueKey: key, owner: TUTOR_FIX.has(key) ? 'Tutor' : (key === 'archived' ? 'Site / Data' : 'Review') }, extra || {}));
+      issues.push(Object.assign(sessBase(s), { issue: ISSUE[key], issueKey: key, owner: TUTOR_FIX.has(key) ? 'Tutor' : SITE_LEADER_FIX.has(key) ? 'Site Leader' : (key === 'archived' ? 'Site / Data' : 'Review') }, extra || {}));
       const t = tutorRec(s), c = schoolRec(s);
       t.issues[key] = (t.issues[key] || 0) + 1;
       c.issues[key] = (c.issues[key] || 0) + 1;
@@ -171,6 +175,11 @@
         addIssue(s, 'incomplete');
         return;
       }
+      // Cancelled with no reason (only where Pearl exports Canceled Reason — SY 26-27+)
+      if (status === 'Cancelled' && input.hasCancelReasons && !String(s.canceledReason || '').trim()) {
+        addIssue(s, 'cancelNoReason', { reasonEntered: s.canceledBy ? 'Canceled by ' + s.canceledBy : '' });
+        return;
+      }
       if (status !== 'Completed' && status !== 'Missed') return; // Cancelled / Rescheduled
 
       // Attendance tallies (person-matched)
@@ -185,6 +194,7 @@
       const tutorTrulyAbsent = [...tutorReasons].some(x => TUTOR_MISS.has(x));
 
       // Row-level checks (scholar rows)
+      const cancelTypeReasons = new Set();
       stuRows.forEach(r => {
         const st = r[ATT.ATT_STATUS] || '', reason = r[ATT.MISS_REASON] || '';
         const who = { scholar: r[ATT.USER] || '', scholarId: r[ATT.USER_ID] || '', reasonEntered: reason };
@@ -192,6 +202,7 @@
         if (st !== 'Missed') return;
         if (!reason) addIssue(s, 'blankScholar', who);
         if (reason === ARCHIVED_REASON) addIssue(s, 'archived', who);
+        if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation') cancelTypeReasons.add(reason);
         if (reason === 'Tutor Absent' && tutorAttended && !tutorMissedRows.length) addIssue(s, 'wrongTutorAbs', who);
         if (tutorTrulyAbsent && reason && reason !== 'Tutor Absent' && classify(r) === 'absent') addIssue(s, 'wrongScholar', who);
         if (CT_REASONS.has(reason)) {
@@ -201,6 +212,7 @@
         }
         if (classify(r) === 'absent' && reason) c.ctDenom++;
       });
+      if (cancelTypeReasons.size) addIssue(s, 'shouldCancel', { reasonEntered: [...cancelTypeReasons].join('; ') }); // once per session
       tutRows.forEach(r => {
         if ((r[ATT.ATT_STATUS] || '') === 'Not recorded') addIssue(s, 'notRecorded', { scholar: '(tutor)', reasonEntered: '' });
         if ((r[ATT.ATT_STATUS] || '') === 'Missed' && !(r[ATT.MISS_REASON] || '')) addIssue(s, 'blankTutor', { reasonEntered: '' });
@@ -310,6 +322,7 @@
       notRecorded: issues.filter(i => i.issueKey === 'notRecorded').length,
       wholeGroupReview: issues.filter(i => i.issueKey === 'wholeGroupCT').length,
       archived: issues.filter(i => i.issueKey === 'archived').length,
+      cancelFixes: issues.filter(i => SITE_LEADER_FIX.has(i.issueKey)).length,
       teacherPullouts: pullouts.length, scholarsPulled3: scholarPullouts.filter(x => x.pullouts >= 3).length,
     };
     return { region, school: schoolF, from, to, generatedAt: now.toISOString(), totals,
@@ -385,6 +398,7 @@
       [T.incomplete, 'Incomplete Sessions'], [T.missingTutorSurveys, 'Missing Tutor Surveys'], [T.missingScholarSurveys, 'Missing Scholar Surveys'],
       [T.blankReasons, 'Missed Reason Blank'], [T.statusMismatch + T.wrongCategory + T.notRecorded, 'Other Attendance Fixes'],
       [T.teacherPullouts, 'Teacher Pull-outs'], [T.wholeGroupReview, 'Whole-Group Pull-outs to Review'],
+      [T.cancelFixes || 0, 'Cancellation Fixes'],
     ];
     const tw = (W - 2 * (tiles.length - 1)) / tiles.length;
     tiles.forEach(([v, l], i) => {

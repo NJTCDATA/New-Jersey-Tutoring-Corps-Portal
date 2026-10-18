@@ -76,6 +76,7 @@
     { term: 'Excused Time', def: "Sessions that didn't happen for reasons outside anyone's control — a school event, a testing day, a holiday, weather — or an NJTC-side staffing gap. Never counted against the attendance rate." },
     { term: 'Scholars to Check In With', def: "Scholars with a real pattern of missed sessions: either they've never yet attended, or their attendance rate is below 80% across at least 3 real sessions. Computed directly from session records, counting only scholar-side reasons for a missed session." },
     { term: 'Session', def: 'One scheduled tutoring block for one scholar. "Sessions Delivered" counts each unique session that took place, regardless of how many scholars were in it.' },
+    { term: 'Sessions Not Delivered (school-driven)', def: 'Unique tutoring sessions that could not take place for a school-side reason — a school event or assembly, school-administered testing, a schedule change, an unscheduled closure, delay or dismissal, a drill, or weather. Counted once per session. These never count against the attendance rate.' },
     { term: 'Overall Rating', def: 'The "Overall, how did this session go?" question on the post-session survey, rated 1 (Poor) to 5 (Excellent). Positive = 4–5, Neutral = 3, Negative = 1–2.' },
     { term: 'Session Highlights', def: 'A curated weekly selection of comments from sessions rated 4–5 overall. Scholar comments are shown first; tutor comments fill in when a week has fewer scholar comments. Comments that name a scholar, or contain sensitive or inappropriate language, are never shown. This is a highlight reel, not a representative sample of every comment left.' },
     { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' },
@@ -1116,6 +1117,8 @@
     const uniqueScholars = CORE.servedScholars(attAll);
     const checkIns = scholarsToCheckIn(stats.rows);
     const sessions = CORE.deliveredSessions(hasSessionData() ? scopedSessions() : [], attAll);
+    // School-driven only — NJTC-side reasons never surface to partners.
+    const notDelivered = hasSessionData() ? CORE.schoolDrivenNotDelivered(scopedSessions(), attAll) : null;
 
     let scholarPos = 0, scholarScored = 0;
     scholarSurveys.forEach(r => {
@@ -1188,7 +1191,12 @@
           <div style="display:flex;gap:1.5rem;padding-top:.5rem;border-top:1px solid var(--border-2)">
             <div><div class="pt-kpi-val" style="font-size:1.4rem">${sessions.toLocaleString()}</div><div class="pt-kpi-sub" style="margin-top:.2rem">Sessions Delivered</div></div>
             <div><div class="pt-kpi-val" style="font-size:1.4rem">${scholarSurveys.length.toLocaleString()}</div><div class="pt-kpi-sub" style="margin-top:.2rem">Scholar Surveys</div></div>
+            ${notDelivered ? `<div><div class="pt-kpi-val" style="font-size:1.4rem">${notDelivered.total.toLocaleString()}</div><div class="pt-kpi-sub" style="margin-top:.2rem">Sessions Not Delivered <span style="white-space:nowrap">(school-driven)</span></div></div>` : ''}
           </div>
+          ${notDelivered && notDelivered.total ? `<details style="margin-top:.6rem"><summary class="pt-more">Why sessions were not delivered</summary>
+            ${notDelivered.byReason.map(([r, n]) => `<div style="display:flex;justify-content:space-between;gap:1rem;font-size:.8rem;padding:.2rem 0;border-bottom:1px solid var(--border-2)"><span>${esc(r)}</span><strong>${n.toLocaleString()}</strong></div>`).join('')}
+            <p style="font-size:.72rem;color:var(--muted);margin:.5rem 0 0">Sessions that could not take place because of a school event, testing, schedule change, closure or weather. Never counted against the attendance rate.</p>
+          </details>` : ''}
         </div>
       </div>${minutesCard}`;
   }

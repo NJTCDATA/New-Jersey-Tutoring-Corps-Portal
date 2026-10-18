@@ -23,7 +23,7 @@
   const CACHE = {
     hr: () => 'njtc_hr_live_v4', concerns: () => 'njtc_talent_v2', onsite: () => 'njtc_onsite_live_v3',
     kpi: () => /26-27|2026-2027/.test(String(window.NJTC_KPI_SY || '')) ? 'njtc_kpi_2627_v1' : 'njtc_kpi_v2',
-    pearl: () => { const p = window.po && window.po.getActivePeriod ? window.po.getActivePeriod() : ''; return p === 'sy2526' ? 'njtc_pearl_v1' : p === 'summer2026' ? 'njtc_pearl_summer_v1' : 'njtc_pearl_2627_v1'; },
+    pearl: () => { const p = window.po && window.po.getActivePeriod ? window.po.getActivePeriod() : ''; return p === 'sy2526' ? 'njtc_pearl_v1' : p === 'summer2026' ? 'njtc_pearl_summer_v2' : 'njtc_pearl_2627_v2'; },
   };
   const _cacheTs = {};
   function savedAt(key) {

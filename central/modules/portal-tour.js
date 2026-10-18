@@ -65,7 +65,7 @@
       steps: [
         { t: ['#panel-pearl-ops .ph-title'], title: 'Pearl Operations', text: 'Live data from Pearl for every site. It refreshes every 5 minutes; ↺ Refresh pulls it right away.' },
         { t: ['#poPeriodBtn_sy2627', '#poPeriodBtn_sy2526'], title: 'Pick the school year', text: 'SY 26-27 is live. SY 25-26 and Summer 2026 are archived snapshots for comparison.' },
-        { t: ['#poStatsStrip'], title: 'The numbers that matter', text: 'Scholar attendance (goal 80%), tutor attendance (goal 90%), sessions delivered, service interruptions, survey averages and incomplete sessions. Service interruptions never count against attendance.' },
+        { t: ['#poStatsStrip'], title: 'The numbers that matter', text: 'Scholar attendance (goal 80%), tutor attendance (goal 90%), sessions delivered, undelivered sessions (tutor absent / vacancy), survey averages and pending sessions. Undelivered sessions, cancellations and internal tracking never count against scholar attendance — the panel below breaks them down and lists what needs follow-up.' },
         { t: ['#poFilterStrip', '#poGlobalSearch'], title: 'Filter and search', text: 'Narrow everything by district, school or week, or search for a tutor or scholar by name. ✕ Clear resets it.' },
         { t: ['#poMainContent'], title: 'Drill from site to person', text: 'Click a school to open its full view, then a tutor or scholar for their sessions, surveys and missed reasons. The breadcrumb takes you back.' },
         { t: ['[data-tour="po-support-ne"]'], only: ['programming', 'data'], title: 'Regional support reports', text: 'NE Support Report and SW Support Report list exactly who needs follow-up: incomplete sessions, missing tutor and scholar surveys, blank or mismatched missed reasons, and teacher pull-outs, by campus and by tutor. Download a PDF for field staff or Excel for the full lists with Session IDs.' },
@@ -175,7 +175,7 @@
       why: 'Build an impact or interruption report in minutes.',
       steps: [
         { t: ['#panel-impact-report .ph-title'], title: 'Impact Report Builder', text: 'Build a report for any reasons, schools and dates, straight from Pearl.' },
-        { t: ['#irbConfigPanel'], title: 'Choose reasons', text: 'Quick buttons pick all service interruptions, scholar reasons, tutor-related reasons or school closures.' },
+        { t: ['#irbConfigPanel'], title: 'Choose reasons', text: 'Quick buttons pick all missed sessions not counted against attendance, scholar reasons, tutor-related reasons or school closures.' },
         { t: ['#irbDistrictFilter'], title: 'Where and when', text: 'Pick a district, school and period (this week, last 4 weeks, or custom dates).' },
         { t: ['#irbGenerateBtn'], title: 'Generate', text: 'Generate the report, then save it as a Quick Report to reuse next time.' },
       ],

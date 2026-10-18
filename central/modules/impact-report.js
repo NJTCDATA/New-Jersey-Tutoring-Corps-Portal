@@ -1498,7 +1498,7 @@ function exportCSV() {
 
   r.events.forEach(function(e) {
     var taxonomy = TAXONOMY[e.canonId] || {};
-    var group    = taxonomy.group === 'si' ? 'Service Interruption' : 'Scholar Missed';
+    var group    = taxonomy.group === 'si' ? 'Not Counted vs. Attendance' : 'Scholar Missed';
     var sess     = findSess(sessIdx, e.userId, e.dateStr, e.sessTitle);
 
     rows.push([
@@ -2053,7 +2053,7 @@ function exportPDFProgram() {
       var prd = pa.byReason    && pa.byReason[id] ? pa.byReason[id] : { sessions:0, scholarCount:0 };
       var pct = a.sessions>0 ? Math.round(rd.sessions/a.sessions*100) : 0;
       var clr = getColor(id);
-      var grp = TAXONOMY[id] ? (TAXONOMY[id].group==='si'?'Service Interruption':'Scholar Missed') : '';
+      var grp = TAXONOMY[id] ? (TAXONOMY[id].group==='si'?'Not Counted vs. Attendance':'Scholar Missed') : '';
       var dStr = rd.sessions===prd.sessions ? '<span style="color:#94a3b8">&#8596;&nbsp;0</span>'
                : rd.sessions>prd.sessions ? '<span style="color:#dc2626">&#8593; +'+(rd.sessions-prd.sessions)+'</span>'
                : '<span style="color:#16a34a">&#8595; '+(rd.sessions-prd.sessions)+'</span>';

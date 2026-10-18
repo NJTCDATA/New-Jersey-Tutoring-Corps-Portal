@@ -1616,7 +1616,7 @@
     if ((!stuMetrics.surveyScores || stuMetrics.surveyScores.count === 0))
       flags.push('<span title="No survey responses recorded">⚠️ No Surveys</span>');
     if (attMetrics.si >= 5)
-      flags.push('<span title="5 or more service interruptions">🔴 High SIs</span>');
+      flags.push('<span title="5 or more missed sessions not counted against attendance (tutor absence, school closures, etc.)">🟡 5+ Not Counted</span>');
     const highAbsScholars = stuMetrics.scholars.filter(s => s.rate != null && s.rate < 60);
     if (highAbsScholars.length > 0)
       flags.push(`<span title="${highAbsScholars.length} scholar(s) with low attendance">⚠️ ${highAbsScholars.length} Scholar Abs.</span>`);
@@ -2092,8 +2092,8 @@
           <div class="njtc-kpi-sub">TAP enrolled</div>
         </div>
         <div class="njtc-kpi-card">
-          <div class="njtc-kpi-label">Service Interruptions</div>
-          <div class="njtc-kpi-value" style="color:${totalSI > 10 ? '#ef4444' : '#e2e8f0'}">${totalSI}</div>
+          <div class="njtc-kpi-label">Not Counted vs. Attendance</div>
+          <div class="njtc-kpi-value" style="color:#e2e8f0">${totalSI}</div>
           <div class="njtc-kpi-sub">${flaggedBelow80} tutor(s) &lt;80%</div>
         </div>
       </div>
@@ -2370,7 +2370,7 @@
         </div>
         ${absReasonRows ? `
         <div style="margin-bottom:14px">
-          <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Absence Reasons (excl. Service Interruptions)</div>
+          <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Absence Reasons (excl. reasons not counted against attendance)</div>
           <table class="njtc-table"><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${absReasonRows}</tbody></table>
         </div>` : ''}
         ${scholarRows ? `
@@ -2534,12 +2534,13 @@
       const summary = (tutorSIs.length ? tutorSIs.length + ' tutor' : '') +
         (tutorSIs.length && schoolSIs.length ? ', ' : '') +
         (schoolSIs.length ? schoolSIs.length + ' school' : '');
-      return '<div class="njtc-section-block" style="border-color:rgba(239,68,68,.35)">' +
-        '<div class="njtc-section-block-title" style="color:#ef4444">⚡ Service Interruptions (' + siList.length + ')' +
+      return '<div class="njtc-section-block" style="border-color:rgba(148,163,184,.35)">' +
+        '<div class="njtc-section-block-title" style="color:#cbd5e1">Missed Sessions Not Counted Against Attendance (' + siList.length + ')' +
           (summary ? '<span style="font-size:.68rem;color:#94a3b8;font-weight:400;margin-left:8px">— ' + summary + '</span>' : '') +
         '</div>' +
+        '<div style="font-size:.72rem;color:#94a3b8;margin:-2px 0 8px">Undelivered sessions (tutor absent / vacancy) and school or NJTC-driven reasons. For partner conversations — no action needed. Under the new process, school closures and events are cancelled in Pearl by the Site Leader.</div>' +
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">' +
-          '<thead><tr style="background:rgba(239,68,68,.12)">' +
+          '<thead><tr style="background:rgba(148,163,184,.12)">' +
             '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Date</th>' +
             '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Type</th>' +
             '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Reason</th>' +
@@ -2881,23 +2882,26 @@
       const tutorSubjects    = new Set();
       let   sessNoIdRows     = 0;
 
+      // Session Details rows are keyed by header. Fall back to a column
+      // position only when the header itself is missing — never for a blank
+      // cell: Pearl inserted Canceled By / Canceled Reason at F/G (Oct 2026),
+      // so a fixed position now points at a different column.
+      const sv = (r, key, idx) => Object.prototype.hasOwnProperty.call(r, key) ? (r[key] || '') : (Object.values(r)[idx] || '');
       const sessRows = (data.sess || []).filter(r => {
-        const vals = Object.values(r);
-        if (!SESS_DELIVERED(r['Status'] || vals[4])) return false;
-        const instName = (r['Instructor'] || vals[1] || '').trim();
-        const instId   = (r['Pearl Instructor ID'] || vals[15] || '').trim();
+        if (!SESS_DELIVERED(sv(r, 'Status', 4))) return false;
+        const instName = sv(r, 'Instructor', 1).trim();
+        const instId   = sv(r, 'Pearl Instructor ID', 15).trim();
         return (tutor_pearl_id && instId === tutor_pearl_id) || normName(instName) === tn;
       });
 
       sessRows.forEach(r => {
-        const vals  = Object.values(r);
-        const subj  = SUBJ_NORM(r['Subject'] || vals[9]);
+        const subj  = SUBJ_NORM(sv(r, 'Subject', 9));
         if (subj) tutorSubjects.add(subj);
-        const sid   = (r['Pearl Session ID'] || vals[14] || '').trim();
+        const sid   = sv(r, 'Pearl Session ID', 14).trim();
         if (sid) mySessionIds.add(sid);
 
-        const ids   = (r['Pearl Student IDs'] || vals[16] || '').split(',').map(s => s.trim()).filter(Boolean);
-        const names = (r['Students'] || vals[2] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const ids   = sv(r, 'Pearl Student IDs', 16).split(',').map(s => s.trim()).filter(Boolean);
+        const names = sv(r, 'Students', 2).split(',').map(s => s.trim()).filter(Boolean);
 
         ids.forEach(id => {
           scholarPearlIds.add(id);
