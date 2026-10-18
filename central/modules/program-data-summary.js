@@ -362,7 +362,7 @@ function renderThisWeek(d) {
     { val: schRate !== null ? schRate + '%' : '—', label: 'Scholar Attendance', color: rateColor(schRate) },
     { val: tutRate !== null ? tutRate + '%' : '—', label: 'Tutor Attendance',   color: rateColor(tutRate) },
     { val: cw.incompletes,                          label: 'Incomplete Sessions',color: cw.incompletes > 5 ? '#dc2626' : 'var(--navy)' },
-    { val: cw.siTotal,                              label: 'Service Interruptions', color: cw.siTotal > 3 ? '#d97706' : 'var(--navy)' },
+    { val: cw.siTotal,                              label: 'Not Counted vs. Attendance', color: cw.siTotal > 3 ? '#d97706' : 'var(--navy)' },
     { val: cw.scholarSurvey !== null ? cw.scholarSurvey + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Scholar Survey',  color: cw.scholarSurvey && cw.scholarSurvey < 3.5 ? '#dc2626' : cw.scholarSurvey ? '#7c3aed' : '#94a3b8', tooltip: 'Avg scholar survey score for surveys linked to this week\'s sessions by Session ID — captures surveys regardless of when they were submitted, including late submissions.' },
     { val: cw.tutorSurvey   !== null ? cw.tutorSurvey   + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Tutor Survey',    color: cw.tutorSurvey   && cw.tutorSurvey   < 3.5 ? '#dc2626' : cw.tutorSurvey ? '#7c3aed' : '#94a3b8', tooltip: 'Avg tutor survey score for surveys linked to this week\'s sessions by Session ID — captures surveys regardless of when they were submitted, including late submissions.' },
   ]);
@@ -402,7 +402,7 @@ function renderThisWeek(d) {
       siCards += '<div class="pds-alert-row ' + lv.key + '"><span>' + lv.label.toUpperCase() + '</span><span style="flex:1">' + it.reason + '</span><strong>' + it.count + '</strong></div>';
     });
   });
-  if (siCards) html += '<div class="pds-card"><div class="pds-card-title">⚡ Service Interruptions</div>' + siCards + '</div>';
+  if (siCards) html += '<div class="pds-card"><div class="pds-card-title">⚡ Not Counted vs. Attendance</div>' + siCards + '</div>';
 
   // Sites needing review
   if (d.areasToReview && d.areasToReview.length) {
@@ -559,7 +559,7 @@ function renderYoY() {
     { val: _fmtPct(C.scholarRate), label: 'Scholar Att. · ' + cfg.label + ' ' + _fmtPct(P.scholarRate), color: '#059669' },
     { val: _fmtPct(C.tutorRate), label: 'Tutor Att. · ' + cfg.label + ' ' + _fmtPct(P.tutorRate), color: '#0891b2' },
     { val: C.siPer100 == null ? '—' : C.siPer100, label: 'Interruptions / 100 scholar records · ' + cfg.label + ' ' + (P.siPer100 == null ? '—' : P.siPer100), color: '#ea580c',
-      tooltip: 'Service interruptions per 100 scholar attendance records — normalised so program size differences between years do not distort the comparison.' },
+      tooltip: 'Missed sessions not counted against attendance per 100 scholar attendance records — normalised so program size differences between years do not distort the comparison.' },
   ]);
   }
 
@@ -587,7 +587,7 @@ function renderYoY() {
     { k: 'recurring', t: '🔁 Recurring — seen at this point last year', col: '#2563eb' },
     { k: 'easing',    t: '📉 Recurring and easing',                     col: '#059669' },
   ];
-  var kindLbl = { si: 'Service interruption', miss: 'Scholar absence' };
+  var kindLbl = { si: 'Not counted vs. attendance', miss: 'Scholar absence' };
   html += '<div class="pds-card"><div class="pds-card-title">Recurring trend or new this year?</div>' +
     '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem">Rates are per 100 scholar attendance records for the same calendar weeks, so a bigger or smaller program does not skew the comparison.</div>';
   var anyPat = false;
@@ -772,7 +772,7 @@ function renderRegional(d) {
       '<div style="display:flex;flex-direction:column;gap:.4rem">' +
         statRow('Scholar Attendance', r.scholarRate !== null ? r.scholarRate + '%' : '—', rateColor(r.scholarRate)) +
         statRow('Tutor Attendance',   r.tutorRate   !== null ? r.tutorRate   + '%' : '—', rateColor(r.tutorRate)) +
-        statRow('Service Interruptions', r.siCount, r.siCount > 5 ? '#d97706' : 'var(--navy)') +
+        statRow('Not Counted vs. Attendance', r.siCount, r.siCount > 5 ? '#d97706' : 'var(--navy)') +
         statRow('Survey Avg', r.surveyAvg ? r.surveyAvg + '/5' : '—', '#7c3aed') +
       '</div></div>';
   }

@@ -20,7 +20,9 @@
   const ATT  = { USER:0, ROLE:1, SESSION:2, SESS_STATUS:3, PLAN_START:4, SESS_DATE:5, ATT_STATUS:6, MISS_REASON:7, GRADE:8, SEX:9, RACE:10, SCHOOL:11, DISTRICT:12, USER_ID:13, WEEK:26 };
   const INST = { FILLED_BY:0, FILLED_FOR:1, ENGAGEMENT:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT_ADMIN:6, COMMENT_SELF:7, DATE:8, SCHOOL:9, DISTRICT:10 };
   const STU  = { FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT:6, DATE:7, SCHOOL:8, DISTRICT:9, REGION:10 };
-  const SESS = { TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, STATUS:4, ATTENDANCE:5, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, GRADE:10, SCHOOL:11, DISTRICT:12, REGION:13, SESS_ID:14, INST_ID:15, STU_IDS:16, DUR_MINS:17 };
+  // CANCELED_REASON is SY 26-27+ only (blank for older seasons). Pearl's
+  // "Canceled By" (a staff name) is deliberately never carried into bundles.
+  const SESS = { TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, STATUS:4, ATTENDANCE:5, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, GRADE:10, SCHOOL:11, DISTRICT:12, REGION:13, SESS_ID:14, INST_ID:15, STU_IDS:16, DUR_MINS:17, CANCELED_REASON:18 };
 
   // Mirrors scripts/build-partner-data.js — used by Central to build the same
   // scoped bundle a partner's nightly bundle contains.
@@ -132,15 +134,19 @@
       inst = inst.map(r => { const o = r.slice(); o[INST.DATE] = canonDateTime(r[INST.DATE]); return o; });
       stu = stu.map(r => { const o = r.slice(); o[STU.DATE] = canonDateTime(r[STU.DATE]); return o; });
       // Session Details: map by header name onto the canonical SESS positions
-      const hdr = ((raw.sess || [])[0] || []).map(h => String(h || '').trim().toLowerCase());
-      const col = (name, dflt) => { const i = hdr.indexOf(name); return i >= 0 ? i : dflt; };
+      // With a header row, a missing column reads blank — never a fixed
+      // position (Pearl inserts columns: Canceled By / Canceled Reason, Oct 2026).
+      const hdr = ((raw.sess || [])[0] || []).map(h => String(h || '').replace(/\s+/g, ' ').trim().toLowerCase());
+      const hasHdr = hdr.indexOf('title') >= 0 || hdr.indexOf('pearl session id') >= 0;
+      const col = (name, dflt) => { const i = hdr.indexOf(name); return i >= 0 ? i : (hasHdr ? -1 : dflt); };
       const C = { TITLE: col('title', 0), INSTRUCTOR: col('instructor', 1), STUDENTS: col('students', 2), LOCATION: col('location', 3),
         STATUS: col('status', 5), ATTENDANCE: col('attendance', 6), START: col('scheduled start', 7), SCHED_DUR: col('scheduled duration', 8),
         ACTUAL_DUR: col('actual duration', 9), SUBJECT: col('subject', 10), GRADE: col('grade', 11), SCHOOL: col('school', 12),
-        DISTRICT: col('district', 13), REGION: col('region', 14), SESS_ID: col('pearl session id', 15), INST_ID: col('pearl instructor id', 16), STU_IDS: col('pearl student ids', 17) };
+        DISTRICT: col('district', 13), REGION: col('region', 14), SESS_ID: col('pearl session id', 15), INST_ID: col('pearl instructor id', 16), STU_IDS: col('pearl student ids', 17),
+        CANCELED_REASON: col('canceled reason', -1) };
       sess = body(raw.sess).filter(r => (r[C.SESS_ID] || r[C.TITLE] || '').trim()).map(r => {
         const o = [];
-        Object.keys(C).forEach(k => { o[SESS[k]] = (r[C[k]] == null ? '' : String(r[C[k]])); });
+        Object.keys(C).forEach(k => { o[SESS[k]] = (C[k] < 0 || r[C[k]] == null) ? '' : String(r[C[k]]); });
         o[SESS.START] = canonDateTime(o[SESS.START]);
         return o;
       });
@@ -322,6 +328,66 @@
     });
     return mins;
   }
+  // ── Sessions not delivered for SCHOOL-driven reasons (partner view) ──
+  // Partners see only school-driven reasons; NJTC-side ones (tutor absence,
+  // vacancy, internal errors) never surface here. Must mirror SCHOOL_DRIVEN
+  // in shared/pearl-categories.js (checked by scripts/test-pearl-categories.js).
+  // Display label → every Pearl spelling of it.
+  const SCHOOL_DRIVEN_LABELS = {
+    'School Event / Assembly':        ['School Event', 'School Event/Assembly'],
+    'School Schedule Changed':        ['School Schedule Changed'],
+    'Weather Closure':                ['Weather Closure'],
+    'School-Administered Testing':    ['School-administered Testing', 'School Administered Testing'],
+    'Unscheduled Closure / Delay / Dismissal': ['Unscheduled School Closure/Delay/Dismissal'],
+    'School Drill':                   ['Scheduled/Unscheduled School Drill'],
+    'Half Day':                       ['Half Day'],
+    'Holiday':                        ['Holiday - scheduled'],
+  };
+  const _sdNorm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
+  const SCHOOL_DRIVEN_BY_REASON = {};
+  Object.keys(SCHOOL_DRIVEN_LABELS).forEach(l => SCHOOL_DRIVEN_LABELS[l].forEach(r => { SCHOOL_DRIVEN_BY_REASON[_sdNorm(r)] = l; }));
+  function schoolDrivenLabel(reason) { return SCHOOL_DRIVEN_BY_REASON[_sdNorm(reason)] || null; }
+  function _ymd(v) { const x = _dt(v); return x ? x.y + '-' + _p2(x.mo) + '-' + _p2(x.d) : ''; }
+  // Unique Pearl sessions that did not happen for a school-driven reason:
+  //  • Cancelled with a school-driven Canceled Reason, or
+  //  • Missed, where no rostered scholar attended and the scholars' missed
+  //    reason is school-driven (how these were logged before cancellations).
+  // Attendance rows carry no session ID — matched on title + date + roster.
+  function schoolDrivenNotDelivered(sessRows, attRows) {
+    const byReason = {}; let total = 0;
+    if (!sessRows || !sessRows.length) return { total, byReason: [] };
+    const attIdx = new Map();
+    (attRows || []).forEach(r => {
+      if (!isScholarRow(r)) return;
+      const k = (r[ATT.SESSION] || '').trim() + '|' + _ymd(r[ATT.SESS_DATE]);
+      if (!attIdx.has(k)) attIdx.set(k, []);
+      attIdx.get(k).push(r);
+    });
+    const seen = new Set();
+    sessRows.forEach(r => {
+      const status = (r[SESS.STATUS] || '').trim();
+      const sid = (r[SESS.SESS_ID] || '').trim() || ((r[SESS.TITLE] || '') + '|' + (r[SESS.SCHOOL] || '') + '|' + (r[SESS.START] || ''));
+      if (seen.has(sid)) return;
+      let label = null;
+      if (status === 'Cancelled') label = schoolDrivenLabel(r[SESS.CANCELED_REASON]);
+      else if (status === 'Missed') {
+        const roster = new Set((r[SESS.STU_IDS] || '').split(',').map(x => x.trim()).filter(Boolean));
+        const rows = (attIdx.get((r[SESS.TITLE] || '').trim() + '|' + _ymd(r[SESS.START])) || [])
+          .filter(a => roster.has((a[ATT.USER_ID] || '').trim()));
+        if (rows.length && !rows.some(a => classifyAtt(a) === 'attended')) {
+          const counts = {};
+          rows.forEach(a => { const l = schoolDrivenLabel(a[ATT.MISS_REASON]); if (l) counts[l] = (counts[l] || 0) + 1; });
+          const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+          if (top) label = top[0];
+        }
+      }
+      if (!label) return;
+      seen.add(sid); total++;
+      byReason[label] = (byReason[label] || 0) + 1;
+    });
+    return { total, byReason: Object.entries(byReason).sort((a, b) => b[1] - a[1]) };
+  }
+
   // % of scholar surveys rating the session 4+ of 5 ("loving their sessions")
   function lovingPct(stuRows) {
     let pos = 0, n = 0;
@@ -650,6 +716,7 @@
       trend,
       uniqueScholars: servedScholars(att),
       sessions: deliveredSessions(sessPlace, att),
+      notDeliveredSchool: schoolDrivenNotDelivered(sessPlace, attPlace),
       sessionMinutes,
       reasons: scholarMissedReasons(stats.rows).slice(0, 6),
       checkIns: scholarsToCheckIn(throughWeek(attPlace, ATT.SESS_DATE, scope.week).filter(isScholarRow)),
@@ -1054,7 +1121,8 @@
   window.NJTCPartnerReport = {
     ATT, INST, STU, SESS, SCHOLAR_MISS_REASONS, TUTOR_MISS_REASONS,
     parseDate, weekBucket, weekRangeLabel, pct, scoped,
-    isScholarRow, classifyAtt, scholarStats, scholarWeekly, servedScholars, deliveredSessions, deliveredMinutes, lovingPct, scholarMissedReasons, scholarsToCheckIn,
+    isScholarRow, classifyAtt, scholarStats, scholarWeekly, servedScholars, deliveredSessions, deliveredMinutes,
+    schoolDrivenNotDelivered, schoolDrivenLabel, SCHOOL_DRIVEN_LABELS, lovingPct, scholarMissedReasons, scholarsToCheckIn,
     curateHighlights, loadExclusions, allWeeks, buildReportModel, scopeLabel,
     generatePDF, loadPearl, bundleForEntry, scopeMatches,
     SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,

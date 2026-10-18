@@ -1,0 +1,116 @@
+#!/usr/bin/env node
+/**
+ * Consistency + logic checks for the Pearl missed-session categories and the
+ * tutor-coverage helpers. No network. Run: node scripts/test-pearl-categories.js
+ *
+ *  1. shared/pearl-categories.js ABSENCE == every attendance classifier's
+ *     scholar-miss set (display categories must never disagree with the math).
+ *  2. partner/partner-report.js school-driven reasons == shared SCHOOL_DRIVEN.
+ *  3. central/modules/pearl-coverage.js date parsing, name matching and
+ *     covered-absence outcomes.
+ */
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const assert = require('assert');
+
+const ROOT = path.join(__dirname, '..');
+const CAT = require(path.join(ROOT, 'shared', 'pearl-categories.js'));
+const COV = require(path.join(ROOT, 'central', 'modules', 'pearl-coverage.js'));
+const norm = CAT.norm;
+const sameSet = (a, b, msg) => assert.deepStrictEqual([...new Set(a.map(norm))].sort(), [...new Set(b.map(norm))].sort(), msg);
+
+// ── 1. ABSENCE matches each classifier ──────────────────────────────────────
+function setLiteral(file, name) {
+  const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const m = src.match(new RegExp(name + '\\s*=\\s*new Set\\(\\[([\\s\\S]*?)\\]\\)'));
+  assert(m, `${name} not found in ${file}`);
+  return [...m[1].replace(/\/\/[^\n]*/g, '').matchAll(/'([^']*)'/g)].map(x => x[1]);
+}
+for (const f of ['central/modules/programming.js', 'onsite/pearl-data.js', 'partner/partner-report.js']) {
+  sameSet(CAT.LISTS.ABSENCE, setLiteral(f, 'SCHOLAR_MISS_REASONS'), `ABSENCE differs from SCHOLAR_MISS_REASONS in ${f}`);
+}
+
+// ── 2. Partner school-driven list mirrors the shared one ────────────────────
+const sb = { window: {}, document: { currentScript: null }, console };
+vm.createContext(sb);
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'partner', 'partner-report.js'), 'utf8'), sb);
+const R = sb.window.NJTCPartnerReport;
+const partnerReasons = [].concat(...Object.values(R.SCHOOL_DRIVEN_LABELS));
+sameSet(CAT.LISTS.SCHOOL_DRIVEN, partnerReasons, 'partner SCHOOL_DRIVEN_LABELS differs from shared SCHOOL_DRIVEN');
+CAT.LISTS.SCHOOL_DRIVEN.forEach(r => assert.strictEqual(CAT.categoryOf(r), 'cancellation', r + ' should be a cancellation reason'));
+
+// Every list maps to its own category; nothing is in two lists.
+const seen = {};
+[['UNDELIVERED', 'undelivered'], ['INTERNAL', 'internal'], ['ABSENCE', 'absence'], ['CANCELLATION', 'cancellation']].forEach(([k, c]) => {
+  CAT.LISTS[k].forEach(r => {
+    assert(!seen[norm(r)], `${r} is in ${seen[norm(r)]} and ${k}`); seen[norm(r)] = k;
+    assert.strictEqual(CAT.categoryOf(r), c, r);
+  });
+});
+assert.strictEqual(CAT.categoryOf(''), 'absence');
+assert.strictEqual(CAT.categoryOf('School Schedule changed'), 'cancellation'); // Pearl's cancellation spelling
+assert.strictEqual(CAT.categoryOf('Something new'), 'other');
+assert(!CAT.isOfferedStatus('Cancelled') && !CAT.isOfferedStatus('Rescheduled') && CAT.isOfferedStatus('Completed') && CAT.isOfferedStatus('Missed'));
+
+// ── 3. Coverage helpers ──────────────────────────────────────────────────────
+const dates = {
+  '10/3 & 10/5': ['2026-10-03', '2026-10-05'],
+  '10/13-10/15': ['2026-10-13', '2026-10-14', '2026-10-15'],
+  '10/16 - 10/19': ['2026-10-16', '2026-10-19'],            // weekend skipped
+  '10/14/2026': ['2026-10-14'], '2026-10-14': ['2026-10-14'],
+  '1/5 and 1/7': ['2027-01-05', '2027-01-07'],              // spring → SY end year
+  '10/3, 10/5; 10/7': ['2026-10-03', '2026-10-05', '2026-10-07'],
+  'next week': [], '10/32': [], '2/30': [], '': [],
+};
+Object.entries(dates).forEach(([k, v]) => assert.deepStrictEqual(COV.parseTrackerDates(k, 2026).dates, v, k));
+assert(COV.sameName('Lilia Quintero - SUB', 'lilia  quintero'));
+assert(COV.sameName('Jessica Miller (SUB)', 'Jessica Miller'));
+assert(COV.sameName('Lilia M. Quintero', 'Lilia Quintero'));
+assert(!COV.sameName('Nick H.', 'Nicholas Hoover'));
+
+const H = ['Original Instructor Name', 'Original Instructor Email/Username', 'Original Instructor Custom ID', 'Original Instructor Pearl ID',
+  'Substitute Instructor Name', 'Substitute Instructor Email/Username', 'Substitute Instructor Custom ID', 'Substitute Instructor Pearl ID',
+  'Substituted Date', 'Substituted By ', 'Session Start Date', 'Subject', 'Program', 'Grade', 'School', 'District', 'Region', 'Students', 'Session Pearl ID'];
+const NAMES = { S1: 'Lilia Quintero', S2: 'Jessica Miller', Y: 'Yolanda Price' };
+const row = (oid, sid, on, date, sess) => ['O' + oid, '', '', oid, NAMES[sid] + ' - SUB', '', '', sid, on, 'SL', date, 'Math', '', '', 'Sch', 'Dist', 'Reg', '', sess];
+const subs = COV.parseSubstitutions([H,
+  row('A', 'S1', '10/2/2026', '10/3/2026 9:15:00', 's1'),          // covered; sub attended
+  row('K', 'S1', '10/12/2026', '10/13/2026', 's2'),                // re-sub chain K → S1 → S2
+  row('S1', 'S2', '10/13/2026', '10/13/2026', 's2'),
+  row('X1', 'Y', '10/1/2026', '10/9/2026', 's3'),                  // cancelled session
+  row('X2', 'Y', '10/1/2026', '10/30/2026', 's4'),                 // future
+  row('X3', 'Y', '10/1/2026', '10/9/2026', 's5'),                  // original already marked absent
+  row('X4', 'Y', '10/1/2026', '10/9/2026', 's6'),                  // original ALSO marked attended
+  row('X5', 'Y', '10/1/2026', '10/9/2026', 's7'),                  // session not in Session Details
+]);
+const sess = { s1: { status: 'Completed', title: 'T1', start: '10/3/2026 9:15:00' }, s2: { status: 'Completed', title: 'T2', start: '10/13/2026' },
+  s3: { status: 'Cancelled', title: 'T3', start: '10/9/2026' }, s5: { status: 'Missed', title: 'T5', start: '10/9/2026' },
+  s6: { status: 'Completed', title: 'T6', start: '10/9/2026' } };
+const own = { 'S1|T1|2026-10-03': 'attended', 'S2|T2|2026-10-13': 'attended', 'X3|T5|2026-10-09': 'absent', 'X4|T6|2026-10-09': 'attended' };
+const out = COV.coveredAbsences(subs, sess, (u, t, d) => own[u + '|' + t + '|' + d] || null, '2026-10-18', CAT.isOfferedStatus);
+const by = Object.fromEntries(out.map(o => [o.sessId, o]));
+assert.strictEqual(out.length, 7, 'one result per session');
+assert.strictEqual(by.s1.outcome, 'covered'); assert.strictEqual(by.s1.subRowAttended, true);
+assert.strictEqual(by.s2.origId, 'K'); assert.strictEqual(by.s2.deliveredById, 'S2'); assert.strictEqual(by.s2.outcome, 'covered');
+assert.strictEqual(by.s3.outcome, 'not_offered');
+assert.strictEqual(by.s4.outcome, 'upcoming');
+assert.strictEqual(by.s5.outcome, 'already_recorded');
+assert.strictEqual(by.s6.outcome, 'tutor_attended');
+assert.strictEqual(by.s7.outcome, 'no_session');
+
+const tracker = COV.parseTracker([
+  ['Sub', 'Tutor Covering', 'Grades', 'Subjects', 'Date', 'Hours', 'Site Covering', 'Pay Period', 'Site Coordinator Name', 'Date You Called/ Emailed', 'Responsive within 24 hours? (Yes/No)'],
+  ['Lilia Quintero', 'A', '3', 'Math', '10/3 & 10/5', '', 'Site', '', 'C', '9/26/2026', 'Y'],
+  ['Nobody', 'Vacant Tutor', '3', 'Math', '10/14/2026', '', 'Site', '', 'C', '', 'Y'],
+  ['Lilia Quintero', 'A', '3', 'Math', '10/30', '', 'Site', '', 'C', '', 'Y'],
+  ['Lilia Quintero', 'A', '3', 'Math', 'soon', '', 'Site', '', 'C', '', 'Y'],
+], 'SW', 2026);
+assert.strictEqual(tracker[0].sub, 'Lilia Quintero');          // "sub" column, not "subjects"
+assert.strictEqual(tracker[0].dateRaw, '10/3 & 10/5'); // "date" column, not "date you called"
+assert(tracker[1].isVacancy);
+const rec = COV.reconcileTracker(tracker, subs, '2026-10-18', new Set(['s3']));
+assert.deepStrictEqual(rec.rows.map(r => r.status), ['partial', 'not_in_pearl', 'upcoming', 'unclear']);
+assert(!rec.notOnTracker.some(s => s.sessId === 's3'), 'cancelled-session subs never reported as missing from the tracker');
+
+console.log('pearl categories + coverage: all checks passed');

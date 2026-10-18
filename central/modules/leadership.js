@@ -304,8 +304,8 @@
           <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '—'}</div>
           <div class="ecd-kpi-foot">Total Pearl enrollment</div>
         </div>
-        <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}" title="Service Interruptions: Attendance records classified as disruptions NOT caused by scholar absence — e.g. tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences. Source: Pearl Ops — same value shown on Pearl Operations dashboard.">
-          <div class="ecd-kpi-lbl">Service Interruptions</div>
+        <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}" title="Not Counted vs. Attendance: Attendance records classified as disruptions NOT caused by scholar absence — e.g. tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences. Source: Pearl Ops — same value shown on Pearl Operations dashboard.">
+          <div class="ecd-kpi-lbl">Not Counted vs. Attendance</div>
           <div class="ecd-kpi-val" style="${siCount > 0 ? 'color:#f97316' : 'color:#059669'}">${siCount != null ? siCount : '—'}</div>
           <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged ✓' : 'Logged this period'}</div>
         </div>
@@ -334,7 +334,7 @@
       <div class="ecd-2col">
         <div class="ecd-card">
           <div class="ecd-card-title">Attendance Rates</div>
-          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes service interruptions. Benchmark: 80%. Source: Pearl Operations · SY 26-27.">
+          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes missed sessions not counted against attendance. Benchmark: 80%. Source: Pearl Operations · SY 26-27.">
             <div class="ecd-att-lbl">Scholar</div>
             <div class="ecd-att-track"><div class="ecd-att-fill ${scholAttCls(scholAtt||0)}" style="width:${scholPct}%"></div></div>
             <div class="ecd-att-pct">${fp(scholAtt)}</div>
@@ -348,7 +348,7 @@
         <div class="ecd-card">
           <div class="ecd-card-title">Program Signals</div>
           <div style="font-size:.8rem;line-height:1.9;color:#334155">
-            <div>Service interruptions logged: <strong>${siCount != null ? fc(siCount) : '—'}</strong></div>
+            <div>Missed sessions not counted against attendance logged: <strong>${siCount != null ? fc(siCount) : '—'}</strong></div>
             <div>Scholar survey average: <strong>${survAvg != null ? survAvg + ' / 5' : '—'}</strong></div>
             <div>Sessions on record: <strong>${sessions != null ? fc(sessions) : '—'}</strong></div>
           </div>
@@ -370,7 +370,7 @@
       <div class="ecd-2col">
         <div class="ecd-card">
           <div class="ecd-card-title">Attendance Rates</div>
-          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes service interruption records — those are not scholar-caused absences. Benchmark: 80%. Source: Pearl Operations.">
+          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes records not counted against attendance — those are not scholar-caused absences. Benchmark: 80%. Source: Pearl Operations.">
             <div class="ecd-att-lbl">Scholar</div>
             <div class="ecd-att-track"><div class="ecd-att-fill ${scholAttCls(scholAtt||0)}" style="width:${scholPct}%"></div></div>
             <div class="ecd-att-pct">${fp(scholAtt)}</div>
@@ -383,7 +383,7 @@
           ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
         </div>
         <div class="ecd-card">
-          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined). Service interruptions (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 80%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>
+          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined). Missed sessions not counted against attendance (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 80%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>
           <div class="ecd-tier">
             <div class="ecd-tier-dot" style="background:#059669"></div>
             <div class="ecd-tier-lbl">On Track (&ge;80%)</div>

@@ -1332,7 +1332,10 @@
     // Read via the sheet-ID CSV export (portal-wide pattern for shared sheets);
     // gviz CSV is only a fallback since it can blank mixed-type cells.
     const SY2627_SHEET_ID = '1y_g5cl4qT2qeUmuO0aeBhURAbXsuGIusgqLiBWOUDLM';
-    const SY2627_GIDS = { att: 702726038, sess: 625567780, inst: 1955492004, stu: 1245403832 };
+    const SY2627_GIDS = { att: 702726038, sess: 625567780, inst: 1955492004, stu: 1245403832,
+      subs: 12488697,     // Instructor Substitutions (Pearl report)
+      subNE: 556939004,   // NE Sub Tracker (regional sub log)
+      subSW: 2140379234 };// SW Sub Tracker (regional sub log)
     const sy2627ExportUrl = gid => `https://docs.google.com/spreadsheets/d/${SY2627_SHEET_ID}/export?format=csv&gid=${gid}`;
     const sy2627GvizUrl   = gid => `https://docs.google.com/spreadsheets/d/${SY2627_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
     // Pearl "Week 1" for SY 26-27 = week of the first delivered session (Mon 2026-09-14)
@@ -1340,9 +1343,12 @@
 
     // Session-model periods (Summer-style workbooks) — per-period cache + tabs
     const SESSION_MODEL = {
-      summer2026: { cacheKey: 'njtc_pearl_summer_v1', gids: SUMMER_GIDS, label: 'Summer' },
-      sy2627:     { cacheKey: 'njtc_pearl_2627_v1',   gids: SY2627_GIDS, label: 'SY26-27' },
+      // v2 = Session Details mapped by header (v1 caches hold rows mis-mapped
+      // after Pearl inserted the Canceled By / Canceled Reason columns)
+      summer2026: { cacheKey: 'njtc_pearl_summer_v2', gids: SUMMER_GIDS, label: 'Summer' },
+      sy2627:     { cacheKey: 'njtc_pearl_2627_v2',   gids: SY2627_GIDS, label: 'SY26-27' },
     };
+    try { NJTC_CACHE.bust('njtc_pearl_summer_v1'); NJTC_CACHE.bust('njtc_pearl_2627_v1'); } catch(e) {}
     const PERIOD_EYEBROW = {
       sy2526:     'SY 2025–2026 · Archived Snapshot',
       summer2026: '☀️ Summer 2026 · Archived Snapshot',
@@ -1424,6 +1430,10 @@
       TOTAL_SUCCESS: 20, // U  Total Successful Sessions
       TOTAL_MISS_STU: 21, // V  Total Missed Sessions by Scholar
       TOTAL_MISS_INST: 22,// W  Total Missed Sessions by Instructor
+      // Session-model periods only (Summer 2026 / SY 26-27 Session Details).
+      // Positions in the mapped row, not sheet columns — past every SY 25-26 column.
+      CANCELED_BY: 23,     // Pearl "Canceled By" (who cancelled/rescheduled)
+      CANCELED_REASON: 24, // Pearl "Canceled Reason"
     };
 
     // ── COLUMN INDEXES — STUDENT SURVEYS ─────────────────────────────────
@@ -1461,8 +1471,27 @@
       TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, PROGRAM:4, STATUS:5,
       ATTENDANCE:6, SCHED_START:7, SCHED_DUR:8, ACTUAL_DUR:9, SUBJECT:10,
       GRADE:11, SCHOOL:12, DISTRICT:13, REGION:14, SESS_ID:15, INST_ID:16,
-      STU_IDS:17,
+      STU_IDS:17, CANCELED_BY:-1, CANCELED_REASON:-1,
     };
+    // Header text for each SUM_SESS field. Pearl inserted "Canceled By" /
+    // "Canceled Reason" at F/G in Oct 2026 (shifting Status onward by two), so
+    // columns are always resolved by header; SUM_SESS positions are only the
+    // fallback for a tab exported without a header row.
+    const SUM_SESS_HEADERS = {
+      TITLE:'title', INSTRUCTOR:'instructor', STUDENTS:'students', LOCATION:'location',
+      PROGRAM:'program', STATUS:'status', ATTENDANCE:'attendance', SCHED_START:'scheduled start',
+      SCHED_DUR:'scheduled duration', ACTUAL_DUR:'actual duration', SUBJECT:'subject',
+      GRADE:'grade', SCHOOL:'school', DISTRICT:'district', REGION:'region',
+      SESS_ID:'pearl session id', INST_ID:'pearl instructor id', STU_IDS:'pearl student ids',
+      CANCELED_BY:'canceled by', CANCELED_REASON:'canceled reason',
+    };
+    function resolveSumSessCols(headerRow) {
+      const h = (headerRow || []).map(x => String(x || '').replace(/\s+/g, ' ').trim().toLowerCase());
+      if (h.indexOf('title') !== 0 && h.indexOf('pearl session id') < 0) return SUM_SESS; // no header row
+      const C = {};
+      for (const k in SUM_SESS_HEADERS) { C[k] = h.indexOf(SUM_SESS_HEADERS[k]); }
+      return C;
+    }
     // Student Surveys — cols 0-13 already match STU_S positions 1:1.
     const SUM_STU_SURV = {
       FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4,
@@ -1715,6 +1744,7 @@
       _sessRows = keep(_sessRows, SESS.SCHOOL,   SESS.DISTRICT);
       _stuRows  = keep(_stuRows,  STU_S.SCHOOL,  STU_S.DISTRICT);
       _instRows = keep(_instRows, INST_S.SCHOOL, INST_S.DISTRICT);
+      _pearlSubs = _pearlSubs.filter(x => !_isArchivedName(x.school) && !_isArchivedName(x.district));
     }
 
     // Staff who separated during the SAME year as the Pearl data loaded
@@ -1778,29 +1808,36 @@
 
     // Session-level rows for _sessRows (session/delivery stats) — direct field
     // mapping from the raw Summer columns into the shared SESS index positions.
+    // sessRaw includes the header row (row 0) — columns are resolved from it.
     function buildSummerSessRows(sessRaw) {
       const out = [];
-      for (const r of sessRaw) {
-        const sessId = r[SUM_SESS.SESS_ID];
+      if (!sessRaw || !sessRaw.length) return out;
+      const C = resolveSumSessCols(sessRaw[0]);
+      const body = C === SUM_SESS ? sessRaw : sessRaw.slice(1);
+      const v = (r, i) => (i >= 0 ? r[i] : undefined);
+      for (const r of body) {
+        const sessId = v(r, C.SESS_ID);
         if (!sessId) continue;
         const row = [];
-        row[SESS.TITLE]      = r[SUM_SESS.TITLE];
-        row[SESS.INSTRUCTOR] = r[SUM_SESS.INSTRUCTOR];
-        row[SESS.STUDENTS]   = r[SUM_SESS.STUDENTS];
-        row[SESS.LOCATION]   = r[SUM_SESS.LOCATION];
-        row[SESS.STATUS]     = r[SUM_SESS.STATUS];
-        row[SESS.ATTENDANCE] = r[SUM_SESS.ATTENDANCE];
-        row[SESS.START]      = r[SUM_SESS.SCHED_START];
-        row[SESS.SCHED_DUR]  = r[SUM_SESS.SCHED_DUR];
-        row[SESS.ACTUAL_DUR] = r[SUM_SESS.ACTUAL_DUR];
-        row[SESS.SUBJECT]    = r[SUM_SESS.SUBJECT];
-        row[SESS.GRADE]      = r[SUM_SESS.GRADE];
-        row[SESS.SCHOOL]     = r[SUM_SESS.SCHOOL];
-        row[SESS.DISTRICT]   = r[SUM_SESS.DISTRICT];
-        row[SESS.REGION]     = r[SUM_SESS.REGION];
+        row[SESS.TITLE]      = v(r, C.TITLE);
+        row[SESS.INSTRUCTOR] = v(r, C.INSTRUCTOR);
+        row[SESS.STUDENTS]   = v(r, C.STUDENTS);
+        row[SESS.LOCATION]   = v(r, C.LOCATION);
+        row[SESS.STATUS]     = v(r, C.STATUS);
+        row[SESS.ATTENDANCE] = v(r, C.ATTENDANCE);
+        row[SESS.START]      = v(r, C.SCHED_START);
+        row[SESS.SCHED_DUR]  = v(r, C.SCHED_DUR);
+        row[SESS.ACTUAL_DUR] = v(r, C.ACTUAL_DUR);
+        row[SESS.SUBJECT]    = v(r, C.SUBJECT);
+        row[SESS.GRADE]      = v(r, C.GRADE);
+        row[SESS.SCHOOL]     = v(r, C.SCHOOL);
+        row[SESS.DISTRICT]   = v(r, C.DISTRICT);
+        row[SESS.REGION]     = v(r, C.REGION);
         row[SESS.SESS_ID]    = sessId;
-        row[SESS.INST_ID]    = r[SUM_SESS.INST_ID];
-        row[SESS.STU_IDS]    = r[SUM_SESS.STU_IDS];
+        row[SESS.INST_ID]    = v(r, C.INST_ID);
+        row[SESS.STU_IDS]    = v(r, C.STU_IDS);
+        row[SESS.CANCELED_BY]     = v(r, C.CANCELED_BY) || '';
+        row[SESS.CANCELED_REASON] = v(r, C.CANCELED_REASON) || '';
         out.push(row);
       }
       return out;
@@ -1999,6 +2036,10 @@
     let _sessRows = [];   // parsed session details
     let _stuRows  = [];   // parsed student surveys (grows during stream)
     let _instRows = [];   // parsed instructor surveys
+    // SY 26-27 coverage tabs (central/modules/pearl-coverage.js parses them)
+    let _pearlSubs  = [];          // Pearl "Instructor Substitutions" report rows
+    let _subTracker = [];          // NE + SW "Sub Tracker" entries
+    let _covTabs    = { subs: false, tracker: false }; // which coverage tabs loaded (an empty tab is a valid load)
 
     // Period toggle — 'sy2526' (default; concluded, shown as an archived
     // snapshot — see SY2627_BASE_ID above) | 'summer2026'
@@ -2538,6 +2579,7 @@
 
       // Reset all derived state — do NOT mix SY and Summer records together.
       _attRows = []; _sessRows = []; _stuRows = []; _instRows = [];
+      _pearlSubs = []; _subTracker = []; _covTabs = { subs: false, tracker: false };
       _schoolMap = {}; _personMap = {}; _sessMap = {};
       _view = 'schools'; _selSchool = null; _selPerson = null;
       _stuStreamComplete = false; _stuAggScores = null;
@@ -2742,6 +2784,9 @@
             _sessRows = _pc.data.sess || [];
             _stuRows  = _pc.data.stu  || [];
             _instRows = _pc.data.inst || [];
+            _pearlSubs  = _pc.data.subs || [];
+            _subTracker = _pc.data.tracker || [];
+            _covTabs    = _pc.data.covTabs || { subs: false, tracker: false };
             _stuStreamComplete = true;
             _stripArchived();
             buildIndexes();
@@ -2763,11 +2808,17 @@
       if (btn) btn.disabled = true;
       try {
         const bust = force ? ('&t=' + Date.now()) : '';
-        const [attResult, sessResult, instResult, stuResult] = await Promise.allSettled([
+        // Coverage tabs (SY 26-27 only) fail soft — the rest of Pearl Ops
+        // never waits on or breaks because of them.
+        const _skip = Promise.resolve('');
+        const [attResult, sessResult, instResult, stuResult, subsResult, subNEResult, subSWResult] = await Promise.allSettled([
           fetchTab(cfg.gids.att,  bust, 30000, 'att'),
           fetchTab(cfg.gids.sess, bust, 30000, 'sess'),
           fetchTab(cfg.gids.inst, bust, 25000, 'inst'),
           fetchTab(cfg.gids.stu,  bust, 30000, 'stu'),
+          cfg.gids.subs  ? fetchTab(cfg.gids.subs,  bust, 20000, 'subs')  : _skip,
+          cfg.gids.subNE ? fetchTab(cfg.gids.subNE, bust, 20000, 'subNE') : _skip,
+          cfg.gids.subSW ? fetchTab(cfg.gids.subSW, bust, 20000, 'subSW') : _skip,
         ]);
         if (_periodChangedDuring(_startPeriod)) { if (btn) btn.disabled = false; return; }
 
@@ -2776,7 +2827,7 @@
         // the exact same ATT map and CSV parser. No translation layer needed.
         await new Promise(r => setTimeout(r, 0));
         const attRaw  = attResult.status  === 'fulfilled' ? parseCSVLimit(attResult.value, ATT_MAX_COL).slice(1) : [];
-        const sessRaw = sessResult.status === 'fulfilled' ? parseCSV(sessResult.value).slice(1) : [];
+        const sessRaw = sessResult.status === 'fulfilled' ? parseCSV(sessResult.value) : []; // header kept — buildSummerSessRows maps by it
         const instRaw = instResult.status === 'fulfilled' ? parseCSV(instResult.value).slice(1) : [];
         const stuRaw  = stuResult.status  === 'fulfilled' ? parseCSV(stuResult.value).slice(1)  : [];
         if (attResult.status  !== 'fulfilled') console.warn(tag, 'attendance/missed-reasons tab failed:', attResult.reason && attResult.reason.message);
@@ -2791,6 +2842,20 @@
         const attRows = attRaw.filter(r => r && (r[ATT.USER] || r[ATT.USER_ID]));
         for (const r of attRows) {
           if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) r[ATT.WEEK] = weekFn(r[ATT.SESS_DATE]);
+        }
+
+        const COV = window.NJTC_PEARL_COVERAGE;
+        _pearlSubs = []; _subTracker = []; _covTabs = { subs: false, tracker: false };
+        if (COV && cfg.gids.subs) {
+          const ok = r => r.status === 'fulfilled' && typeof r.value === 'string';
+          if (ok(subsResult)) { _pearlSubs = COV.parseSubstitutions(parseCSV(subsResult.value)); _covTabs.subs = true; }
+          else console.warn(tag, 'Instructor Substitutions tab failed:', subsResult.reason && subsResult.reason.message);
+          const syY = SY2627_START.getFullYear();
+          if (ok(subNEResult) && ok(subSWResult)) {
+            _subTracker = COV.parseTracker(parseCSV(subNEResult.value), 'NE', syY)
+              .concat(COV.parseTracker(parseCSV(subSWResult.value), 'SW', syY));
+            _covTabs.tracker = true;
+          } else console.warn(tag, 'Sub Tracker tab(s) failed:', (subNEResult.reason || subSWResult.reason || {}).message);
         }
 
         _attRows  = attRows;
@@ -2808,7 +2873,8 @@
         // SY sheet outgrows it, and an oversized write would evict other
         // portal caches. Oversized → skip caching (always fetch fresh).
         try {
-          const payload = { att: _attRows, sess: _sessRows, stu: _stuRows, inst: _instRows };
+          const payload = { att: _attRows, sess: _sessRows, stu: _stuRows, inst: _instRows,
+                            subs: _pearlSubs, tracker: _subTracker, covTabs: _covTabs };
           if (JSON.stringify(payload).length < 2000000) NJTC_CACHE.set(cfg.cacheKey, payload);
           else NJTC_CACHE.bust(cfg.cacheKey);
         } catch(e) {}
@@ -3285,6 +3351,7 @@
           start: r[SESS.START], schedDur: r[SESS.SCHED_DUR],
           actualDur: r[SESS.ACTUAL_DUR], subject: r[SESS.SUBJECT],
           grade: r[SESS.GRADE], school: r[SESS.SCHOOL], district: r[SESS.DISTRICT],
+          canceledBy: r[SESS.CANCELED_BY] || '', canceledReason: r[SESS.CANCELED_REASON] || '',
           durMins, ratio,
           ratioFlag: ratio > 4,  // HIT: must be ≤ 4:1 (flag, MOU governs)
         };
@@ -3699,7 +3766,7 @@
         wrapperId: 'mswFlag', label: 'Record Type', stateKey: 'flag',
         staticOptions: [
           { value: 'hit',     label: 'HIT Flags Only' },
-          { value: 'si',      label: 'Service Interruptions' },
+          { value: 'si',      label: 'Not Counted vs. Attendance' },
           { value: 'concern', label: 'Attendance Concern' }
         ],
         options: []
@@ -3745,7 +3812,8 @@
       const fullAtt    = filtSess.filter(s => s.isFullAtt).length;
       const partial    = filtSess.filter(s => s.isPartial).length;
       const delivered  = fullAtt + partial;   // Completed = Attended + Partially Attended
-      const totalSess  = filtSess.filter(s => s.status && s.status !== '' && s.status !== 'Scheduled').length;
+      // Sessions offered with an outcome — Cancelled / Rescheduled were never offered
+      const totalSess  = filtSess.filter(s => s.status && s.status !== 'Scheduled' && s.status !== 'Cancelled' && s.status !== 'Rescheduled').length;
 
       // ── Scheduled-but-not-completed sessions (program watchpoint) ─
       // BUSINESS RULE: Sessions with status 'Scheduled' are future-pending or overdue.
@@ -3838,7 +3906,28 @@
       setText('poStatInstAtt',       instAttPct);
       setText('poStatSessions',      delivered.toLocaleString());
       setText('poStatSessionsSub',   `${fullAtt.toLocaleString()} full · ${partial.toLocaleString()} partial · of ${totalSess.toLocaleString()}`);
-      setText('poStatInterruptions', si.toLocaleString());
+      // Missed-session categories (display only — rates above are unchanged)
+      const _mc = computeMissedAndCoverage();
+      if (_mc) {
+        const K = window.NJTC_PEARL_CATEGORIES.CATEGORY, mc = _mc.cats;
+        setText('poStatInterruptions', mc[K.UNDELIVERED].count.toLocaleString());
+        const notCounted = si.toLocaleString();
+        setText('poStatInterruptionsSub', `of ${notCounted} not counted against attendance · ${mc[K.CANCELLATION].count.toLocaleString()} cancellation-type · ${mc[K.INTERNAL].count.toLocaleString()} internal`);
+        const adj = tutorRateWithCovered(instAtt, instAbs, _mc);
+        const cvN = _mc.coverage ? _mc.coverage.covered.length : 0;
+        let sub = 'Recorded rate (official)';
+        if (_mc.coverage && adj !== null && instTotal > 0) {
+          const recPct = instAtt / instTotal * 100;
+          const delta = adj - recPct;
+          sub = cvN > 0
+            ? `Incl. ${cvN.toLocaleString()} covered absence${cvN === 1 ? '' : 's'}: ${adj.toFixed(1)}% (${delta <= 0 ? '▼' : '▲'}${Math.abs(delta).toFixed(1)} pts)`
+            : 'Recorded rate · no covered absences in Pearl';
+        }
+        setText('poStatInstAttSub', sub);
+      } else {
+        setText('poStatInterruptions', si.toLocaleString());
+      }
+      renderMissedCoverage(_mc);
       setText('poStatSurveyScholar', stuSurvAvg === '—' ? '—' : '★ ' + stuSurvAvg);
       setText('poStatSurveyTutor',   instSurvAvg === '—' ? '—' : '★ ' + instSurvAvg);
       // Show tutor survey completion rate in the sub-label (corrected denominator: eligible sessions only)
@@ -3855,6 +3944,262 @@
         if (scTile) scTile.closest('.stat-tile').style.setProperty('--accent-color', scheduledIncomplete > 10 ? '#ef4444' : 'var(--gold)');
       }
       setText('poStatFlags',         hitFlags.toLocaleString());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MISSED SESSIONS · CANCELLATIONS · TUTOR COVERAGE
+    // ══════════════════════════════════════════════════════════════════════
+    // Display-only layer on top of the attendance math above — classifyRecord
+    // and every rate stay exactly as they are. Categories come from
+    // shared/pearl-categories.js; substitutions / Sub Trackers from
+    // central/modules/pearl-coverage.js. Follows the school / district / week
+    // filters. Cancellations and coverage need SY 26-27 Pearl columns/tabs.
+    // Category of a row the classifier put in 'service_interruption' (never 'absence').
+    function _siCategory(reason) {
+      const CAT = window.NJTC_PEARL_CATEGORIES;
+      if (!CAT) return 'other';
+      const c = CAT.categoryOf(reason);
+      return c === CAT.CATEGORY.ABSENCE ? CAT.CATEGORY.OTHER : c;
+    }
+    function _siCategoryLabel(reason) {
+      const CAT = window.NJTC_PEARL_CATEGORIES;
+      if (!CAT) return 'Not counted';
+      const c = _siCategory(reason);
+      return c === CAT.CATEGORY.CANCELLATION ? 'Cancellation-type' : CAT.LABELS[c];
+    }
+    function _h(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function _todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function _isoToMDY(iso) { const p = (iso || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) + '/' + p[0] : ''; }
+    function _isoDate(v) { const C = window.NJTC_PEARL_COVERAGE; return C ? C.toISODate(v) : ''; }
+
+    // Instructor attendance row outcome by (Pearl user ID, session title, date).
+    // Rebuilt whenever _attRows is replaced.
+    let _instIdx = null, _instIdxSrc = null;
+    function _instRowOutcome(uid, title, iso) {
+      if (_instIdxSrc !== _attRows) {
+        _instIdx = {}; _instIdxSrc = _attRows;
+        for (const r of _attRows) {
+          if (r[ATT.ROLE] !== 'Instructor' || !r[ATT.USER_ID]) continue;
+          const k = r[ATT.USER_ID] + '|' + (r[ATT.SESSION] || '').trim() + '|' + _isoDate(r[ATT.SESS_DATE]);
+          const c = classifyRecord(r);
+          const o = c === 'absent' ? 'absent' : c === 'attended' ? 'attended' : 'other';
+          // absent wins over attended wins over other (duplicate rows)
+          if (!_instIdx[k] || o === 'absent' || (o === 'attended' && _instIdx[k] === 'other')) _instIdx[k] = o;
+        }
+      }
+      return _instIdx[uid + '|' + (title || '').trim() + '|' + iso] || null;
+    }
+
+    function _inWeekFilter(iso) {
+      if (!_filtWeek.length) return true;
+      return !!iso && _filtWeek.includes(weekKeyFromDateStr(_isoToMDY(iso)));
+    }
+
+    function computeMissedAndCoverage() {
+      const CAT = window.NJTC_PEARL_CATEGORIES, COV = window.NJTC_PEARL_COVERAGE;
+      if (!CAT) return null;
+      const out = { period: _activePeriod, live: _activePeriod === 'sy2627' };
+
+      // ── 1. Scholar missed rows by category (same scope as the stat tiles) ──
+      const cats = {}; CAT.ORDER.forEach(c => { cats[c] = { count: 0, reasons: {} }; });
+      const shouldCancel = {};   // school|title|date → { school, title, date, reason, n }
+      for (const r of _attRows) {
+        if (r[ATT.ROLE] !== 'Student') continue;
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
+        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) continue;
+        const cls = classifyRecord(r);
+        if (cls !== 'absent' && cls !== 'service_interruption') continue;
+        const reason = (r[ATT.MISS_REASON] || '').trim();
+        let cat = cls === 'absent' ? CAT.CATEGORY.ABSENCE : CAT.categoryOf(reason);
+        // Keep the display consistent with the math: a row the classifier did
+        // not count as an absence is never shown as one.
+        if (cls !== 'absent' && cat === CAT.CATEGORY.ABSENCE) cat = CAT.CATEGORY.OTHER;
+        const b = cats[cat];
+        b.count++;
+        const label = reason || 'No reason entered';
+        b.reasons[label] = (b.reasons[label] || 0) + 1;
+        if (cat === CAT.CATEGORY.CANCELLATION) {
+          const d = _isoDate(r[ATT.SESS_DATE]);
+          const k = (r[ATT.SCHOOL] || '') + '|' + (r[ATT.SESSION] || '') + '|' + d;
+          if (!shouldCancel[k]) shouldCancel[k] = { school: r[ATT.SCHOOL] || '', district: r[ATT.DISTRICT] || '', title: r[ATT.SESSION] || '', date: d, reason, n: 0 };
+          shouldCancel[k].n++;
+        }
+      }
+      out.cats = cats;
+      out.shouldCancel = Object.values(shouldCancel).sort((a, b) => (b.date || '').localeCompare(a.date || '') || a.school.localeCompare(b.school));
+
+      if (!out.live) return out;
+
+      // ── 2. Cancelled / Rescheduled sessions (Session Details) ─────────
+      const canc = { cancelled: 0, rescheduled: 0, byReason: {}, byWho: {}, noReason: [] };
+      for (const s of Object.values(_sessMap)) {
+        if (s.status !== 'Cancelled' && s.status !== 'Rescheduled') continue;
+        if (!matchesSchoolFilter(s.school, s.district)) continue;
+        const iso = _isoDate(s.start);
+        if (!_inWeekFilter(iso)) continue;
+        const who = (s.canceledBy || '').trim() || 'Not recorded';
+        if (s.status === 'Rescheduled') { canc.rescheduled++; continue; }
+        canc.cancelled++;
+        const why = (s.canceledReason || '').trim();
+        const label = why || 'No reason entered';
+        canc.byReason[label] = (canc.byReason[label] || 0) + 1;
+        canc.byWho[who] = (canc.byWho[who] || 0) + 1;
+        if (!why) canc.noReason.push({ school: s.school || '', title: s.title || '', instructor: s.instructor || '', date: iso, who, id: s.id });
+      }
+      canc.noReason.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      out.canc = canc;
+
+      // ── 3. Tutor coverage (Pearl Instructor Substitutions + Sub Trackers) ──
+      out.covTabs = _covTabs;
+      if (!COV) return out;
+      const today = _todayISO();
+      const sessById = {};
+      for (const s of Object.values(_sessMap)) sessById[s.id] = { status: s.status, title: s.title, start: s.start, school: s.school, district: s.district };
+      const allCov = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, today, CAT.isOfferedStatus);
+      const scoped = allCov.filter(c => matchesSchoolFilter(c.school, c.district) && _inWeekFilter(c.date));
+      const covered = scoped.filter(c => c.outcome === 'covered');
+      const alreadyKeys = new Set(scoped.filter(c => c.outcome === 'already_recorded').map(c => c.origId + '|' + (c.title || '').trim() + '|' + c.date));
+
+      // Tutor absences already in the attendance rows (same scope as the tile)
+      let legacyCovered = 0, uncovered = 0;
+      for (const r of _attRows) {
+        if (r[ATT.ROLE] !== 'Instructor') continue;
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
+        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) continue;
+        if (classifyRecord(r) !== 'absent') continue;
+        const k = r[ATT.USER_ID] + '|' + (r[ATT.SESSION] || '').trim() + '|' + _isoDate(r[ATT.SESS_DATE]);
+        if (alreadyKeys.has(k)) continue;                 // counted below as Pearl-covered
+        if (CAT.isCoveredTutorReason(r[ATT.MISS_REASON])) legacyCovered++; else uncovered++;
+      }
+      const pearlCovered = covered.length + alreadyKeys.size;
+      const coveredAll = pearlCovered + legacyCovered;
+      out.coverage = {
+        covered, pearlCovered, legacyCovered, uncovered,
+        rate: (coveredAll + uncovered) > 0 ? coveredAll / (coveredAll + uncovered) * 100 : null,
+        subAttendedOffset: covered.filter(c => c.subRowAttended).length,
+        conflicts: scoped.filter(c => c.outcome === 'tutor_attended'),
+        upcoming: scoped.filter(c => c.outcome === 'upcoming').length,
+        undated: scoped.filter(c => c.outcome === 'undated').length,
+        noSession: scoped.filter(c => c.outcome === 'no_session').length,
+        byDeliverer: covered.reduce((m, c) => { const n = c.deliveredByName || 'Unknown'; m[n] = (m[n] || 0) + 1; return m; }, {}),
+        byOriginal: covered.reduce((m, c) => { const k = c.origId || c.origName; if (!m[k]) m[k] = { name: c.origName, school: c.school, n: 0 }; m[k].n++; return m; }, {}),
+      };
+      // Tracker reconciliation — tracker sites are free text, so it is not
+      // narrowed by the school / district / week filters.
+      const skip = new Set(allCov.filter(c => c.outcome === 'not_offered').map(c => c.sessId));
+      out.tracker = _covTabs.tracker ? COV.reconcileTracker(_subTracker, _pearlSubs, today, skip) : null;
+      return out;
+    }
+
+    // One tutor's covered absences (as the ORIGINAL tutor) and covered sessions
+    // they delivered as a substitute — all schools / weeks, like the person card.
+    function _coverageForPerson(uid) {
+      const CAT = window.NJTC_PEARL_CATEGORIES, COV = window.NJTC_PEARL_COVERAGE;
+      if (!CAT || !COV || _activePeriod !== 'sy2627' || !_pearlSubs.length) return null;
+      const sessById = {};
+      for (const s of Object.values(_sessMap)) sessById[s.id] = { status: s.status, title: s.title, start: s.start, school: s.school, district: s.district };
+      const all = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, _todayISO(), CAT.isOfferedStatus)
+        .filter(c => c.outcome === 'covered');
+      return {
+        absences: all.filter(c => c.origId === uid),
+        asSub: all.filter(c => c.deliveredById === uid && c.subRowAttended).length,
+      };
+    }
+
+    // Tutor attendance including covered absences, for the stat tile.
+    function tutorRateWithCovered(instAtt, instAbs, cov) {
+      if (!cov || !cov.coverage) return null;
+      const a = instAtt - cov.coverage.subAttendedOffset;
+      const t = a + instAbs + cov.coverage.covered.length;
+      return t > 0 ? a / t * 100 : null;
+    }
+
+    function renderMissedCoverage(model) {
+      const el = document.getElementById('poMissedCoverage');
+      if (!el) return;
+      if (_view !== 'schools' || !model) { el.innerHTML = ''; el.style.display = 'none'; return; }
+      const CAT = window.NJTC_PEARL_CATEGORIES;
+      const names = canSeeNames();
+      const n = v => (v || 0).toLocaleString();
+      const reasonList = obj => Object.entries(obj).sort((a, b) => b[1] - a[1])
+        .map(([r, c]) => `<div style="display:flex;justify-content:space-between;gap:.75rem;font-size:.75rem;padding:.15rem 0"><span style="min-width:0">${_h(r)}</span><strong style="flex-shrink:0">${n(c)}</strong></div>`).join('')
+        || '<div style="font-size:.75rem;color:var(--muted)">None</div>';
+      const card = (title, value, sub, color, body) => `
+        <div style="flex:1 1 210px;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:10px;padding:.75rem .9rem;background:var(--surface);border-top:3px solid ${color};overflow-wrap:anywhere">
+          <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">${title}</div>
+          <div style="font-size:1.4rem;font-weight:800;color:var(--navy);line-height:1.2;margin:.15rem 0">${value}</div>
+          <div style="font-size:.6875rem;color:var(--muted);margin-bottom:.4rem">${sub}</div>
+          ${body}
+        </div>`;
+      const C = model.cats;
+      const K = CAT.CATEGORY;
+      let html = `<div class="po-detail-card" style="margin-bottom:1rem">
+        <div class="po-section-hd" style="flex-wrap:wrap;gap:.25rem .75rem"><span>Missed Sessions by Category${model.live ? ' · Cancellations · Tutor Coverage' : ''}</span>
+          <span style="text-transform:none;letter-spacing:0;font-weight:500">Counts are scholar sessions unless noted · follows the filters above</span></div>
+        <div style="padding:.9rem 1.1rem">
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem">
+          ${card('Undelivered Sessions', n(C[K.UNDELIVERED].count), 'Tutor absent / vacancy · not counted against scholar attendance · talking point, no action needed', '#d97706', reasonList(C[K.UNDELIVERED].reasons))}
+          ${card('Cancellation Reasons Logged as Missed', n(C[K.CANCELLATION].count), 'School / NJTC-driven · not counted against attendance · under the new process these sessions are cancelled in Pearl', '#b91c1c', reasonList(C[K.CANCELLATION].reasons))}
+          ${card('Internal Tracking', n(C[K.INTERNAL].count), 'NJTC-internal · not counted against attendance', '#64748b', reasonList(C[K.INTERNAL].reasons))}
+          ${card('Scholar Absences', n(C[K.ABSENCE].count), 'Count toward Scholar Attendance %', '#0d6e3a', reasonList(C[K.ABSENCE].reasons))}
+          ${C[K.OTHER].count ? card('Unmapped Reasons', n(C[K.OTHER].count), 'Not counted against attendance · not yet in a category — tell the Data team', '#7c3aed', reasonList(C[K.OTHER].reasons)) : ''}
+        </div>`;
+
+      if (model.live && model.canc) {
+        const cz = model.canc;
+        const noR = cz.noReason.length;
+        html += `<div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.75rem">
+          ${card('Session Cancellations', n(cz.cancelled), `Sessions · removed from sessions offered · ${n(cz.rescheduled)} rescheduled (also not offered)`, '#2a5298', reasonList(cz.byReason))}
+          ${card('Cancelled By', n(Object.keys(cz.byWho).length), 'Pearl "Canceled By"', '#2a5298', names ? reasonList(cz.byWho) : '<div style="font-size:.75rem;color:var(--muted)">Names hidden for this view</div>')}
+          ${model.coverage ? (() => {
+            const cv = model.coverage;
+            const rate = cv.rate == null ? '—' : cv.rate.toFixed(1) + '%';
+            const body = `<div style="font-size:.75rem;padding:.15rem 0;display:flex;justify-content:space-between"><span>Covered (Pearl substitutions)</span><strong>${n(cv.pearlCovered)}</strong></div>`
+              + (cv.legacyCovered ? `<div style="font-size:.75rem;padding:.15rem 0;display:flex;justify-content:space-between"><span>Covered (logged as tutor reason)</span><strong>${n(cv.legacyCovered)}</strong></div>` : '')
+              + `<div style="font-size:.75rem;padding:.15rem 0;display:flex;justify-content:space-between"><span>Not covered</span><strong>${n(cv.uncovered)}</strong></div>`
+              + (model.covTabs.subs && !_pearlSubs.length ? '<div style="font-size:.7rem;color:var(--muted);padding-top:.2rem">No substitutions recorded in Pearl yet (Drop + Edit creates them)</div>' : '')
+              + ((cv.undated + cv.noSession) ? `<div style="font-size:.7rem;color:var(--muted);padding-top:.2rem">${n(cv.undated + cv.noSession)} substitution${cv.undated + cv.noSession === 1 ? '' : 's'} not counted (no session date, or session no longer in Pearl)</div>` : '')
+              + (cv.upcoming ? `<div style="font-size:.75rem;padding:.15rem 0;color:var(--muted)">${n(cv.upcoming)} upcoming substitution${cv.upcoming === 1 ? '' : 's'} scheduled</div>` : '')
+              + (!model.covTabs.subs ? '<div style="font-size:.75rem;color:#b91c1c;padding-top:.25rem">Instructor Substitutions tab did not load — coverage incomplete</div>' : '');
+            return card('Tutor Absence Coverage', rate, 'Tutor sessions · covered ÷ all tutor absences', '#0ea5e9', body);
+          })() : ''}
+        </div>`;
+      }
+
+      // Fix list — only real tasks
+      const fixes = [];
+      if (model.live && model.canc && model.canc.noReason.length) fixes.push({ t: 'Cancelled with no Canceled Reason', n: model.canc.noReason.length,
+        rows: model.canc.noReason.map(x => [x.date, x.school, x.title, names ? x.instructor : '', names ? x.who : '']), cols: ['Date', 'School', 'Session', 'Tutor', 'Canceled By'] });
+      if (model.shouldCancel.length) fixes.push({ t: 'School / NJTC reason logged as a missed reason (new process: cancel the session in Pearl)', n: model.shouldCancel.length,
+        rows: model.shouldCancel.map(x => [x.date, x.school, x.title, x.reason, x.n + ' scholar' + (x.n === 1 ? '' : 's')]), cols: ['Date', 'School', 'Session', 'Reason', 'Scholars'] });
+      if (model.coverage && model.coverage.conflicts.length) fixes.push({ t: 'Substitution recorded but the original tutor is also marked Attended', n: model.coverage.conflicts.length,
+        rows: model.coverage.conflicts.map(x => [x.date, x.school, x.title, names ? x.origName : '', names ? x.deliveredByName : '']), cols: ['Date', 'School', 'Session', 'Original Tutor', 'Substitute'] });
+      if (model.tracker) {
+        const tr = model.tracker;
+        const miss = tr.rows.filter(r => r.status === 'not_in_pearl' || r.status === 'partial');
+        if (miss.length) fixes.push({ t: 'On the Sub Tracker but not found as a Pearl substitution (Drop + Edit not done)', n: miss.length,
+          rows: miss.map(r => [r.dateRaw, r.region + ' · ' + r.site, names ? r.sub : '', names ? (r.isVacancy ? 'Vacancy' : r.absentTutor) : '', r.found + ' of ' + r.due + ' day' + (r.due === 1 ? '' : 's') + ' found' + (r.isRange ? ' (date range — days without sessions also show as missing)' : '')]),
+          cols: ['Date(s)', 'Region · Site', 'Sub', 'Covering For', 'In Pearl'] });
+        const unclear = tr.rows.filter(r => r.status === 'unclear');
+        if (unclear.length) fixes.push({ t: 'Sub Tracker date could not be read — use m/d dates (e.g. 10/3 & 10/5 or 10/13-10/15)', n: unclear.length,
+          rows: unclear.map(r => [r.dateRaw || '(blank)', r.region + ' · ' + r.site, names ? r.sub : '', names ? r.absentTutor : '', '']), cols: ['Date as entered', 'Region · Site', 'Sub', 'Covering For', ''] });
+        if (tr.notOnTracker.length) fixes.push({ t: 'Pearl substitution with no Sub Tracker entry', n: tr.notOnTracker.length,
+          rows: tr.notOnTracker.map(s => [s.date, s.school, names ? s.subName : '', names ? s.origName : '', s.substitutedBy && names ? 'by ' + s.substitutedBy : '']), cols: ['Date', 'School', 'Substitute', 'Original Tutor', 'Substituted By'] });
+      } else if (model.live && !model.covTabs.tracker) {
+        fixes.push({ t: 'Sub Tracker tabs did not load — tracker check skipped', n: 0, rows: [], cols: [] });
+      }
+      html += `<div style="margin-top:.9rem">
+        <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.35rem">Needs Follow-Up ${fixes.length ? '' : '· nothing to fix'}</div>
+        ${fixes.map((f, i) => `<details style="border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;background:var(--surface-2)">
+          <summary style="cursor:pointer;padding:.45rem .75rem;font-size:.8rem;font-weight:600;color:var(--navy)">${_h(f.t)}${f.n ? ` <span class="po-badge po-badge-red" style="margin-left:.35rem">${n(f.n)}</span>` : ''}</summary>
+          ${f.rows.length ? `<div style="overflow-x:auto;max-height:260px;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:.75rem">
+            <thead><tr>${f.cols.map(c => `<th style="text-align:left;padding:.3rem .6rem;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;position:sticky;top:0;background:var(--surface-2)">${_h(c)}</th>`).join('')}</tr></thead>
+            <tbody>${f.rows.slice(0, 300).map(r => `<tr>${r.map(c => `<td style="padding:.25rem .6rem;border-bottom:1px solid var(--border-2)">${_h(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>${f.rows.length > 300 ? `<div style="font-size:.7rem;color:var(--muted);padding:.3rem .6rem">Showing 300 of ${n(f.rows.length)} — use Export for the full list.</div>` : ''}</div>` : ''}
+        </details>`).join('')}
+      </div></div></div>`;
+      el.innerHTML = html;
+      el.style.display = '';
     }
 
     // ── FLAG CLEARING STORAGE ─────────────────────────────────────────────
@@ -4612,7 +4957,7 @@
         { lbl:'Scholar Attendance', val: d.scholarRate + '%', sub:'YTD program-wide', col: d.scholarRate >= 80 ? '#0d6e3a' : d.scholarRate >= 70 ? '#d97706' : '#b91c1c' },
         { lbl:'Tutor Attendance',   val: d.tutorRate + '%',   sub:'Staff present rate', col: d.tutorRate >= 90 ? '#0d6e3a' : d.tutorRate >= 80 ? '#d97706' : '#b91c1c' },
         { lbl:'Sessions Delivered', val: d.sessionsDelivered.toLocaleString(), sub:'Completed this period', col: '#0050c8' },
-        { lbl:'Service Interruptions', val: allSI, sub:'Non-attendance disruptions', col: allSI > 20 ? '#b91c1c' : allSI > 5 ? '#d97706' : '#0d6e3a' },
+        { lbl:'Not Counted vs. Attendance', val: allSI, sub:'Undelivered · cancellation-type · internal', col: allSI > 20 ? '#b91c1c' : allSI > 5 ? '#d97706' : '#0d6e3a' },
       ];
       const kpiHTML = kpis.map(k => `
         <div class="po-ops-kpi" style="--kc:${k.col}">
@@ -4630,7 +4975,7 @@
       if (d.scholarAtRisk > 0) alerts.push({ cls:'warn', icon:'📈', title:`${d.scholarAtRisk} scholars building momentum (70–79%)`, sub:'Continued encouragement recommended' });
       if (critSchools > 0) alerts.push({ cls:'crit', icon:'🏫', title:`${critSchools} school${critSchools>1?'s':''} below 75% attendance`, sub:'Warrants further investigation' });
       schools.filter(sc => sc.flags.some(f => f.severity === 'critical')).slice(0,3).forEach(sc => alerts.push({ cls:'crit', icon:'⚑', title:`HIT Critical Flag: ${sc.school}`, sub:`${sc.flags.filter(f=>f.severity==='critical').length} critical compliance flag(s)` }));
-      schools.filter(sc => sc.stuInterruptions > 5).slice(0,3).forEach(sc => alerts.push({ cls:'warn', icon:'⚡', title:`High Service Interruptions: ${sc.school}`, sub:`${sc.stuInterruptions} disruptions this period` }));
+      schools.filter(sc => sc.stuInterruptions > 5).slice(0,3).forEach(sc => alerts.push({ cls:'warn', icon:'⚡', title:`High Missed Sessions (not counted vs. attendance): ${sc.school}`, sub:`${sc.stuInterruptions} scholar sessions this period` }));
       if (_lateFilerStats.totalFlagged > 0) alerts.push({ cls:'warn', icon:'🕐', title:`${_lateFilerStats.totalFlagged} tutor${_lateFilerStats.totalFlagged>1?'s':''} filing surveys 50%+ after session date`, sub:`${_lateFilerStats.totalLate} late submission${_lateFilerStats.totalLate>1?'s':''} total — see Late Survey Filers panel` });
       if (!alerts.length) alerts.push({ cls:'ok', icon:'✅', title:'All systems nominal', sub:'No critical alerts at this time' });
       const alertHTML = alerts.slice(0,8).map(a => `<div class="po-ops-alert ${a.cls}"><div class="po-ops-alert-icon">${a.icon}</div><div class="po-ops-alert-body"><div class="po-ops-alert-title">${a.title}</div><div class="po-ops-alert-sub">${a.sub}</div></div></div>`).join('');
@@ -4798,7 +5143,7 @@
                   <th>School / District</th>
                   <th style="text-align:center">Att %</th>
                   <th style="text-align:center">Sessions</th>
-                  <th style="text-align:center">Interruptions</th>
+                  <th style="text-align:center">Not Counted</th>
                   <th style="text-align:center">HIT Flags</th>
                   <th style="text-align:center">Scholar Survey</th>
                   <th style="text-align:center" title="Tutor survey completion rate — surveys submitted vs eligible sessions (Session ID matched)">Tutor Survey %</th>
@@ -4940,7 +5285,7 @@
           <div class="sg-stat" style="--sc:${vacancySchools.length>0?'#d97706':'#0d6e3a'}">
             <div class="sg-stat-val" style="color:${vacancySchools.length>0?'#d97706':'#0d6e3a'}">${vacancySchools.length}</div>
             <div class="sg-stat-lbl">Staffing Gaps</div>
-            <div class="sg-stat-sub">${vacancySchools.length>0?'Sites with tutor vacancy interruptions':'All sites staffed'}</div>
+            <div class="sg-stat-sub">${vacancySchools.length>0?'Sites with tutor vacancies':'All sites staffed'}</div>
           </div>
         </div>`;
 
@@ -5148,7 +5493,7 @@
           <div class="sg-stat" style="--sc:${riskCol}">
             <div class="sg-stat-val" style="color:${riskCol}">~${interruptionHrs}h</div>
             <div class="sg-stat-lbl">Hours at Risk</div>
-            <div class="sg-stat-sub">${totalInterruptions} service interruptions · review for billing</div>
+            <div class="sg-stat-sub">${totalInterruptions} scholar sessions not counted against attendance · review for billing</div>
           </div>
           <div class="sg-stat" style="--sc:#6366f1">
             <div class="sg-stat-val" style="color:#6366f1">${schools.length}</div>
@@ -5172,13 +5517,13 @@
           const hasCrit = sc.flags.some(f=>f.severity==='critical');
           return `<div class="sg-triage-item sg-triage-${hasCrit?'crit':'high'}" onclick="po.drillSchool('${esc(sc.school)}')">
             <div class="sg-triage-left">
-              <span class="sg-triage-badge" style="background:${hasCrit?'#fee2e2':'#fef3c7'};color:${hasCrit?'#991b1b':'#92400e'}">${hasCrit?'High Interruption Risk':'Elevated Interruptions'}</span>
+              <span class="sg-triage-badge" style="background:${hasCrit?'#fee2e2':'#fef3c7'};color:${hasCrit?'#991b1b':'#92400e'}">${hasCrit?'High Missed-Session Risk':'Elevated Missed Sessions'}</span>
               <div class="sg-triage-school">${sc.school}</div>
               <div class="sg-triage-detail">${sc.district} · ${intPct}% of sessions interrupted · est. ~${estLost}h affected</div>
             </div>
             <div class="sg-triage-right">
               <div style="font-size:1.25rem;font-weight:800;color:${hasCrit?'#b91c1c':'#d97706'};font-family:system-ui,-apple-system,sans-serif;line-height:1">${sc.stuInterruptions}</div>
-              <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0 .4rem">interruptions</div>
+              <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0 .4rem">not counted</div>
               <button class="sg-drill-btn">View details →</button>
             </div>
           </div>`;
@@ -5186,8 +5531,8 @@
         riskHTML = `
           <div class="sg-section">
             <div class="sg-section-hd sg-section-hd-warn">
-              <span>⚠️ Sites with Elevated Interruption Risk</span>
-              <span style="font-weight:400;font-size:.7rem">${riskSchools.length} site${riskSchools.length!==1?'s':''} with &gt;15% session interruption rate · may affect billing or contract compliance</span>
+              <span>⚠️ Sites with Elevated Missed-Session Rates</span>
+              <span style="font-weight:400;font-size:.7rem">${riskSchools.length} site${riskSchools.length!==1?'s':''} with &gt;15% of scholar sessions not counted against attendance · may affect billing or contract compliance</span>
             </div>
             <div class="sg-triage-list">${rItems}</div>
           </div>`;
@@ -5245,7 +5590,7 @@
             <div id="sgFinanceTable" style="display:none;overflow-x:auto">
               <table style="width:100%;border-collapse:collapse">
                 <thead><tr style="background:var(--surface-2)">
-                  ${['School / District','Hours Delivered','Sessions Done','Completion %','Interruptions',''].map(h=>`<th style="padding:.375rem .875rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);text-align:${h===''||h==='School / District'?'left':'center'};white-space:nowrap">${h}</th>`).join('')}
+                  ${['School / District','Hours Delivered','Sessions Done','Completion %','Not Counted',''].map(h=>`<th style="padding:.375rem .875rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);text-align:${h===''||h==='School / District'?'left':'center'};white-space:nowrap">${h}</th>`).join('')}
                 </tr></thead>
                 <tbody>${schoolRows||'<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">No data yet.</td></tr>'}</tbody>
               </table>
@@ -5419,7 +5764,7 @@
           const hasCrit = sc.flags.some(f=>f.severity==='critical');
           const topFlag = sc.flags.find(f=>f.severity==='critical') || sc.flags.find(f=>f.severity==='high');
           const detail  = topFlag ? topFlag.msg
-                        : sc.stuInterruptions > 0 ? `${sc.stuInterruptions} service interruptions this period`
+                        : sc.stuInterruptions > 0 ? `${sc.stuInterruptions} scholar sessions not counted against attendance this period`
                         : `${sc.attRate}% attendance — below target`;
           const aC = sc.attRate>=95?'#0d6e3a':sc.attRate>=80?'#d97706':'#b91c1c';
           return `<div class="sg-triage-item sg-triage-${hasCrit?'crit':'high'}" onclick="po.drillSchool('${esc(sc.school)}')">
@@ -5473,7 +5818,7 @@
         const details = [];
         if (sc.stuInterruptions > 0) {
           const cls = hasCrit ? 'sg-card-detail-crit' : 'sg-card-detail-warn';
-          details.push(`<div class="sg-card-detail ${cls}">${hasCrit?'🚨':'⚠️'} ${sc.stuInterruptions} interruption${sc.stuInterruptions!==1?'s':''}</div>`);
+          details.push(`<div class="sg-card-detail ${cls}">${hasCrit?'🚨':'⚠️'} ${sc.stuInterruptions} not counted vs. attendance</div>`);
         }
         if (sc.ratioViolations > 0)
           details.push(`<div class="sg-card-detail sg-card-detail-warn">⚑ ${sc.ratioViolations} over-ratio</div>`);
@@ -5621,7 +5966,7 @@
     function buildSchoolTabs() {
       const tabs = [{ id:'attendance', label:'📋 Attendance' }];
       if (isProg() || isHR() || isData()) tabs.push({ id:'sessions', label:'📅 Sessions' });
-      tabs.push({ id:'interruptions', label:'⚠️ Interruptions' });
+      tabs.push({ id:'interruptions', label:'⚠️ Missed by Category' });
       if (isTD() || isData()) tabs.push({ id:'surveys', label:'⭐ Surveys' });
       if (isData()) tabs.push({ id:'hit', label:'🚩 HIT Compliance' });
       return tabs;
@@ -5883,7 +6228,7 @@
             ['Scholar Attendance', sc.attRate+'%', sc.attRate>=90?'var(--met)':sc.attRate>=75?'var(--gold)':'var(--notmet)'],
             ['Attended Sessions',  sc.stuAttended.toLocaleString(), 'var(--met)'],
             ['Student Absences',   sc.stuAbsent.toLocaleString(), 'var(--notmet)'],
-            ['Service Interruptions', sc.stuInterruptions.toLocaleString(), 'var(--partial)'],
+            ['Not Counted vs. Attendance', sc.stuInterruptions.toLocaleString(), 'var(--partial)'],
           ].map(([lbl,val,col]) => `<div style="background:var(--surface-2);padding:.875rem;border-radius:var(--radius);border:1px solid var(--border)">
             <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">${lbl}</div>
             <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${col};margin-top:.2rem">${val}</div>
@@ -5955,9 +6300,11 @@
         if (!grouped[reason]) grouped[reason] = [];
         grouped[reason].push(r);
       }
+      const _CAT = window.NJTC_PEARL_CATEGORIES;
+      const _catRank = reason => _CAT ? _CAT.ORDER.indexOf(_siCategory(reason)) : 0;
       const sorted = Object.entries(grouped).sort((a,b) => {
         const order = {critical:0, high:1, medium:2, low:3};
-        return (order[getSISeverity(a[0])]||2) - (order[getSISeverity(b[0])]||2);
+        return (_catRank(a[0]) - _catRank(b[0])) || ((order[getSISeverity(a[0])]||2) - (order[getSISeverity(b[0])]||2));
       });
 
       const groupRows = sorted.map(([reason, recs]) => {
@@ -5976,7 +6323,7 @@
         return `<div class="po-flag-row" style="${rowBg}">
           <div class="po-flag-icon">${icon}</div>
           <div class="po-flag-text">
-            <div class="po-flag-label">${reason}</div>
+            <div class="po-flag-label">${reason} <span style="font-size:.6875rem;font-weight:600;color:var(--muted)">· ${_siCategoryLabel(reason)}</span></div>
             <div class="po-flag-sub">Affected weeks: ${weeks}</div>
             ${note}
           </div>
@@ -5990,10 +6337,10 @@
       const notRecorded = sc.rows.filter(r => r[ATT.ATT_STATUS] === 'Not recorded').length;
       return `<div>
         <div style="padding:1rem 1.5rem .5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:.8125rem;color:var(--muted)">${siRows.length} service interruption records · Sorted by severity</span>
+          <span style="font-size:.8125rem;color:var(--muted)">${siRows.length} scholar records not counted against attendance · Grouped by category, then severity</span>
           ${notRecorded > 0 ? `<span class="po-badge po-badge-gold">⚠️ ${notRecorded} not recorded — data quality flag</span>` : ''}
         </div>
-        ${groupRows || '<div style="text-align:center;padding:2rem;color:var(--muted)">No service interruptions found</div>'}
+        ${groupRows || '<div style="text-align:center;padding:2rem;color:var(--muted)">No missed sessions outside scholar absences</div>'}
       </div>`;
     }
 
@@ -6162,7 +6509,17 @@
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.375rem">
               <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${attColor}">${rate}%</span>
-              <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} interrupted</span>
+              <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} not counted</span>
+              ${!isStudent ? (() => {
+                const cp = _coverageForPerson(p.uid);
+                if (!cp || (!cp.absences.length && !cp.asSub)) return '';
+                const a = p.attended - cp.asSub, t = a + p.absent + cp.absences.length;
+                const adj = t > 0 ? Math.round(a / t * 100) : 0;
+                const parts = [];
+                if (cp.absences.length) parts.push(`${cp.absences.length} covered absence${cp.absences.length === 1 ? '' : 's'} (Pearl substitution)`);
+                if (cp.asSub) parts.push(`${cp.asSub} session${cp.asSub === 1 ? '' : 's'} covered as substitute`);
+                return `<span style="font-size:.75rem;font-weight:700;color:#0369a1">Incl. covered absences: ${adj}% ${adj < rate ? '▼' + (rate - adj) + ' pts' : ''}&nbsp;<span style="font-weight:400;color:var(--muted)">${parts.join(' · ')}</span></span>`;
+              })() : ''}
               ${!isStudent && (isProg() || isData()) && p.surveyCompRate !== null && p.surveyCompRate !== undefined ? (() => {
                 const cr = p.surveyCompRate;
                 const crColor = cr >= 80 ? 'var(--met)' : cr >= 60 ? '#d97706' : 'var(--notmet)';
@@ -6239,7 +6596,7 @@
       const histRows = rows.map(r => {
         const cls = classifyRecord(r);
         const clsColor = cls==='attended'?'var(--met)':cls==='absent'?'var(--notmet)':cls==='service_interruption'?'var(--partial)':'var(--muted)';
-        const clsLabel = cls==='attended'?'Attended':cls==='absent'?'Absent':cls==='service_interruption'?'Interrupted':'—';
+        const clsLabel = cls==='attended'?'Attended':cls==='absent'?'Absent':cls==='service_interruption'?_siCategoryLabel(r[ATT.MISS_REASON]):'—';
         const siFlag = cls === 'service_interruption' ? `<span class="po-severity-${getSISeverity(r[ATT.MISS_REASON])} " style="margin-left:.4rem">${getSISeverity(r[ATT.MISS_REASON])}</span>` : '';
         return `<div class="po-hist-row">
           <span style="color:var(--muted)">${r[ATT.SESS_DATE]||'—'}</span>
@@ -6361,8 +6718,8 @@
         frequency:   'Weekly Session Frequency Below HIT Minimum',
         inst_att:    'Instructor Attendance — ADP Review Needed',
         ratio:       'Session Ratio Exceeds 1:4 — Check MOU',
-        critical_si: 'Service Interruption — Needs Investigation (NJTC Internal)',
-        high_si:     'High Severity Service Interruptions',
+        critical_si: 'NJTC Internal Issue/Error — Needs Investigation',
+        high_si:     'High-Severity Missed Sessions (vacancy / closures / archived)',
       };
       return labels[type] || type;
     }
@@ -6468,7 +6825,7 @@
       overlay.innerHTML = `<div class="po-modal">
         <div class="po-modal-hd">
           <div>
-            <div class="po-modal-name">${filter==='critical'?'🚨 Critical Flags':'All HIT &amp; Service Interruption Flags'}</div>
+            <div class="po-modal-name">${filter==='critical'?'🚨 Critical Flags':'All HIT &amp; Missed-Session Flags'}</div>
             <div class="po-modal-meta">${activeCount} active${metaSuffix} · Click a school name to drill down</div>
           </div>${close}
         </div>
@@ -7570,7 +7927,7 @@
           'Week(s)':             _filtWeek.length ? _filtWeek.join('; ') : 'All',
           'Sessions Attended':   attended,
           'Sessions Absent':     absent,
-          'Service Interruptions': si,
+          'Not Counted Against Attendance': si,
           'Attendance Rate (%)': attPct,
           'Consecutive Status':  p.consecStatus || '',
           'Total Duration (min)': totalMins || '',
@@ -7637,7 +7994,7 @@
           'Sessions Led':        ledSessions.length,
           'Sessions Attended':   attended,
           'Sessions Absent':     absent,
-          'Service Interruptions': si,
+          'Not Counted Against Attendance': si,
           'Attendance Rate (%)': attPct,
           'Total Duration (min)': totalMins || '',
           'Active Scholars Served': uniqueStudents.size,
@@ -7702,7 +8059,7 @@
           'Scholar Attendance Rate (%)': sc.attRate,
           'Scholars Attended':       sc.stuAttended,
           'Scholars Absent':         sc.stuAbsent,
-          'Service Interruptions':   sc.stuInterruptions,
+          'Not Counted Against Attendance': sc.stuInterruptions,
           'Tutor Sessions':          sc.totalInstRows,
           'Sessions Delivered':      sc.sessions.filter(s => s.isDelivered).length,
           'Total Duration (min)':    sc.sessions.reduce((a,s) => a + (s.durMins||0), 0),
@@ -7787,7 +8144,7 @@
         ['Sheets Included', 'Scholar Detail · Tutor Detail · Session Detail · School Summary'],
         [''],
         ['Notes'],
-        ['• Attendance Rate excludes Service Interruptions from denominator (NJTC standard)'],
+        ['• Attendance Rate excludes misses not counted against attendance (Undelivered Sessions, cancellation-type reasons, Internal Tracking) from the denominator (NJTC standard)'],
         ['• Duration figures are in minutes from Actual Duration; Scheduled used as fallback'],
         ['• Survey scores are per-question averages on a 1–5 scale'],
         ['• Session IDs are Pearl-assigned unique identifiers'],
@@ -8301,6 +8658,8 @@
           ATT, INST_S, STU_S,
           classify: classifyRecord,
           tutorMissReasons: TUTOR_MISS_REASONS,
+          categoryOf: window.NJTC_PEARL_CATEGORIES ? window.NJTC_PEARL_CATEGORIES.categoryOf : null,
+          hasCancelReasons: _activePeriod === 'sy2627',
           regionOf: (school, district) => (isArch(school) || isArch(district)) ? null : _poRegion(school, district),
           schoolNames: [...new Set(Object.values(_sessMap || {}).map(s => s.school).filter(s => s && !isArch(s)))].sort(),
           now: new Date(),

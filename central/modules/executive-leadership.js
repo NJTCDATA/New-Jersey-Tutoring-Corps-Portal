@@ -249,7 +249,7 @@
         }
 
         // ── SERVICE INTERRUPTIONS ──
-        if (po&&po.siCount!=null) chips.push({ico:'&#128203;',col:'#f0fdf4',txt:fmtN(po.siCount),sub:'Service Interruptions Logged'});
+        if (po&&po.siCount!=null) chips.push({ico:'&#128203;',col:'#f0fdf4',txt:fmtN(po.siCount),sub:'Missed Sessions Not Counted vs. Attendance'});
 
         // ── TOP STELLAR SCHOOL ──
         if (st&&st[0]) chips.push({ico:'&#127941;',col:'#fef3c7',txt:st[0].attRate+'%',sub:st[0].school.length>22?st[0].school.substring(0,22)+'…':st[0].school});
@@ -486,11 +486,11 @@
       // ── 10. ACCOUNTABILITY / TRANSPARENCY (legislature + partner only) ──
       if (po&&po.siCount!=null&&(tone==='fiscal'||tone==='operational')) {
         cards.push({color:'gold',label:'Accountability & Transparency',
-          headline:fmtN(po.siCount)+' service interruptions documented — real-time accountability',
+          headline:fmtN(po.siCount)+' missed sessions not counted against attendance documented — real-time accountability',
           body: tone==='fiscal'
             ? 'NJTC tracks every non-delivery event in Pearl in real time. Appropriators can audit actual delivery vs. planned delivery with session-level precision.'
             : 'Your district office can request a full interruption log at any time. Pearl captures reason codes for every missed session.',
-          source:'Pearl Service Interruption Tracking · Live Google Sheet'});
+          source:'Pearl Missed-Session Tracking · Live Google Sheet'});
       }
 
       // ── 11. ABSENCE DRIVERS (operational/fiscal) ──
@@ -555,7 +555,7 @@
       if(po&&po.instAttPct!=null) snaps.push({n:po.instAttPct+'%',l:'Tutor Attendance Rate',s:'Pearl'});
       if(po&&po.scholAttPct!=null) snaps.push({n:po.scholAttPct+'%',l:'Scholar Attendance Rate',s:'Pearl'});
       if(po&&po.surveyAvg!=null) snaps.push({n:'&#9733; '+po.surveyAvg,l:'Scholar Survey (of 5)',s:'Pearl'});
-      if(po&&po.siCount!=null) snaps.push({n:fmtN(po.siCount),l:'Service Interruptions',s:'Pearl'});
+      if(po&&po.siCount!=null) snaps.push({n:fmtN(po.siCount),l:'Not Counted vs. Attendance',s:'Pearl'});
       if(ld) {
         var tot=(ld.scholarOnTrack||0)+(ld.scholarAtRisk||0)+(ld.scholarNeedsAction||0);
         if(ld.scholarOnTrack!=null) snaps.push({n:ld.scholarOnTrack+'/'+tot,l:'Scholars On Track',s:'Pearl'});

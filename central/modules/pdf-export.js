@@ -572,12 +572,12 @@
     // ── Service interruptions (non-absence only) ───────────────────────────
     if (y > BOTTOM_LIMIT - 20) { doc.addPage(); y = TOP_START; }
     doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.navy);
-    doc.text('Service Interruptions (non-absence): ' + num(totalSI) + ' scholar-session' + (totalSI !== 1 ? 's' : ''), ML, y + 3);
+    doc.text('Not counted against attendance (non-absence): ' + num(totalSI) + ' scholar-session' + (totalSI !== 1 ? 's' : ''), ML, y + 3);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.muted);
     const siTxt = siReasons.length
       ? 'Top reasons: ' + siReasons.slice(0, 4).map(([r, c]) => safeStr(trunc(r || 'Unknown', 40)) + ' ' + num(c) + ' (' + Math.round(c / totalSI * 100) + '%)').join('  |  ') +
         '.  Scholar absences are excluded here and counted in attendance.'
-      : 'No service interruptions recorded. Scholar absences are counted in attendance, not here.';
+      : 'No missed sessions outside scholar absences recorded. Scholar absences are counted in attendance, not here.';
     doc.splitTextToSize(siTxt, SAFE).forEach((ln, i) => doc.text(ln, ML, y + 7.5 + i * 3.8));
     y += 7.5 + doc.splitTextToSize(siTxt, SAFE).length * 3.8 + 3;
     doc.setTextColor(...C.body);

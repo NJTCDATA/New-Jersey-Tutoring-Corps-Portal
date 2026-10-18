@@ -36,7 +36,10 @@
       att:  '702726038',  // Missed Reasons (per-attendee attendance detail, 14 cols)
       inst: '1955492004', // Instructor Surveys
       stu:  '1245403832', // Student Surveys
-      sess: '625567780'   // Session Details
+      sess: '625567780',  // Session Details
+      subs:  '12488697',  // Instructor Substitutions (Pearl report — original vs. substitute instructor)
+      subNE: '556939004', // NE Sub Tracker (regional sub log — auto-updates from the NE sheet)
+      subSW: '2140379234' // SW Sub Tracker (regional sub log — auto-updates from the SW sheet)
     },
     // Pearl "Week 1" Monday for the active SY (first delivered session week).
     // The SY 26-27 attendance tab has no Weekly Grouping column, so week labels
