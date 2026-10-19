@@ -5482,7 +5482,7 @@
       <div class="sdc-native-role" id="sdcNativeRole" style="display:none"></div>
     </div>
 
-    <div class="sidebar-group">
+    <div class="sidebar-group" id="sbNavGroup">
       <div class="sidebar-group-label">Navigation</div>
       <button class="sidebar-link active" data-panel="home" onclick="showPanel('home',this)" title="Your department's overview, KPIs, and quick-access actions">
         <span class="sl-icon">🏠</span> Department Home
@@ -5577,8 +5577,9 @@
 
     <!-- Goals & KPIs — moved below the department pages (Program Team feedback).
          KPI Analytics is leadership-facing: shown by initDeptNav() for
-         Leadership, Executive (kb) and Data only. -->
-    <div class="sidebar-group">
+         Leadership, Executive (kb) and Data only. For Data they stay at the
+         top under Navigation, where they were before (initDeptNav moves them). -->
+    <div class="sidebar-group" id="sbGoalsGroup">
       <div class="sidebar-group-label">Goals &amp; KPIs</div>
       <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)" title="This school year's organizational targets — summary by goal area, with every target underneath">
         <span class="sl-icon">📊</span> KPI Targets
@@ -6970,7 +6971,7 @@
 </script>
 <script src="modules/shared-utils.js?v=44"></script>
 <script src="modules/shared-charts.js?v=22"></script>
-<script src="modules/shared-filters.js?v=6"></script>
+<script src="modules/shared-filters.js?v=7"></script>
 <script src="modules/home-shortcuts.js?v=3"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>

@@ -22,6 +22,20 @@
     perfBtns.forEach(b    => b.style.display = showPerf    ? '' : 'none');
     // KPI Analytics — leadership-facing (Leadership, Executive, Data)
     document.querySelectorAll('.dept-nav-kpi-analytics').forEach(b => b.style.display = KPI_ANALYTICS_DEPTS.includes(dept) ? '' : 'none');
+    // Data keeps KPI Targets / KPI Analytics at the top under Navigation; every
+    // other department sees them in the "Goals & KPIs" group lower down.
+    (function placeKpiLinks() {
+      const nav = document.getElementById('sbNavGroup'), goals = document.getElementById('sbGoalsGroup');
+      if (!nav || !goals) return;
+      const links = [...document.querySelectorAll('.sidebar-link[data-panel="kpi"], .sidebar-link[data-panel="kpi-analytics"]')];
+      if (dept === 'data') {
+        links.forEach(l => nav.appendChild(l));
+        goals.style.display = 'none';
+      } else {
+        links.forEach(l => goals.appendChild(l));
+        goals.style.display = '';
+      }
+    })();
     concernBtns.forEach(b => b.style.display = showConcern ? '' : 'none');
     talentBtns.forEach(b  => b.style.display = showTalent  ? '' : 'none');
 
