@@ -7920,7 +7920,7 @@
     'KPIs':         ['Which goals have not been met?',          'Which goal area is the weakest?',             'What does the weighted score mean?'],
     'Workforce':    ['Who is currently on watch?',              'How many active concerns are there?',         'How many apprentices do we have?'],
     'Academic':     ['What is our iReady math growth?',         'How does ELA compare to math growth?',        'What is typical growth?'],
-    'Program':      ['How many active scholars?',               'What is a service interruption?',             'How many districts are we in?'],
+    'Program':      ['How many active scholars?',               'What are undelivered sessions?',              'How many districts are we in?'],
     'Policies':     ['Show me all governance policies',         'Where is the employee handbook?',             'Show me the escalation protocol'],
     'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',            'How often is data synced?',             'Validate data sources — where does each metric come from?'],
     'Help':         ['What years of data are available?',      'How long does data take to load?',            'Data not showing — how do I troubleshoot?'],
@@ -8550,6 +8550,42 @@
   function _isScholAbs(r)  { return r[6]==='Missed' && (_SCHOL_MISS_REASONS.indexOf(r[7]||'')>=0 || (r[7]||'')===''); }
   // Scholar SI: Missed + non-scholar reason (school event, holiday, etc.)
   function _isScholSI(r)   { return r[6]==='Missed' && _SCHOL_MISS_REASONS.indexOf(r[7]||'')<0 && (r[7]||'')!==''; }
+  // "Service Interruption" was retired (Oct 2026). Misses that don't count
+  // against scholar attendance are grouped by shared/pearl-categories.js.
+  // Users may still ASK about "service interruptions"/"SI" — those questions
+  // keep matching; answers use the new terms.
+  var _MISS_TERMS = '**"Service Interruption" is now "Not Counted Against Attendance."** Missed sessions that are not scholar absences are grouped as:\n\n'
+    + '• **Undelivered Sessions** — tutor absent or tutor vacancy. A talking point for partner conversations, not a to-do.\n'
+    + '• **Session Cancellations** — school or NJTC-driven (school event/assembly, school-administered testing, schedule change, closure/delay, weather, NJTC internal issue). Site Leaders now cancel these in Pearl with a Canceled Reason; logged as a missed reason they are flagged for follow-up.\n'
+    + '• **Internal Tracking** — NJTC diagnostic testing, archived scholars.\n\n'
+    + 'None of these count against Scholar Attendance %. Only Absent, Scholar Left Early, Scholar Declined, Classroom Teacher Kept Scholar in Class and a blank reason do.';
+  function _missCatOf(reason) {
+    var C = window.NJTC_PEARL_CATEGORIES;
+    if (!C) return 'other';
+    var c = C.categoryOf(reason);
+    return c === 'absence' ? 'other' : c;   // a row the classifier excluded is never shown as an absence
+  }
+  // "380 undelivered · 330 cancellation-type · 174 internal" for not-counted scholar rows
+  function _missCatLine(rows) {
+    var n = { undelivered:0, cancellation:0, internal:0, other:0 };
+    (rows||[]).forEach(function(r){ if (r[1]==='Student' && _isScholSI(r)) n[_missCatOf(r[7])]++; });
+    var parts = [];
+    if (n.undelivered)  parts.push(_n(n.undelivered) + ' undelivered (tutor absent / vacancy)');
+    if (n.cancellation) parts.push(_n(n.cancellation) + ' cancellation-type');
+    if (n.internal)     parts.push(_n(n.internal) + ' internal tracking');
+    if (n.other)        parts.push(_n(n.other) + ' unmapped reason');
+    return parts.join(' · ');
+  }
+  // Same breakdown from po.getStats() (org-wide)
+  function _missCatLineStats(p) {
+    if (!p || !p.missed) return '';
+    var m = p.missed, parts = [];
+    parts.push(_n(m.undelivered) + ' undelivered');
+    parts.push(_n(m.cancellationType) + ' cancellation-type');
+    parts.push(_n(m.internal) + ' internal tracking');
+    if (m.unmapped) parts.push(_n(m.unmapped) + ' unmapped');
+    return parts.join(' · ');
+  }
   // Tutor absent: Missed + tutor reason
   function _isTutorAbs(r)  { return r[6]==='Missed' && _TUTOR_MISS_REASONS.indexOf(r[7]||'')>=0; }
 
@@ -8606,9 +8642,9 @@
     var tI = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
     var msg = '**' + s.label + '**\n\n';
     if (s.scholPct!=null) {
-      var siNote = s.siCount > 0 ? ' · '+s.siCount+' SI (not counted against att%)' : '';
+      var siNote = s.siCount > 0 ? ' · '+s.siCount+' not counted against att%' : '';
       msg += sI+' **Scholars:** '+s.scholPct+'% ('+s.scholAtt+' present / '+s.scholAbs+' absent'+siNote+')';
-      if (s.scholPct === 100 && s.siCount === 0 && s.scholAbs === 0) msg += ' ← verify SI vs. absent coding';
+      if (s.scholPct === 100 && s.siCount === 0 && s.scholAbs === 0) msg += ' ← verify missed-reason coding';
     } else { msg += '— No scholar records.\n'; }
     if (s.tutorPct!=null) msg += '\n'+tI+' **Tutors:** '+s.tutorPct+'% ('+s.tutorAtt+' present / '+s.tutorAbs+' absent)';
     else msg += '\n— No tutor records.';
@@ -8649,7 +8685,7 @@
       var sI = stats.scholPct==null?'—':stats.scholPct>=80?'✅':stats.scholPct>=70?'⚠️':'🔴';
       var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE (Pearl)**\n';
-      if (stats.scholPct!=null) msg += sI+' Scholars: **'+stats.scholPct+'%** ('+stats.scholAtt+' present / '+stats.scholAbs+' absent'+(stats.siCount?' · '+stats.siCount+' SI':'')+') · '+stats.scholars+' scholars\n';
+      if (stats.scholPct!=null) msg += sI+' Scholars: **'+stats.scholPct+'%** ('+stats.scholAtt+' present / '+stats.scholAbs+' absent'+(stats.siCount?' · '+stats.siCount+' not counted':'')+') · '+stats.scholars+' scholars\n';
       if (stats.tutorPct!=null) msg += tI+' Tutors: **'+stats.tutorPct+'%** ('+stats.tutorAtt+' present / '+stats.tutorAbs+' absent)\n';
       msg += '📍 ~'+stats.sessions+' sessions total\n\n';
     } else {
@@ -8726,9 +8762,9 @@
       var tI2 = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE**\n';
       if (stats.scholPct!=null) {
-        var siNote2 = stats.siCount > 0 ? ' · ' + stats.siCount + ' SI' : '';
+        var siNote2 = stats.siCount > 0 ? ' · ' + stats.siCount + ' not counted' : '';
         msg += sI2 + ' Scholars: **' + stats.scholPct + '%** (' + stats.scholAtt + ' present / ' + stats.scholAbs + ' absent' + siNote2 + ')';
-        if (stats.scholPct === 100 && stats.scholAbs === 0) msg += ' ← check SI vs. absent coding in Pearl';
+        if (stats.scholPct === 100 && stats.scholAbs === 0) msg += ' ← check missed-reason coding in Pearl';
         msg += '\n';
       }
       if (stats.tutorPct!=null) msg += tI2 + ' Tutors: **' + stats.tutorPct + '%** (' + stats.tutorAtt + ' present / ' + stats.tutorAbs + ' absent)\n';
@@ -8822,9 +8858,9 @@
       var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE (' + (loc.names||[]).length + ' schools combined)**\n';
       if (stats.scholPct!=null) {
-        var siNote3 = stats.siCount > 0 ? ' · ' + stats.siCount + ' SI' : '';
+        var siNote3 = stats.siCount > 0 ? ' · ' + stats.siCount + ' not counted' : '';
         msg += sI + ' Scholars: **' + stats.scholPct + '%** (' + stats.scholAtt + ' present / ' + stats.scholAbs + ' absent' + siNote3 + ') · ' + stats.scholars + ' unique scholars\n';
-        if (stats.scholPct === 100 && stats.scholAbs === 0) msg += '  ← check SI vs. absent coding in Pearl\n';
+        if (stats.scholPct === 100 && stats.scholAbs === 0) msg += '  ← check missed-reason coding in Pearl\n';
       }
       if (stats.tutorPct!=null) msg += tI + ' Tutors: **' + stats.tutorPct + '%** (' + stats.tutorAtt + ' present / ' + stats.tutorAbs + ' absent)\n';
       msg += '📍 ~' + stats.sessions + ' session(s) across ' + (loc.names||[]).length + ' schools\n\n';
@@ -9331,6 +9367,17 @@
     var wkStartDay = week1DayOfSep + (weekNum - 1) * 7;
     var wkStart = new Date(syStart, 8, wkStartDay);
     var wkEnd   = new Date(syStart, 8, wkStartDay + 4); // Mon+4 = Fri
+    // Prefer Pearl Ops' own Week 1 anchor (SY 26-27 Week 1 = Mon Sep 14, not
+    // the first Monday of September) so labels match the Week N rows.
+    try {
+      if (window.po && typeof window.po.getWeekAnchor === 'function') {
+        var a = window.po.getWeekAnchor();
+        if (a && !isNaN(a.getTime())) {
+          wkStart = new Date(a.getFullYear(), a.getMonth(), a.getDate() + (weekNum - 1) * 7);
+          wkEnd   = new Date(a.getFullYear(), a.getMonth(), a.getDate() + (weekNum - 1) * 7 + 4);
+        }
+      }
+    } catch(eA) {}
     var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
     // YYYYMMDD strings for DST-safe date comparison (avoids getTime() drift)
     var toYMD = function(d){ return d.getFullYear()+''+pad(d.getMonth()+1)+''+pad(d.getDate()); };
@@ -9384,7 +9431,7 @@
     var lines = ['**'+s.label+'** ('+s.start+' – '+s.end+')'];
     lines.push(scholIcon+' Scholar att: **'+(s.scholAttPct!=null?s.scholAttPct+'%':'—')+'** ('+s.scholAtt+' attended · '+s.scholAbs+' absent)');
     lines.push(tutorIcon+' Tutor att: **'+(s.tutorAttPct!=null?s.tutorAttPct+'%':'—')+'** ('+s.tutorAtt+' attended · '+s.tutorAbs+' absent)');
-    if (s.siCount) lines.push('🚫 Service interruptions: **'+s.siCount+'**');
+    if (s.siCount) lines.push('📅 Not counted against attendance: **'+s.siCount+'**');
     lines.push('📋 Sessions: **'+s.sessions+'** · Schools active: **'+s.schools+'** · Unique scholars: **'+s.scholars+'**');
     return lines.join('\n');
   }
@@ -9403,12 +9450,12 @@
       bySchool[school].reasons[reason] = (bySchool[school].reasons[reason]||0)+1;
       if (date && bySchool[school].dates.indexOf(date)<0) bySchool[school].dates.push(date);
     });
-    var lines = ['\n**SI Breakdown by School:**'];
+    var lines = ['\n**By school** (not counted against attendance):'];
     Object.keys(bySchool).sort(function(a,b){ return bySchool[b].count-bySchool[a].count; }).forEach(function(school){
       var s = bySchool[school];
       var topReason = Object.keys(s.reasons).sort(function(a,b){ return s.reasons[b]-s.reasons[a]; })[0];
       var datesStr = s.dates.sort().slice(0,4).join(', ');
-      lines.push('• **'+school+'** — '+s.count+' SI'+(s.count!==1?'s':'')+
+      lines.push('• **'+school+'** — '+s.count+' not counted'+
         (topReason ? ' · _'+topReason+'_' : '')+
         (datesStr ? ' ('+datesStr+')' : ''));
     });
@@ -10010,7 +10057,7 @@
           if (d.nm > 0) msg += d.nm + ' goal' + (d.nm>1?'s are':' is') + ' not met. ';
         }
         if (p && p.activeScholars != null) msg += 'Pearl shows **' + _n(p.activeScholars) + ' active scholars** across ' + (p.schoolCount||'—') + ' schools. ';
-        else if (p && p.siCount > 0) msg += 'Pearl has loaded (' + p.siCount + ' service interruption records on file). ';
+        else if (p && p.siCount > 0) msg += 'Pearl has loaded (' + p.siCount + ' missed-session records not counted against attendance on file). ';
         msg += 'What would you like to know?';
         return msg;
       }
@@ -10039,7 +10086,8 @@
         lines.push('\n### 🏫 Pearl Operations');
         lines.push('- "How many scholars are active?"');
         lines.push('- "What is scholar attendance?"');
-        lines.push('- "Show me service interruptions"');
+        lines.push('- "Show me undelivered sessions"');
+        lines.push('- "Show me cancellations"');
         lines.push('- "Which sites have low attendance?"');
         lines.push('- "Pearl summary"');
         lines.push('\n### 👥 Workforce & HR');
@@ -10099,15 +10147,17 @@
       }
     },
 
-    // Service interruption — temporal-aware: handles week N, last/this week, specific dates, or definition-only
-    { match: /service.?interrupt|si.?(count|total|break|by.?school|by.?site|week|month|day|\bfor\b|\bin\b)|how many si|si rate|\bsi\b.*(last|this|week|wk|month|\d)|interruption.*(week|wk|last|this|month|day|when|how|how many|break)/i,
+    // Missed sessions not counted against attendance (formerly "service
+    // interruptions") — temporal-aware: week N, last/this week, dates, or
+    // definition-only. Old phrasing ("service interruption", "SI") still matches.
+    { match: /service.?interrupt|si.?(count|total|break|by.?school|by.?site|week|month|day|\bfor\b|\bin\b)|how many si|si rate|\bsi\b.*(last|this|week|wk|month|\d)|interruption.*(week|wk|last|this|month|day|when|how|how many|break)|undeliver|not.?counted.*(attend|against)|missed.?session.*(categor|type|break)/i,
       respond: function() {
         var q = _lastQ || '';
-        var defOnly = /^what is (a|an) si\b|^what.?s a service interruption|^define.*(service interruption|si\b)/i.test(q.trim());
-        var base = '**Service interruption (SI):** A session disruption caused by something other than a scholar absence — school holidays, site closures, admin cancellations, tutor no-shows.';
+        var defOnly = /^what is (a|an) si\b|^what.?s a service interruption|^define.*(service interruption|si\b)|^what (is|are) (an? )?undelivered|^define.*undelivered/i.test(q.trim());
+        var base = _MISS_TERMS;
         if (defOnly) {
           var p = _pearl();
-          if (p && p.siCount != null) return base + '\n\nAll-time SI count this program year: **' + _n(p.siCount) + '**';
+          if (p && p.siCount != null) return base + '\n\nThis program year: **' + _n(p.siCount) + '** scholar sessions not counted against attendance' + (p.missed ? ' — ' + _missCatLineStats(p) : '') + '.';
           return base;
         }
         if (!window.po || typeof window.po.getAttRows !== 'function')
@@ -10144,25 +10194,67 @@
           var p2 = _pearl();
           periodLabel = 'Program Year (all sessions)';
           if (p2 && p2.siCount != null) {
-            var msg0 = base + '\n\n🚫 **' + _n(p2.siCount) + ' SIs** logged program-year to date.\n';
+            var msg0 = base + '\n\n📅 **' + _n(p2.siCount) + '** scholar sessions not counted against attendance, program-year to date' + (p2.missed ? ' — ' + _missCatLineStats(p2) : '') + '.\n';
             msg0 += _siSchoolBreakdown(rows);
-            msg0 += '\n\nAsk "service interruptions week 5" or "SIs last week" for period-specific detail.';
+            msg0 += '\n\nAsk "undelivered sessions week 5" or "undelivered sessions last week" for period-specific detail.';
             return msg0;
           }
         }
 
         var siRows = filtered.filter(function(r){ return r[1]==='Student' && _isScholSI(r); });
-        var totalSess = new Set(); filtered.forEach(function(r){ if(r[2]&&r[5]) totalSess.add(r[2]+'|'+r[5]); });
-        var msg = '**Service Interruptions — ' + periodLabel + '**\n\n';
-        msg += '🚫 **' + siRows.length + ' SI' + (siRows.length!==1?'s':'') + '** across **' + totalSess.size + '** session(s)';
-        if (totalSess.size > 0) msg += ' (' + Math.round(siRows.length/totalSess.size*100) + '% SI rate)';
+        var msg = '**Missed Sessions Not Counted Against Attendance — ' + periodLabel + '**\n\n';
+        msg += '📅 **' + siRows.length + '** scholar session' + (siRows.length!==1?'s':'');
+        var catLine = _missCatLine(filtered);
+        if (catLine) msg += ' — ' + catLine;
         msg += '\n';
         if (!siRows.length) {
-          msg += '\n✅ No service interruptions recorded for this period.';
+          msg += '\n✅ No missed sessions outside scholar absences recorded for this period.';
         } else {
           msg += _siSchoolBreakdown(filtered);
         }
         return msg;
+      }
+    },
+
+    // Session cancellations / rescheduled (Pearl Session Details)
+    { match: /cancel+ed session|cancel+ation|sessions? (were |got )?cancel+ed|reschedul|canceled reason|cancel+ed reason/i,
+      respond: function() {
+        var p = _pearl();
+        if (!p) return 'Pearl data not loaded — open Pearl Operations first, then ask again.';
+        if (!p.cancellations) return 'Cancellation detail (Canceled By / Canceled Reason) is only in the SY 26-27 Pearl data — switch Pearl Operations to SY 26-27.';
+        var c = p.cancellations;
+        var msg = '**Session Cancellations — SY 26-27**\n\n';
+        msg += '🗓️ **' + _n(c.cancelled) + '** cancelled · **' + _n(c.rescheduled) + '** rescheduled — both are removed from sessions offered.\n';
+        var reasons = Object.keys(c.byReason || {}).sort(function(a,b){ return c.byReason[b]-c.byReason[a]; });
+        if (reasons.length) msg += '\n**By Canceled Reason:**\n' + reasons.map(function(r){ return '• ' + r + ' — ' + _n(c.byReason[r]); }).join('\n') + '\n';
+        if (c.noReason) msg += '\n⚠️ **' + _n(c.noReason) + '** cancelled without a Canceled Reason — Site Leaders should add one (required).';
+        if (p.missed && p.missed.shouldCancelSessions) msg += '\n⚠️ **' + _n(p.missed.shouldCancelSessions) + '** session(s) had a school/NJTC reason logged as a missed reason — under the new process these are cancelled in Pearl instead.';
+        msg += '\n\nA session is **cancelled** when it should have happened but didn\'t because of a last-minute change; it is **deleted** when it should never have existed. The Pearl Operations panel lists each one.';
+        return msg + _navBtn('Open Pearl Operations', 'pearl-ops');
+      }
+    },
+
+    // Tutor substitute coverage (Pearl Instructor Substitutions + NE/SW Sub Trackers)
+    { match: /substitut|sub tracker|\bsubs?\b.*(cover|tracker|pearl)|covered absence|tutor coverage|coverage rate|drop.*edit/i,
+      respond: function() {
+        var p = _pearl();
+        if (!p) return 'Pearl data not loaded — open Pearl Operations first, then ask again.';
+        if (!p.coverage) return 'Substitute coverage is tracked from SY 26-27 — switch Pearl Operations to SY 26-27.';
+        var cv = p.coverage;
+        var msg = '**Tutor Absence Coverage — SY 26-27**\n\n';
+        msg += (cv.rate == null ? '—' : '**' + cv.rate + '%**') + ' of tutor absences covered (' + _n(cv.covered) + ' covered · ' + _n(cv.uncovered) + ' not covered).\n';
+        if (!cv.subsTabLoaded) msg += '⚠️ The Pearl Instructor Substitutions tab did not load — coverage may be incomplete.\n';
+        else if (!cv.pearlSubstitutions) msg += 'No substitutions are recorded in Pearl yet. A substitution is only recorded when the Site Leader **Drops** the absent tutor\'s session and **Edits** in the substitute.\n';
+        if (cv.upcoming) msg += _n(cv.upcoming) + ' upcoming substitution(s) scheduled.\n';
+        if (p.instAttPct != null) msg += '\n🎓 Tutor attendance (official, recorded): **' + _pct(p.instAttPct) + '**' + (p.instAttPctInclCovered != null && cv.pearlCovered ? ' · incl. covered absences: **' + _pct(p.instAttPctInclCovered) + '**' : '') + '\n';
+        if (p.subTracker) {
+          msg += '\n**Sub Tracker check:** ' + _n(p.subTracker.entries) + ' entries';
+          if (p.subTracker.notInPearl) msg += ' · ⚠️ **' + _n(p.subTracker.notInPearl) + '** not found as a Pearl substitution (Drop + Edit not done)';
+          if (p.subTracker.unclearDates) msg += ' · ' + _n(p.subTracker.unclearDates) + ' with an unreadable date';
+          if (p.subTracker.notOnTracker) msg += ' · ' + _n(p.subTracker.notOnTracker) + ' Pearl substitution(s) missing from the tracker';
+          msg += '\n';
+        }
+        return msg + _navBtn('Open Pearl Operations', 'pearl-ops');
       }
     },
 
@@ -10224,9 +10316,10 @@
     { match: /attendance rate|how is.*(attendance|it) calculated|scholar attendance|tutor attendance|what is.*(scholar|tutor) attendance/i,
       respond: function() {
         var p = _pearl();
-        var base = '**Attendance rate** = Attended ÷ (Attended + Absent) × 100. Excludes SI records — those aren\'t scholar absences.\n\nScholar benchmark: ≥80%. Tutor benchmark: ≥90%.';
+        var base = '**Attendance rate** = Attended ÷ (Attended + Absent) × 100. Excludes undelivered sessions, cancellations and internal tracking — those aren\'t scholar absences.\n\nScholar benchmark: ≥80%. Tutor benchmark: ≥90%. Official tutor attendance is the recorded rate; Pearl Ops also shows it including covered absences (sessions a substitute covered).';
         if (p && p.scholAttPct != null) {
-          return base + '\n\nLive rates — Scholar: **' + _pct(p.scholAttPct) + '**, Tutor: **' + _pct(p.tutorAttPct) + '**.';
+          return base + '\n\nLive rates — Scholar: **' + _pct(p.scholAttPct) + '**, Tutor: **' + _pct(p.instAttPct) + '**'
+            + (p.instAttPctInclCovered != null && p.coverage && p.coverage.pearlCovered ? ' (incl. covered absences: **' + _pct(p.instAttPctInclCovered) + '**)' : '') + '.';
         }
         return base + '\n\nPearl data is still loading — open Pearl Operations for live rates.';
       }
@@ -10566,7 +10659,7 @@
           'home':'Department Home — your live operational snapshot with KPI strip, quick links, and program health.',
           'kpi':'KPI Targets — all org goals for SY 2025–26 with current statuses.',
           'kpi-analytics':'KPI Analytics — weighted scoring, health bands, and breakdown by goal area.',
-          'pearl-ops':'Pearl Operations — live session attendance, site performance, and service interruption tracking.',
+          'pearl-ops':'Pearl Operations — live session attendance, site performance, missed sessions by category, cancellations and tutor coverage.',
           'sy-analytics':'SY Site Analytics — every active NJTC tutoring site with scholars, staff, and sessions.',
           'talent':'Talent Analytics — HR concern pipeline, workforce risk signals, and retention data.',
           'iready-lab':'iReady Analysis Lab — diagnostic scale scores, placement levels, and % of typical academic growth.',
@@ -10894,7 +10987,7 @@
     // What is Pearl / Pearl Operations
     { match: /what is pearl|what.?s pearl|pearl ops|pearl operations|pearl (platform|system|tool)|how does pearl work/i,
       respond: function() {
-        return '**Pearl Operations** is NJTC\'s tutoring session data system. It tracks:\n\n• Scholar and tutor attendance per session\n• Service interruptions (SI) — sessions lost to non-scholar causes\n• Scholar survey scores (confidence, enjoyment, learning)\n• Site-level performance\n• District attendance rates\n\nData syncs from the Pearl Google Sheet. Scholar benchmark: ≥80% attendance. Tutor benchmark: ≥90%.';
+        return '**Pearl Operations** is NJTC\'s tutoring session data system. It tracks:\n\n• Scholar and tutor attendance per session\n• Missed sessions by category — Undelivered Sessions (tutor absent / vacancy), Session Cancellations, Internal Tracking\n• Cancellations and tutor substitute coverage\n• Scholar survey scores (confidence, enjoyment, learning)\n• Site-level performance\n• District attendance rates\n\nData syncs from the Pearl Google Sheet. Scholar benchmark: ≥80% attendance. Tutor benchmark: ≥90%.';
       }
     },
 
@@ -11232,7 +11325,7 @@
         var parts = [];
         if (d) parts.push('**KPI Health: ' + d.score + '% (' + d.health + ')** · ' + d.met + ' Met / ' + d.nm + ' Not Met of ' + d.total + ' targets');
         if (p&&p.loaded) {
-          parts.push('**Pearl:** Scholar att. ' + _pct(p.scholAttPct) + ' · ' + _n(p.activeScholars) + ' scholars · ' + _n(p.siCount) + ' SIs');
+          parts.push('**Pearl:** Scholar att. ' + _pct(p.scholAttPct) + ' · ' + _n(p.activeScholars) + ' scholars · ' + (p.missed ? _n(p.missed.undelivered) + ' undelivered' : _n(p.siCount) + ' not counted vs. att.'));
         }
         if (irl) parts.push('**iReady:** Math ' + Math.round(irl.mathMedianPctAllYears||0) + '% · ELA ' + Math.round(irl.elaMedianPctAllYears||0) + '% of typical growth');
         if (c.length) {
@@ -11423,7 +11516,7 @@
         var msg = '**Schools Needing Attendance Support:**\n\n';
         msg += bottom.map(function(s,i){
           var icon = s.attRate>=75?'⚠️':'🔴';
-          return (i+1)+'. '+icon+' **'+s.school+'** ('+s.district+') — **'+s.attRate+'%** · '+s.sessions+' sessions'+(s.siCount?' · '+s.siCount+' SIs':'');
+          return (i+1)+'. '+icon+' **'+s.school+'** ('+s.district+') — **'+s.attRate+'%** · '+s.sessions+' sessions'+(s.siCount?' · '+s.siCount+' not counted':'');
         }).join('\n');
         var p = _pearl();
         if (p) msg += '\n\nOrg avg: '+_pct(p.scholAttPct)+' scholar attendance.';
@@ -11461,9 +11554,9 @@
         var sc = _schools();
         if (!sc.length) return 'Pearl site data not yet loaded — open Pearl Operations first.';
         var bySI = sc.slice().sort(function(a,b){ return b.siCount - a.siCount; }).filter(function(s){ return s.siCount>0; }).slice(0,8);
-        if (!bySI.length) return 'No service interruptions recorded at any site currently.';
-        var msg = '**Service Interruptions by Site (highest first):**\n\n';
-        msg += bySI.map(function(s){ return '🔴 **'+s.school+'** — '+s.siCount+' SIs · '+s.attRate+'% scholar att.'; }).join('\n');
+        if (!bySI.length) return 'No missed sessions outside scholar absences recorded at any site currently.';
+        var msg = '**Missed Sessions Not Counted Against Attendance — by Site (highest first):**\n_Undelivered sessions, cancellation-type reasons and internal tracking. Not counted against scholar attendance._\n\n';
+        msg += bySI.map(function(s){ return '• **'+s.school+'** — '+s.siCount+' not counted · '+s.attRate+'% scholar att.'; }).join('\n');
         return msg;
       }
     },
@@ -11796,7 +11889,7 @@
           }
           var ctDists = (ld.districts||[]).filter(function(d){return d.ctFlag;});
           if (ctDists.length) msg += '📋 **Teacher scheduling overlaps** in: '+ctDists.map(function(d){return d.name;}).join(', ')+'\n';
-          msg += '\nNote: Service interruptions (non-scholar causes) are tracked separately as SIs.';
+          msg += '\nNote: Undelivered sessions, cancellations and internal tracking (non-scholar causes) are tracked separately and never count against attendance.';
           return msg;
         } catch(e) { return 'Absence driver data not yet available — open Pearl Operations.'; }
       }
@@ -11922,13 +12015,16 @@
           if (p.instAttPct != null && p.instAttPct < 90) flags.push('Tutor attendance below 90% benchmark');
         }
 
-        // ── Service Interruptions ───────────────────────────────────────────
+        // ── Missed sessions not counted against attendance ──────────────────
+        // (formerly "Service Interruptions"). Shown as context, not as an
+        // alarm — only real fixes (cancellations without a reason, school
+        // reasons logged as missed, uncovered tutor absences) become flags.
         if (p && p.siCount != null) {
-          var siRate = (p.sessions && p.sessions>0) ? Math.round(p.siCount/p.sessions*100) : null;
-          lines.push('\n**SERVICE INTERRUPTIONS**');
-          var siIcon = siRate==null?'—':siRate<=5?'✅':siRate<=10?'⚠️':'🔴';
-          lines.push(siIcon+' **'+_n(p.siCount)+'** SIs · '+(siRate!=null?siRate+'% of sessions':'n/a')+' · '+(p.sessions?_n(p.sessions)+' sessions total':''));
-          if (siRate != null && siRate > 10) flags.push('High SI rate: '+siRate+'% of sessions interrupted');
+          lines.push('\n**MISSED SESSIONS NOT COUNTED AGAINST ATTENDANCE**');
+          lines.push('📅 **'+_n(p.siCount)+'** scholar sessions' + (p.missed ? ' · ' + _missCatLineStats(p) : ''));
+          if (p.cancellations) lines.push('🗓️ Cancelled: **'+_n(p.cancellations.cancelled)+'** · Rescheduled: **'+_n(p.cancellations.rescheduled)+'**');
+          if (p.cancellations && p.cancellations.noReason) flags.push(_n(p.cancellations.noReason)+' cancelled session(s) with no Canceled Reason');
+          if (p.missed && p.missed.shouldCancelSessions) flags.push(_n(p.missed.shouldCancelSessions)+' session(s) with a school/NJTC reason logged as missed (should be cancelled in Pearl)');
         }
 
         // ── Scholar Survey ──────────────────────────────────────────────────
@@ -12015,8 +12111,7 @@
         if (p) {
           if (p.scholAttPct != null && p.scholAttPct < 85) flags.push('🔴 Scholar attendance at **'+p.scholAttPct+'%** — below 85% benchmark');
           if (p.instAttPct  != null && p.instAttPct  < 90) warnings.push('⚠️ Tutor attendance at **'+p.instAttPct+'%** — below 90% benchmark');
-          var siRate = p.sessions>0 ? Math.round(p.siCount/p.sessions*100) : null;
-          if (siRate != null && siRate > 10) flags.push('🔴 SI rate **'+siRate+'%** — more than 1 in 10 sessions interrupted');
+          if (p.cancellations && p.cancellations.noReason) warnings.push('⚠️ **'+_n(p.cancellations.noReason)+'** cancelled session(s) with no Canceled Reason');
           if (p.surveyAvg != null && p.surveyAvg < 3.5) flags.push('🔴 Scholar survey avg **'+p.surveyAvg+'/5** — below acceptable threshold');
         }
 
@@ -12335,7 +12430,7 @@
         var msg = '**School Attendance — '+rng.label+' ('+rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'):**\n\n';
         if (low.length) {
           msg += '**Below 85% benchmark:**\n';
-          msg += low.map(function(s){ var icon=s.rate<70?'🔴':'⚠️'; return icon+' **'+s.name+'** — '+s.rate+'% ('+s.att+' att / '+s.abs+' abs)'+(s.si?' · '+s.si+' SIs':''); }).join('\n');
+          msg += low.map(function(s){ var icon=s.rate<70?'🔴':'⚠️'; return icon+' **'+s.name+'** — '+s.rate+'% ('+s.att+' att / '+s.abs+' abs)'+(s.si?' · '+s.si+' not counted':''); }).join('\n');
         } else {
           msg += '✅ All schools above 85% this period.';
         }
@@ -12355,7 +12450,7 @@
         var icon = s.tutorAttPct==null?'—':s.tutorAttPct>=90?'✅':s.tutorAttPct>=80?'⚠️':'🔴';
         msg += icon+' **'+(s.tutorAttPct!=null?s.tutorAttPct+'%':'No data')+'** tutor attendance rate\n';
         msg += s.tutorAtt+' sessions with tutor present · '+s.tutorAbs+' absences';
-        if (s.siCount) msg += '\n🚫 '+s.siCount+' service interruptions this period';
+        if (s.siCount) msg += '\n📅 '+s.siCount+' missed sessions not counted against attendance this period';
         msg += '\n\nBenchmark: ≥90%. For a per-tutor breakdown this period, open Pearl Operations → filter by date.';
         return msg;
       }
@@ -12378,13 +12473,13 @@
           msg += tutorIcon+' Tutors: **'+(s.tutorPct!=null?s.tutorPct+'%':'—')+'** ('+s.tutorAtt+' present · '+s.tutorAbs+' absent)\n';
           msg += '📍 '+s.schools+' site(s) · ~'+s.sessions+' session(s)';
           if (s.siCount > 0) {
-            msg += '\n🚫 **'+s.siCount+' service interruption'+(s.siCount!==1?'s':'')+'** this week';
+            msg += '\n📅 **'+s.siCount+'** missed session'+(s.siCount!==1?'s':'')+' not counted against attendance this week';
             if (window.po && typeof window.po.getAttRows === 'function') {
               var wkRows = (window.po.getAttRows()||[]).filter(function(r){ return r[26]==='Week '+wn; });
               msg += _siSchoolBreakdown(wkRows);
             }
           } else {
-            msg += '\n✅ No service interruptions this week.';
+            msg += '\n✅ No missed sessions outside scholar absences this week.';
           }
           // Survey comments for this week
           try {
@@ -12778,8 +12873,8 @@
     { match: /what is.{0,10}\bsi\b|service.?interrupt|what.?s a si\b|define.{0,10}si\b|si.{0,10}mean|session.?interrupt/i,
       respond: function() {
         var p = _pearl();
-        var ct = p && p.siCount != null ? '\n\nCurrent SY total: **' + _n(p.siCount) + ' SI records** in Pearl.' : '';
-        return '**Service Interruption (SI)** — A session that was scheduled but could NOT be delivered due to a reason outside the scholar\'s control:\n\n• School closures, holidays, standardized testing\n• Facility issues, field trips, early dismissals\n• Staff absences that cancel the session\n\nSIs are **NOT** counted as scholar absences — they\'re excluded from the attendance rate formula so they don\'t penalize scholar att%. NJTC tracks SIs to measure instructional time lost.' + ct;
+        var ct = p && p.siCount != null ? '\n\nCurrent SY: **' + _n(p.siCount) + '** scholar sessions not counted against attendance' + (p.missed ? ' — ' + _missCatLineStats(p) : '') + '.' : '';
+        return _MISS_TERMS + ct;
       }
     },
 
@@ -13554,7 +13649,7 @@
           var icon = s.attRate < 70 ? '🔴' : '⚠️';
           return icon + ' **' + s.school + '** (' + s.district + ') — **' + s.attRate + '%** · ' + _n(s.sessions) + ' sessions' + (s.siCount ? ' · ' + s.siCount + ' SIs' : '');
         }).join('\n');
-        msg += '\n\nAsk "service interruptions by site" for context, or type a school name for its full profile.' + _navBtn('Open SY Analytics', 'sy-analytics');
+        msg += '\n\nAsk "undelivered sessions by site" for context, or type a school name for its full profile.' + _navBtn('Open SY Analytics', 'sy-analytics');
         _ctxPush('site_below', { sites: below });
         return msg;
       }
@@ -13997,7 +14092,7 @@
         if (p && p.scholAttPct!=null) {
           var aI = p.scholAttPct>=80?'🟢':p.scholAttPct>=70?'🟡':'🔴';
           lines.push(aI+' Scholar attendance: **'+_pct(p.scholAttPct)+'** (benchmark: 80%)');
-          if (p.siCount) lines.push('⚠️ Service interruptions on file: **'+_n(p.siCount)+'**');
+          if (p.siCount) lines.push('📅 Not counted against attendance: **'+_n(p.siCount)+'**' + (p.missed ? ' (' + _missCatLineStats(p) + ')' : ''));
         } else { lines.push('_Pearl attendance data not yet loaded_'); }
         // Site-level concerns — concerns tied to specific sites
         lines.push('\n### Site Concern Signals');
@@ -14121,7 +14216,8 @@
           if (p.scholAttPct<75) urgent.push('🔴 **Scholar attendance '+_pct(p.scholAttPct)+'** — significantly below 80% floor');
           else if (p.scholAttPct<80) watch.push('🟡 **Scholar attendance '+_pct(p.scholAttPct)+'** — just below 80% floor');
           else good.push('✅ Scholar attendance **'+_pct(p.scholAttPct)+'**');
-          if (p.siCount>5) watch.push('⚠️ **'+_n(p.siCount)+' service interruptions** on file — review sites');
+          if (p.cancellations && p.cancellations.noReason) watch.push('⚠️ **'+_n(p.cancellations.noReason)+'** cancelled session(s) with no Canceled Reason');
+          if (p.subTracker && p.subTracker.notInPearl) watch.push('⚠️ **'+_n(p.subTracker.notInPearl)+'** Sub Tracker entr'+(p.subTracker.notInPearl===1?'y':'ies')+' not found as a Pearl substitution');
         }
         // HR escalations (normalized so naming variations don't slip through)
         if (_deptCan('hr_concerns')) {
@@ -14191,7 +14287,7 @@
         if (p) {
           lines.push('Scholars: **'+_n(p.activeScholars||0)+'** · Sites: **'+_n(p.schools||0)+'** · Districts: **'+_n(p.districts||0)+'**');
           if (p.sessions) lines.push('Sessions: **'+_n(p.sessions)+'** · Instructional hours: ~**'+_n(Math.round((p.totalMins||0)/60))+'**');
-          lines.push('Scholar Attendance: **'+_pct(p.scholAttPct)+'** · Service Interruptions: **'+_n(p.siCount||0)+'**');
+          lines.push('Scholar Attendance: **'+_pct(p.scholAttPct)+'** · Undelivered Sessions: **'+_n(p.missed ? p.missed.undelivered : 0)+'**');
         } else { lines.push('_Pearl data not loaded — open Pearl Operations_'); }
         lines.push('\n### 📈 Academic Outcomes');
         if (irl) {
@@ -14251,7 +14347,7 @@
           }
         } else if (p) {
           lines.push('\n_Per-site breakdown unavailable — open Pearl Operations and reload._');
-          lines.push('Org-wide: scholar att **'+_pct(p.scholAttPct)+'** · **'+_n(p.schools||0)+'** sites · **'+_n(p.siCount||0)+'** service interruptions');
+          lines.push('Org-wide: scholar att **'+_pct(p.scholAttPct)+'** · **'+_n(p.schools||0)+'** sites · **'+_n(p.missed ? p.missed.undelivered : 0)+'** undelivered sessions');
         }
         // Sites with most concern records
         if (c.length) {
@@ -14559,7 +14655,7 @@
     if (p&&p.loaded) {
       rows += '<tr><td>Scholar Attendance</td><td><strong>' + _pct(p.scholAttPct) + '</strong></td><td>' + _n(p.activeScholars) + ' scholars · ' + _n(p.sessions) + ' sessions</td></tr>';
       rows += '<tr><td>Tutor Attendance</td><td><strong>' + _pct(p.instAttPct) + '</strong></td><td>Benchmark ≥90%</td></tr>';
-      rows += '<tr><td>Service Interruptions</td><td><strong>' + _n(p.siCount) + '</strong></td><td>Non-scholar-caused disruptions</td></tr>';
+      rows += '<tr><td>Not Counted vs. Attendance</td><td><strong>' + _n(p.siCount) + '</strong></td><td>' + (p.missed ? _missCatLineStats(p) : 'Undelivered · cancellation-type · internal') + '</td></tr>';
     }
     if (irl) {
       rows += '<tr><td>iReady Math Growth</td><td><strong>' + Math.round(irl.mathMedianPctAllYears||0) + '% of typical</strong></td><td>' + _n(irl.mathRows) + ' records</td></tr>';
@@ -14865,7 +14961,7 @@
       [/apprentice|tap/,                                     'how many apprentices tap'],
       [/session|deliver|volume|program/,                     'sessions delivered total program'],
       [/pearl|scholar count|tutor count/,                    'how many scholars sites sessions pearl'],
-      [/si\b|interrupt/,                                     'service interruption si count'],
+      [/si\b|interrupt|undeliver/,                           'service interruption si count undelivered'],
       [/survey/,                                             'scholar survey satisfaction'],
       [/pdf|report|flash|export/,                            'generate pdf report flash'],
       [/what.*you|pie.*do|help|capabilit/,                   'what can you do capabilities'],
@@ -15186,7 +15282,7 @@
         'finance-analytics':function(){ var p=_pearl(); return p?'💰 Volume: **'+_n(p.sessions||0)+'** sessions · **'+_n(p.activeScholars||0)+'** scholars · **'+_n(p.schools||0)+'** sites':null; },
         'impact-report':   function(){ var d=_kpi(),irl=_irl(); var pts=[]; if(d) pts.push('KPI **'+d.score+'%**'); if(irl&&irl.mathMedianPctAllYears!=null) pts.push('Math growth **'+Math.round(irl.mathMedianPctAllYears)+'%** typical'); return pts.length?pts.join(' · '):null; },
         'training-analytics':function(){ var hr=_hrActive(); var apps=hr.filter(function(e){return e._apprentice==='Yes';}).length; return apps?'🌱 TAP pipeline: **'+apps+'/40 apprentices** ('+Math.round(apps/40*100)+'% to DOL target)':null; },
-        'sy-analytics':    function(){ var p=_pearl(); return p&&p.scholAttPct!=null?'📍 Scholar attendance: **'+_pct(p.scholAttPct)+'** · **'+_n(p.siCount||0)+'** service interruptions':null; },
+        'sy-analytics':    function(){ var p=_pearl(); return p&&p.scholAttPct!=null?'📍 Scholar attendance: **'+_pct(p.scholAttPct)+'** · **'+_n(p.missed ? p.missed.undelivered : 0)+'** undelivered sessions':null; },
       };
       var ctxFn = panelCtx[_panel];
       if (ctxFn) {
@@ -15277,10 +15373,13 @@
         ['Tutor Attendance %', 'Formula: (sessions delivered by tutor ÷ sessions assigned to tutor) × 100. Reflects tutor reliability, not scholar show-up rate.'],
         ['Scholar Tiers', 'On Track = ≥80% attendance · At Risk = 70–79% · Needs Action = <70%. Tier assigned per individual scholar based on their cumulative attendance rate.'],
         ['Session Fidelity', 'Rated 1–5 per session via site observation or tutor self-report. Score ≥4.0 = on track. Avg across all rated sessions at the site. Not available for all sites.'],
-        ['Service Interruption (SI)', 'Any scheduled session that was not delivered: school cancellation, tutor no-show, early dismissal, etc. Each occurrence = 1 SI logged. High SI count indicates operational instability at a site.'],
+        ['Not Counted Against Attendance (formerly "Service Interruption")', 'A missed scholar session that is not a scholar absence. Grouped as Undelivered Sessions (tutor absent / vacancy), Session Cancellations (school or NJTC-driven) and Internal Tracking. Never counted against scholar attendance.'],
+        ['Undelivered Sessions', 'Tutor absent or tutor vacancy — tutoring could not happen on NJTC\'s side. A talking point for partner conversations, not a to-do.'],
+        ['Session Cancellation', 'A session that should have happened but did not because of a last-minute school or NJTC change. Site Leaders cancel it in Pearl and must pick a Canceled Reason. A session created by mistake is deleted, not cancelled.'],
+        ['Covered Tutor Absence', 'A tutor absence covered by a substitute (Site Leader Drops the session and Edits in the sub in Pearl). Official tutor attendance is the recorded rate; Pearl Ops also shows the rate including covered absences.'],
         ['Active Scholar', 'Student with ≥1 attended session in the current reporting window. "Rostered" = enrolled but may have 0 attended sessions.'],
         ['Site / Network', 'Site = individual school building. Network = the charter management org or district grouping. Metrics roll up from site → network → program-wide.'],
-        ['Controllable Absence', 'SI flagged as preventable: tutor no-show, scheduling error, unreported cancellation. Non-controllable = school holiday, student illness. Only controllable SIs factor into operational health scoring.'],
+        ['Controllable Absence', 'A missed session flagged as preventable: tutor no-show, scheduling error, unreported cancellation. Non-controllable = school holiday, student illness. Only controllable misses factor into operational health scoring.'],
       ]
     },
     'iready-lab': {

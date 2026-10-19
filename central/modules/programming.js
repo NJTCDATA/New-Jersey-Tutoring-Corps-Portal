@@ -3995,8 +3995,14 @@
       return !!iso && _filtWeek.includes(weekKeyFromDateStr(_isoToMDY(iso)));
     }
 
-    function computeMissedAndCoverage() {
+    // opts.all → ignore the Pearl Ops filters (org-wide, or one opts.school) —
+    // used by getStats() for PIE and other modules.
+    function computeMissedAndCoverage(opts) {
+      opts = opts || {};
       const CAT = window.NJTC_PEARL_CATEGORIES, COV = window.NJTC_PEARL_COVERAGE;
+      const inPlace   = opts.all ? (school => !opts.school || school === opts.school) : matchesSchoolFilter;
+      const inWeekKey = wk  => opts.all || !_filtWeek.length || _filtWeek.includes(wk);
+      const inWeekIso = iso => opts.all || _inWeekFilter(iso);
       if (!CAT) return null;
       const out = { period: _activePeriod, live: _activePeriod === 'sy2627' };
 
@@ -4005,8 +4011,8 @@
       const shouldCancel = {};   // school|title|date → { school, title, date, reason, n }
       for (const r of _attRows) {
         if (r[ATT.ROLE] !== 'Student') continue;
-        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
-        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) continue;
+        if (!inPlace(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
+        if (!inWeekKey(r[ATT.WEEK])) continue;
         const cls = classifyRecord(r);
         if (cls !== 'absent' && cls !== 'service_interruption') continue;
         const reason = (r[ATT.MISS_REASON] || '').trim();
@@ -4034,9 +4040,9 @@
       const canc = { cancelled: 0, rescheduled: 0, byReason: {}, byWho: {}, noReason: [] };
       for (const s of Object.values(_sessMap)) {
         if (s.status !== 'Cancelled' && s.status !== 'Rescheduled') continue;
-        if (!matchesSchoolFilter(s.school, s.district)) continue;
+        if (!inPlace(s.school, s.district)) continue;
         const iso = _isoDate(s.start);
-        if (!_inWeekFilter(iso)) continue;
+        if (!inWeekIso(iso)) continue;
         const who = (s.canceledBy || '').trim() || 'Not recorded';
         if (s.status === 'Rescheduled') { canc.rescheduled++; continue; }
         canc.cancelled++;
@@ -4056,7 +4062,7 @@
       const sessById = {};
       for (const s of Object.values(_sessMap)) sessById[s.id] = { status: s.status, title: s.title, start: s.start, school: s.school, district: s.district };
       const allCov = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, today, CAT.isOfferedStatus);
-      const scoped = allCov.filter(c => matchesSchoolFilter(c.school, c.district) && _inWeekFilter(c.date));
+      const scoped = allCov.filter(c => inPlace(c.school, c.district) && inWeekIso(c.date));
       const covered = scoped.filter(c => c.outcome === 'covered');
       const alreadyKeys = new Set(scoped.filter(c => c.outcome === 'already_recorded').map(c => c.origId + '|' + (c.title || '').trim() + '|' + c.date));
 
@@ -4064,8 +4070,8 @@
       let legacyCovered = 0, uncovered = 0;
       for (const r of _attRows) {
         if (r[ATT.ROLE] !== 'Instructor') continue;
-        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
-        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) continue;
+        if (!inPlace(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
+        if (!inWeekKey(r[ATT.WEEK])) continue;
         if (classifyRecord(r) !== 'absent') continue;
         const k = r[ATT.USER_ID] + '|' + (r[ATT.SESSION] || '').trim() + '|' + _isoDate(r[ATT.SESS_DATE]);
         if (alreadyKeys.has(k)) continue;                 // counted below as Pearl-covered
@@ -4087,7 +4093,7 @@
       // Tracker reconciliation — tracker sites are free text, so it is not
       // narrowed by the school / district / week filters.
       const skip = new Set(allCov.filter(c => c.outcome === 'not_offered').map(c => c.sessId));
-      out.tracker = _covTabs.tracker ? COV.reconcileTracker(_subTracker, _pearlSubs, today, skip) : null;
+      out.tracker = _covTabs.tracker ? COV.reconcileTracker(_subTracker, _pearlSubs, today, skip, _trackerRoster()) : null;
       return out;
     }
 
@@ -4104,6 +4110,26 @@
         absences: all.filter(c => c.origId === uid),
         asSub: all.filter(c => c.deliveredById === uid && c.subRowAttended).length,
       };
+    }
+
+    // Pearl roster for reading the free-text Sub Trackers: schools, instructors
+    // (with their school) and the days each school had offered sessions.
+    let _rosterCache = null, _rosterSrc = null;
+    function _trackerRoster() {
+      if (_rosterSrc === _sessMap && _rosterCache) return _rosterCache;
+      const CAT = window.NJTC_PEARL_CATEGORIES;
+      const schools = new Set(), days = {}, people = {};
+      for (const s of Object.values(_sessMap)) {
+        if (!s.school) continue;
+        schools.add(s.school);
+        if (s.instId && !people[s.instId]) people[s.instId] = { id: s.instId, name: s.instructor || '', school: s.school };
+        if (CAT && !CAT.isOfferedStatus(s.status)) continue;
+        const iso = _isoDate(s.start);
+        if (iso) (days[s.school] = days[s.school] || new Set()).add(iso);
+      }
+      _rosterSrc = _sessMap;
+      _rosterCache = { schools: [...schools], people: Object.values(people), sessionDays: sc => days[sc] || null };
+      return _rosterCache;
     }
 
     // Tutor attendance including covered absences, for the stat tile.
@@ -4178,7 +4204,9 @@
         const tr = model.tracker;
         const miss = tr.rows.filter(r => r.status === 'not_in_pearl' || r.status === 'partial');
         if (miss.length) fixes.push({ t: 'On the Sub Tracker but not found as a Pearl substitution (Drop + Edit not done)', n: miss.length,
-          rows: miss.map(r => [r.dateRaw, r.region + ' · ' + r.site, names ? r.sub : '', names ? (r.isVacancy ? 'Vacancy' : r.absentTutor) : '', r.found + ' of ' + r.due + ' day' + (r.due === 1 ? '' : 's') + ' found' + (r.isRange ? ' (date range — days without sessions also show as missing)' : '')]),
+          rows: miss.map(r => [r.dateRaw, r.region + ' · ' + r.site + (r.school && r.school !== r.site ? ' (' + r.school + ')' : ''), names ? r.sub : '',
+            names ? (r.isVacancy ? 'Vacancy' : r.absentTutor + (r.tutorMatch && r.tutorMatch.name !== r.absentTutor.trim() ? ' (' + r.tutorMatch.name + ')' : '')) : '',
+            r.found + ' of ' + r.due + ' day' + (r.due === 1 ? '' : 's') + ' found' + (r.isRange ? (r.rangeChecked ? ' (range — only days the site had sessions)' : ' (range — site not matched to a Pearl school, so every weekday is expected)') : '')]),
           cols: ['Date(s)', 'Region · Site', 'Sub', 'Covering For', 'In Pearl'] });
         const unclear = tr.rows.filter(r => r.status === 'unclear');
         if (unclear.length) fixes.push({ t: 'Sub Tracker date could not be read — use m/d dates (e.g. 10/3 & 10/5 or 10/13-10/15)', n: unclear.length,
@@ -9213,6 +9241,8 @@
 
       // Which period's data is loaded ('sy2627' | 'sy2526' | 'summer2026') — cheap
       getActivePeriod: function() { return _activePeriod; },
+      // Monday of Pearl "Week 1" for the loaded period (same anchor as ATT.WEEK)
+      getWeekAnchor: function() { return new Date(SY_START.getTime()); },
       getStats: function() {
         // Compute directly from the internal data arrays
         var stats = { loaded: false, scholAttPct: null, instAttPct: null, sessions: null,
@@ -9231,7 +9261,37 @@
           if (instTotal > 0) stats.instAttPct = parseFloat((instAtt/instTotal*100).toFixed(1));
           if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
           var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return r[ATT.ROLE]==='Student' && (c==='service_interruption'||c==='si'||c==='service-interruption'); });
-          stats.siCount = siRows.length;
+          stats.siCount = siRows.length;   // = all scholar misses NOT counted against attendance
+          // Missed-session categories, cancellations, tutor coverage — org-wide
+          // (ignores the Pearl Ops filters). Same model as the Pearl Ops panel.
+          try {
+            var mc = computeMissedAndCoverage({ all: true });
+            var K = window.NJTC_PEARL_CATEGORIES && window.NJTC_PEARL_CATEGORIES.CATEGORY;
+            if (mc && K) {
+              stats.missed = {
+                undelivered: mc.cats[K.UNDELIVERED].count, undeliveredReasons: mc.cats[K.UNDELIVERED].reasons,
+                cancellationType: mc.cats[K.CANCELLATION].count, cancellationTypeReasons: mc.cats[K.CANCELLATION].reasons,
+                internal: mc.cats[K.INTERNAL].count, internalReasons: mc.cats[K.INTERNAL].reasons,
+                absences: mc.cats[K.ABSENCE].count, unmapped: mc.cats[K.OTHER].count,
+                shouldCancelSessions: mc.shouldCancel.length,
+              };
+              if (mc.canc) stats.cancellations = { cancelled: mc.canc.cancelled, rescheduled: mc.canc.rescheduled,
+                byReason: mc.canc.byReason, noReason: mc.canc.noReason.length };
+              if (mc.coverage) {
+                var cv = mc.coverage;
+                stats.coverage = { covered: cv.pearlCovered + cv.legacyCovered, pearlCovered: cv.pearlCovered, uncovered: cv.uncovered,
+                  rate: cv.rate == null ? null : parseFloat(cv.rate.toFixed(1)), upcoming: cv.upcoming,
+                  subsTabLoaded: !!(mc.covTabs && mc.covTabs.subs), pearlSubstitutions: _pearlSubs.length };
+                var adj = tutorRateWithCovered(instAtt, instAbs, mc);
+                stats.instAttPctInclCovered = adj == null ? null : parseFloat(adj.toFixed(1));
+              }
+              if (mc.tracker) stats.subTracker = {
+                entries: mc.tracker.rows.length,
+                notInPearl: mc.tracker.rows.filter(function(r){ return r.status === 'not_in_pearl' || r.status === 'partial'; }).length,
+                unclearDates: mc.tracker.rows.filter(function(r){ return r.status === 'unclear'; }).length,
+                notOnTracker: mc.tracker.notOnTracker.length };
+            }
+          } catch(eM) {}
           if (_stuStreamComplete && _stuRows.length) {
             var survScores = [];
             _stuRows.forEach(function(r){

@@ -155,8 +155,8 @@
 
   // ── Definitions library ─────────────────────────────────────────────────────
   var DEFINITIONS = {
-    'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Service interruptions (holidays, school closures, testing days) are NOT counted against you or your scholars.** Goals: scholars 80% or higher, tutors 90% or higher.' },
-    'service_interruption': { term:'Service Interruption (SI)', category:'Attendance', short:'A missed session that was NOT the tutor\'s or scholar\'s fault.', full:'Examples: school closures, holidays, NJTC diagnostic testing, school events, drills. These are excluded from attendance rate calculations. You\'ll see them tracked separately on your dashboard.' },
+    'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Missed sessions that are not absences — undelivered sessions (tutor absent / vacancy), cancellations (school events, testing days, closures, schedule changes) and internal tracking — are NOT counted against you or your scholars.** Goals: scholars 80% or higher, tutors 90% or higher.' },
+    'service_interruption': { term:'Not Counted Against Attendance (formerly "Service Interruption")', category:'Attendance', short:'A missed session that is not a scholar absence — it never counts against attendance.', full:'NJTC now groups these as:\n• **Undelivered Sessions** — tutor absent or tutor vacancy\n• **Session Cancellations** — school events, school-administered testing, schedule changes, closures, weather or an NJTC issue. Site Leaders cancel these in Pearl with a Canceled Reason.\n• **Internal Tracking** — NJTC diagnostic testing, archived scholars\n\nNone of these are held against you or your scholars, and there is nothing you need to do about them. You\'ll see them tracked separately on your dashboard.' },
     'not_recorded': { term:'Not Recorded', category:'Pearl', short:'A session where attendance was never entered in Pearl.', full:'When a session shows "Not recorded," no one logged attendance for that day. This is an action item — go into Pearl and mark attendance as soon as possible. Sessions that stay unrecorded affect program data quality.' },
     'unique_scholars': { term:'Unique Scholars', category:'Pearl', short:'The number of individual students you\'ve worked with this year.', full:'This counts each student only once, regardless of how many sessions they attended. It comes from Pearl operations data for the current school year only — not historical iReady data.' },
     'survey_rate': { term:'Survey Completion Rate', category:'Surveys', short:'The % of your sessions where you submitted an instructor survey.', full:'Calculated as: Surveys submitted ÷ Sessions attended. The goal is 100% — every session you attend should have a survey. Surveys help leadership understand how your sessions are going.' },
@@ -471,7 +471,7 @@
       respond: function() {
         var kbNote = _sheetQA.length > 0 ? '\n• **' + _sheetQA.length + ' Ask Connor resources** — the full program knowledge base' : '';
         var irNote = ir().length > 0 ? '\n• **Your iReady data** — ' + ir().length + ' scholar diagnostic records' : '';
-        return '🦊 I\'m **Connor** — your NJTC program assistant!\n\n**I can tell you about:**\n• Your live attendance, scholars, and surveys (from Pearl)\n• Individual scholar profiles — attendance, concerns, survey scores\n• Which scholars need support right now\n• Your weekly attendance trends\n• Service interruption breakdowns\n• iReady diagnostic data — who moved up, who\'s below grade level, growth vs typical\n• Definitions and program terms\n• How to use Pearl — marking attendance, submitting surveys\n• How to use this portal itself — just ask, or say _"take a tour"_' + irNote + kbNote + '\n\nJust ask naturally. Try: _"Who are my scholars with concerns?"_ or _"Which scholars moved up in iReady?"_';
+        return '🦊 I\'m **Connor** — your NJTC program assistant!\n\n**I can tell you about:**\n• Your live attendance, scholars, and surveys (from Pearl)\n• Individual scholar profiles — attendance, concerns, survey scores\n• Which scholars need support right now\n• Your weekly attendance trends\n• Missed sessions not counted against attendance, by category\n• iReady diagnostic data — who moved up, who\'s below grade level, growth vs typical\n• Definitions and program terms\n• How to use Pearl — marking attendance, submitting surveys\n• How to use this portal itself — just ask, or say _"take a tour"_' + irNote + kbNote + '\n\nJust ask naturally. Try: _"Who are my scholars with concerns?"_ or _"Which scholars moved up in iReady?"_';
       }
     },
 
@@ -545,7 +545,7 @@
                      '🔴 Below 80% — please reach out to your program manager if you\'re facing challenges.';
         var msg = '**Your attendance: ' + (rate !== null ? rate + '%' : '—') + '**\n\n' + status;
         msg += '\n\n📊 Attended: **' + d.myAttended + '** | Missed: **' + d.myAbsent + '**';
-        if (d.mySI > 0) msg += ' | SIs: **' + d.mySI + '** _(not counted against you)_';
+        if (d.mySI > 0) msg += ' | Not counted: **' + d.mySI + '** _(undelivered / cancellations — never held against you)_';
         if (d.weeklyTrend && d.weeklyTrend.length > 0) {
           var recent = d.weeklyTrend[d.weeklyTrend.length - 1];
           if (recent && recent.tutorRate !== null) msg += '\n\n📅 Most recent week (' + recent.week + '): **' + recent.tutorRate + '%**';
@@ -565,7 +565,7 @@
         var tableRows = rows.map(function(w) {
           var tutorStr = w.tutorRate !== null ? w.tutorRate + '%' : '—';
           var scholStr = w.scholarRate !== null ? w.scholarRate + '%' : '—';
-          var si = w.siCount > 0 ? ' ⚡' + w.siCount : '';
+          var si = w.siCount > 0 ? ' · ' + w.siCount + ' not counted' : '';
           return [w.week, 'You: ' + tutorStr + ' · Scholars: ' + scholStr + si, w.tutorRate >= 90 ? '#22c55e' : w.tutorRate >= 75 ? '#f59e0b' : '#ef4444'];
         });
         msg += dataTable(tableRows);
@@ -839,32 +839,44 @@
       }
     },
 
-    // ══ SERVICE INTERRUPTION BREAKDOWN ════════════════════════════════════════
-    { match: /service interruption|\bsi\b.*breakdown|si breakdown|what caused.*si|si.*severity|critical si/i,
+    // ══ MISSED SESSIONS NOT COUNTED AGAINST ATTENDANCE (formerly "service
+    // interruptions") — grouped by shared/pearl-categories.js. Old phrasing
+    // ("service interruption", "SI breakdown") still matches.
+    { match: /service interruption|\bsi\b.*breakdown|si breakdown|what caused.*si|si.*severity|critical si|undeliver|not counted|missed.*categor|cancel+ation/i,
       respond: function() {
         var d = pd();
         if (!d || !d.hasData) return 'Your Pearl data is still loading — give it a moment!';
         var sib = d.siByLevel || {};
-        var levels = [
-          { key:'critical', label:'Critical', color:'#ef4444' },
-          { key:'high',     label:'High',     color:'#f97316' },
-          { key:'medium',   label:'Medium',   color:'#f59e0b' },
-          { key:'low',      label:'Low',       color:'#6b7280' }
-        ];
         var totalSI = d.mySI || 0;
-        if (!totalSI) return 'No service interruptions recorded for your sessions yet.';
-        var msg = '⚡ **Service Interruptions: ' + totalSI + ' total**\n\nBy severity:\n\n';
+        if (!totalSI) return 'No missed sessions outside of absences recorded for your sessions yet.';
+        var C = window.NJTC_PEARL_CATEGORIES;
+        var groups = [
+          { key:'undelivered',  label:'Undelivered Sessions (tutor absent / vacancy)', color:'#f59e0b' },
+          { key:'cancellation', label:'Cancellation-type (school / NJTC-driven)',      color:'#60a5fa' },
+          { key:'internal',     label:'Internal Tracking',                            color:'#94a3b8' },
+          { key:'other',        label:'Other',                                        color:'#94a3b8' }
+        ];
+        var byCat = {};
+        Object.keys(sib).forEach(function(level) {
+          Object.keys(sib[level] || {}).forEach(function(reason) {
+            var c = C ? C.categoryOf(reason) : 'other';
+            if (c === 'absence') c = 'other';
+            if (!byCat[c]) byCat[c] = {};
+            byCat[c][reason] = (byCat[c][reason] || 0) + sib[level][reason];
+          });
+        });
+        var msg = '📅 **Missed sessions not counted against attendance: ' + totalSI + ' total**\n\n';
         var tableRows = [];
-        levels.forEach(function(l) {
-          var reasons = sib[l.key] || {};
+        groups.forEach(function(g) {
+          var reasons = byCat[g.key] || {};
           var count = Object.values(reasons).reduce(function(acc,v){ return acc+v; }, 0);
           if (count > 0) {
             var topReason = Object.entries(reasons).sort(function(a,b){ return b[1]-a[1]; })[0];
-            tableRows.push([l.label + (topReason ? ': ' + topReason[0] : ''), count, l.color]);
+            tableRows.push([g.label + (topReason ? ': ' + topReason[0] : ''), count, g.color]);
           }
         });
         if (tableRows.length) msg += dataTable(tableRows);
-        msg += '\n\nService interruptions are **not counted against your attendance rate** — they\'re tracked separately so program staff understand what disrupted sessions.';
+        msg += '\n\nThese are **never counted against your attendance rate** and there\'s nothing you need to do about them — they help program staff understand why sessions didn\'t happen. (This used to be called "service interruptions".)';
         return msg;
       }
     },
@@ -941,7 +953,7 @@
     },
 
     // ══ SERVICE INTERRUPTION (definition) ════════════════════════════════════
-    { match: /service interruption\b.*what|what.*service interruption|\bsi\b.*mean|doesn.t count|not.*fault/i,
+    { match: /service interruption\b.*what|what.*service interruption|\bsi\b.*mean|doesn.t count|not.*fault|what.*undeliver|undeliver.*mean/i,
       respond: function() { return connorDef('service_interruption'); }
     },
 
@@ -996,7 +1008,7 @@
       respond: function(q) {
         var n = q.toLowerCase();
         if (/attendance rate|att rate/.test(n))       return connorDef('attendance_rate');
-        if (/service interruption|si\b/.test(n))      return connorDef('service_interruption');
+        if (/service interruption|si\b|undeliver|not counted/.test(n)) return connorDef('service_interruption');
         if (/not recorded|unrecorded/.test(n))        return connorDef('not_recorded');
         if (/placement level|grade level/.test(n))    return connorDef('placement_level');
         if (/iready|i-ready|i ready/.test(n))         return connorDef('iready');
@@ -1024,7 +1036,7 @@
     // ══ GLOSSARY ══════════════════════════════════════════════════════════════
     { match: /glossary|all definitions|list.*definition|show.*terms/i,
       respond: function() {
-        return '📖 **NJTC Glossary** — ask me "What is [term]?" for any of these:\n\n**Attendance:** Attendance Rate · Service Interruption · Not Recorded\n**Scholars:** Unique Scholars · Consecutive Concern · Shared Scholar\n**iReady:** Placement Level · Moved Up · Grade Level · BOY · EOY · MOY · Typical Growth\n**Pearl:** Pearl · Pearl ID · Session\n**Surveys:** Instructor Survey · Student Survey · Survey Rate\n**Program:** LEA · Site Leader / Dual Role';
+        return '📖 **NJTC Glossary** — ask me "What is [term]?" for any of these:\n\n**Attendance:** Attendance Rate · Not Counted Against Attendance (Undelivered · Cancellations · Internal) · Not Recorded\n**Scholars:** Unique Scholars · Consecutive Concern · Shared Scholar\n**iReady:** Placement Level · Moved Up · Grade Level · BOY · EOY · MOY · Typical Growth\n**Pearl:** Pearl · Pearl ID · Session\n**Surveys:** Instructor Survey · Student Survey · Survey Rate\n**Program:** LEA · Site Leader / Dual Role';
       }
     },
 
