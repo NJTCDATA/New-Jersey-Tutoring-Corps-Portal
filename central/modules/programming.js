@@ -960,10 +960,104 @@
       return null;
     }
 
+    // ── Address lookup in the browser (no sheet coordinates yet) ──────────
+    // Order: Latitude/Longitude written into the Locations tab by
+    // apps-scripts/locations-geocode.gs → the site's street address looked up
+    // here (OpenStreetMap Nominatim, cached per address in this browser) →
+    // the approximate name table. A lookup is kept only when it lands inside
+    // the NJ / Philadelphia box, resolves to a street or building, and (when
+    // the address has a 5-digit zip) is in the same zip area. Nominatim's
+    // policy: ≤1 request per second, cache results — both done here.
+    const GEO_KEY = 'NJTC_SITE_GEOCODE_V1';
+    const GEO_BOX = { latMin: 38.8, latMax: 41.4, lngMin: -75.8, lngMax: -73.8 };
+    const _geoNorm = v => (v || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim().toLowerCase();
+    let _geoCache = null, _geoRunning = false, _geoPending = 0;
+    const _geoTried = new Set();   // one attempt per address per page load
+    function geoCache() {
+      if (_geoCache) return _geoCache;
+      try { _geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || '{}') || {}; } catch (e) { _geoCache = {}; }
+      return _geoCache;
+    }
+    function geoSave() { try { localStorage.setItem(GEO_KEY, JSON.stringify(_geoCache || {})); } catch (e) {} }
+    // Same clean-up as the sheet script: drop phone numbers / P.O. boxes, flatten lines.
+    function geoQuery(addr) {
+      return String(addr || '')
+        .replace(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]\d{4}/g, ' ')
+        .replace(/p\.?\s*o\.?\s*box\s*\d+/ig, ' ')
+        .replace(/\s*\/\s*|[\r\n;]+/g, ', ')
+        .replace(/\s*,\s*(,\s*)+/g, ', ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[\s,]+|[\s,]+$/g, '');
+    }
+    async function geoFetch(params) {
+      const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=3&countrycodes=us'
+        + '&viewbox=' + [GEO_BOX.lngMin, GEO_BOX.latMax, GEO_BOX.lngMax, GEO_BOX.latMin].join(',') + '&bounded=1&' + params;
+      const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }
+    function geoPick(results, zip) {
+      for (const g of results || []) {
+        const lat = parseFloat(g.lat), lng = parseFloat(g.lon);
+        if (isNaN(lat) || isNaN(lng) || lat < GEO_BOX.latMin || lat > GEO_BOX.latMax || lng < GEO_BOX.lngMin || lng > GEO_BOX.lngMax) continue;
+        if ((g.place_rank || 0) < 26) continue;                       // street / building only, not a town centre
+        const pc = ((g.address || {}).postcode || '').slice(0, 3);
+        if (zip && pc && pc !== zip.slice(0, 3)) continue;           // wrong area
+        return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 };
+      }
+      return null;
+    }
+    async function geocodeAddress(addr) {
+      const q = geoQuery(addr);
+      const zipM = q.match(/\b(\d{5})(?:-\d{4})?\b(?!.*\b\d{5}\b)/);
+      const zip = zipM ? zipM[1] : '';
+      let hit = geoPick(await geoFetch('q=' + encodeURIComponent(q)), zip);
+      if (!hit && zip) {
+        // Retry as street + zip (helps when the town in the sheet is a township name)
+        await new Promise(r => setTimeout(r, 1100));
+        const street = q.split(',')[0].replace(/\s+(nj|pa)\s+\d{5}.*$/i, '').trim();
+        hit = geoPick(await geoFetch('street=' + encodeURIComponent(street) + '&postalcode=' + zip), zip);
+      }
+      return hit;
+    }
+    async function autoGeocode() {
+      if (_geoRunning) return;
+      const cache = geoCache();
+      const WEEK = 7 * 864e5;
+      // Only the sites in the period being viewed (Summer rows wait until Summer is opened)
+      const cyc = _activePeriod === 'summer2026' ? 'summer 2026' : _activePeriod === 'sy2627' ? 'school year' : '';
+      const todo = [...new Set(_allSites
+        .filter(s => !cyc || (s.cycle || '').toLowerCase().includes(cyc))
+        .filter(s => s.coordSource !== 'address' && s.address)
+        .map(s => _geoNorm(s.address))
+        .filter(k => !_geoTried.has(k))
+        .filter(k => { const c = cache[k]; return !c || (c.fail && Date.now() - c.t > WEEK); }))];
+      if (!todo.length) return;
+      _geoRunning = true; _geoPending = todo.length;
+      const byKey = {}; _allSites.forEach(s => { if (s.address) byKey[_geoNorm(s.address)] = s.address; });
+      for (const k of todo) {
+        _geoTried.add(k);
+        try {
+          const hit = await geocodeAddress(byKey[k]);
+          cache[k] = hit ? { lat: hit.lat, lng: hit.lng, t: Date.now() } : { fail: true, t: Date.now() };
+        } catch (e) { /* offline / blocked: try again next load */ }
+        _geoPending--;
+        geoSave();
+        if (document.getElementById('syMap')) renderSVGMap();
+        await new Promise(r => setTimeout(r, 1100));
+      }
+      _geoRunning = false; _geoPending = 0;
+      if (document.getElementById('syMap')) renderSVGMap();
+    }
+
     function assignCoords() {
+      const cache = geoCache();
       _allSites.forEach(s => {
+        if (s.coordSource === 'address' && s.lat && s.lng) return;   // from the sheet
+        const g = s.address ? cache[_geoNorm(s.address)] : null;
+        if (g && !g.fail) { s.lat = g.lat; s.lng = g.lng; s.coordSource = 'lookup'; return; }
         if (s.lat && s.lng) return;
-        const c = lookupCoords(s);   // fallback: approximate name table
+        const c = lookupCoords(s);   // last resort: approximate name table
         if (c) { s.lat = c.lat; s.lng = c.lng; s.coordSource = 'table'; }
       });
     }
@@ -1023,6 +1117,7 @@
       }).join('');
 
       const unmapped = _filtered.filter(s => !s.lat || !s.lng);
+      if (!_geoRunning) setTimeout(autoGeocode, 0);
 
       el.style.background = 'transparent';
       el.innerHTML = `
@@ -1075,7 +1170,7 @@
               <text x="91" y="36" font-size="9.5" fill="#374151" font-family="system-ui,sans-serif">Multiple</text>
             </g>
           </svg>
-          ${unmapped.length ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.78);color:#cbd5e1;font-size:.7rem;padding:.35rem 1rem;backdrop-filter:blur(6px);border-radius:0 0 var(--radius) var(--radius)">⚠️ ${unmapped.length} unmapped: ${unmapped.map(s=>_esc(s.school)).join(', ')} <span style="opacity:.75">· add coordinates with the Onsite Tracker menu NJTC Locations → Geocode new / changed addresses</span></div>` : ''}
+          ${unmapped.length ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.78);color:#cbd5e1;font-size:.7rem;padding:.35rem 1rem;backdrop-filter:blur(6px);border-radius:0 0 var(--radius) var(--radius)">${_geoPending ? `📍 Placing ${_geoPending} site${_geoPending===1?'':'s'} from their addresses…` : `⚠️ ${unmapped.length} unmapped: ${unmapped.map(s=>_esc(s.school)).join(', ')} <span style="opacity:.75">· check the address in the Onsite Tracker Locations tab, or run NJTC Locations → Geocode new / changed addresses</span>`}</div>` : ''}
         </div>`;
     }
 
