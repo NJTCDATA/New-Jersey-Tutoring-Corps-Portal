@@ -13,10 +13,11 @@ var S = { TITLE:0, INSTRUCTOR:1, LOCATION:3, STATUS:4, START:6, SCHED_DUR:7, ACT
 
 // ── Reason taxonomy ──────────────────────────────────────────────────────
 var TAXONOMY = {
-  'SI-T1': { label:'Tutor Absent', group:'si', sub:'tutor',
-    raw:['absent; not covered (tutor not available)','absent; covered by sub tutor',
-         'absent; covered by dual role','absent; covered by the site leader',
-         'absent; covered by the instructional coach'] },
+  // Scholar rows only (see the Student filter below): Pearl logs "Tutor Absent"
+  // on the scholar's row when their tutor was out and nobody covered. A covered
+  // tutor absence is a delivered session, so it never appears here.
+  'SI-T1': { label:'Tutor Absent (not covered)', group:'si', sub:'tutor',
+    raw:['tutor absent','absent; not covered (tutor not available)'] },
   'SI-T2': { label:'Tutor Left Early (No Sub)', group:'si', sub:'tutor',
     raw:['tutor left early (no sub)'] },
   'SI-T3': { label:'Tutor Vacancy', group:'si', sub:'tutor',
@@ -24,7 +25,7 @@ var TAXONOMY = {
   'SI-S1': { label:'School-Administered Testing', group:'si', sub:'school',
     raw:['school-administered testing','school administered testing'] },
   'SI-S2': { label:'School Event', group:'si', sub:'school',
-    raw:['school event'] },
+    raw:['school event','school event/assembly','school event / assembly'] },
   'SI-S3': { label:'Scheduled / Unscheduled School Drill', group:'si', sub:'school',
     raw:['scheduled/unscheduled school drill','scheduled / unscheduled school drill'] },
   'SI-S4': { label:'Half Day', group:'si', sub:'school',
@@ -34,12 +35,18 @@ var TAXONOMY = {
   'SI-S6': { label:'Unscheduled School Closure / Delay / Dismissal', group:'si', sub:'school',
     raw:['unscheduled school closure/delay/dismissal',
          'unscheduled school closure / delay / dismissal'] },
+  'SI-S7': { label:'School Schedule Changed', group:'si', sub:'school',
+    raw:['school schedule changed'] },
+  'SI-S8': { label:'Weather Closure', group:'si', sub:'school',
+    raw:['weather closure'] },
   'SI-P1': { label:'NJTC Diagnostic Testing', group:'si', sub:'program',
     raw:['njtc diagnostic testing'] },
-  'SI-P2': { label:'NJTC Scheduling Error', group:'si', sub:'program',
+  'SI-P2': { label:'NJTC Internal Issue/Error', group:'si', sub:'program',
     raw:['njtc internal issue/error','njtc internal issue / error','njtc scheduling error'] },
   'SI-P3': { label:'Scholar Archived / Removed from Sessions', group:'si', sub:'program',
     raw:['scholar archived - removed from sessions','scholar archived / removed from sessions'] },
+  'SI-P4': { label:'Haddon Twp \u2013 Program Redevelopment', group:'si', sub:'program',
+    raw:['haddon twp only -- program redevelopment','haddon twp only - program redevelopment'] },
   'SM-1': { label:'Scholar Absent', group:'scholar', sub:null,
     raw:['absent'] },
   'SM-2': { label:'Classroom Teacher Requested to Keep Scholar in Class', group:'scholar', sub:null,
@@ -515,7 +522,7 @@ var PRESET_DEFS = {
   si:      Object.keys(TAXONOMY).filter(function(id) { return TAXONOMY[id].group === 'si'; }),
   scholar: Object.keys(TAXONOMY).filter(function(id) { return TAXONOMY[id].group === 'scholar'; }),
   tutor:   ['SI-T1','SI-T2','SI-T3'],
-  closures:['SI-S6','SI-S5','SI-S4','SI-S2','SI-S3'],
+  closures:['SI-S6','SI-S5','SI-S4','SI-S2','SI-S3','SI-S1','SI-S7','SI-S8'],
   none:    []
 };
 
@@ -1428,7 +1435,7 @@ function _buildSummaryRows(r) {
   // ── Scheduling Errors (NJTC Scheduling Error = SI-P2) ───────────────────
   var schedErrEvents = r.events.filter(function(e) { return e.canonId === 'SI-P2'; });
   if (schedErrEvents.length) {
-    rows.push(['--- SCHEDULING ERRORS (NJTC Scheduling Error) ---']);
+    rows.push(['--- NJTC INTERNAL ISSUE/ERROR ---']);
     rows.push(['School', 'Week', 'Records', 'Minutes Lost']);
     var bySchedErr = {};
     schedErrEvents.forEach(function(e) {

@@ -4188,10 +4188,9 @@
         'HADDON TWP ONLY -- Teacher requested whole group support',
       ]);
 
-      // Tutor-caused SIs (staffing/coverage failures — matches Pearl MISS_REASON values)
+      // T = Undelivered Sessions (tutor absent / vacancy — shared/pearl-categories.js)
       const SI_TUTOR = new Set([
         'Tutor Vacancy',                                   // HIGH — staffing gap
-        'NJTC Internal Issue/Error',                       // CRITICAL
         // Legacy/alternate Pearl values
         'Absent; Not Covered (Tutor not available)',
         'Absent; Covered by Sub Tutor',
@@ -4204,15 +4203,18 @@
         'Tutor absent - unexcused','Tutor left early','Coverage Issue','No Coverage',
         'Tutor No Show','Tutor Cancel',
       ]);
-      // School/site-caused SIs (facility, testing, scheduling — matches Pearl SI_SEVERITY keys)
+      // S = school-driven Session Cancellations (pearl-categories.js SCHOOL_DRIVEN).
+      // O (everything else) = Internal Tracking (diagnostic testing, archived
+      // scholars), NJTC Internal Issue/Error, Program Redevelopment, unmapped.
       const SI_SCHOOL = new Set([
         'Unscheduled School Closure/Delay/Dismissal',      // HIGH
-        'Scholar Archived - Removed from Sessions',        // HIGH
-        'NJTC Diagnostic Testing',                         // MEDIUM
         'School-administered Testing',                     // MEDIUM
+        'School Administered Testing',
         'School Event',                                    // MEDIUM
+        'School Event/Assembly',
+        'School Schedule Changed',
+        'Weather Closure',
         'Scheduled/Unscheduled School Drill',              // MEDIUM
-        'HADDON TWP ONLY -- Program Redevelopment',        // MEDIUM
         'Half Day',                                        // LOW
         'Holiday - scheduled',                             // LOW
         // Legacy/alternate values
@@ -4791,9 +4793,9 @@
         'Scholar Att. Rate %':      t.scholAttRate != null ? t.scholAttRate  : '',
         'Scholar Absences':         t.scholAbsent,
         'CT Pulls':                 t.scholCtPulls,
-        'SIs Tutor-Caused':         t.siTutor,
-        'SIs School-Caused':        t.siSchool,
-        'SIs Other':                t.siOther,
+        'Undelivered (tutor)':      t.siTutor,
+        'School Cancellations':     t.siSchool,
+        'Internal / NJTC / Other':  t.siOther,
         'Scholar Sat. Avg':         t.scholSurveyAvg != null ? t.scholSurveyAvg : '',
         'Tutor Survey Avg':         t.tutorSurveyAvg != null ? t.tutorSurveyAvg : '',
         'Tier':                     t.tier,
@@ -5092,8 +5094,8 @@
           const chips2 = [
             ...(avgTutorSurv !== null ? [{ val: avgTutorSurv+'/5', lbl: 'Avg Tutor Survey', color: avgTutorSurv >= 4 ? GREEN : GOLD }] : []),
             ...(avgScholSurv !== null ? [{ val: avgScholSurv+'/5', lbl: 'Avg Scholar Sat.', color: avgScholSurv >= 4 ? GREEN : GOLD }] : []),
-            { val: String(totSiT), lbl: 'Tutor-Caused SIs', color: totSiT > 5 ? RED : GOLD },
-            { val: String(totSiS), lbl: 'School-Caused SIs', color: GOLD },
+            { val: String(totSiT), lbl: 'Undelivered (tutor)', color: totSiT > 5 ? RED : GOLD },
+            { val: String(totSiS), lbl: 'School Cancellations', color: GOLD },
             { val: String(hiCt),   lbl: 'High Impact',   color: GREEN },
             { val: String(onCt),   lbl: 'On Track',      color: BLUE  },
             { val: String(nsCt),   lbl: 'Needs Support', color: RED   },
@@ -5120,7 +5122,7 @@
 
           const hasPearlData = opsMap !== null;
           const impactHead = hasPearlData
-            ? [['Tutor','N','Med % Typ','Mo Gained','Med Gain','\u2191Up/\u2193Dn','Hours','Sch Att%','SIs T/S','Sch Sat.','Tutor Surv.','Tier']]
+            ? [['Tutor','N','Med % Typ','Mo Gained','Med Gain','\u2191Up/\u2193Dn','Hours','Sch Att%','Not Ctd U/S','Sch Sat.','Tutor Surv.','Tier']]
             : [['Tutor','N','Med % Typ','Mo Gained','Med Gain','\u2191 Up','\u2193 Down','Tier']];
 
           const impactBody = tutorImpact.slice(0, 30).map(t => {
@@ -5218,7 +5220,7 @@
           if (hasPearlData && (tutorImpact.some(t => t.siTutor > 0 || t.siSchool > 0))) {
             if (p3y > 252) { doc.addPage(); p3y = 20; }
             doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-            doc.text('MISSED SESSIONS NOT COUNTED AGAINST ATTENDANCE \u00B7 TUTOR-CAUSED vs SCHOOL-CAUSED', 20, p3y);
+            doc.text('MISSED SESSIONS NOT COUNTED AGAINST ATTENDANCE \u00B7 UNDELIVERED vs SCHOOL CANCELLATIONS', 20, p3y);
             p3y += 4;
             // Top tutors by tutor-caused SIs (excluding zero)
             const withSI = tutorImpact.filter(t => t.siTutor > 0 || t.siSchool > 0)
@@ -5226,7 +5228,7 @@
             if (withSI.length) {
               doc.autoTable({
                 startY: p3y,
-                head:   [['Tutor','Scholars','Tutor-Caused SIs','School-Caused SIs','Other SIs','Total SIs','Impact on Growth']],
+                head:   [['Tutor','Scholars','Undelivered','School Cancel.','Internal/Other','Total Not Counted','Impact on Growth']],
                 body:   withSI.map(t => [
                   safe(t.name.length > 28 ? t.name.slice(0,27)+'\u2026' : t.name),
                   t.n,
@@ -5734,9 +5736,9 @@
           const opsChips5 = [
             { v: totHrs5.toFixed(1)+'h',               l: 'Inst. Hours',        c: BLUE  },
             { v: netAtt5 !== null ? netAtt5+'%' : '—', l: 'Avg Scholar Att.', c: netAtt5&&netAtt5>=90?GREEN:GOLD },
-            { v: totSIs5,                               l: 'Total SIs',          c: totSIs5>20?RED:GOLD },
-            { v: totSiT5,                               l: 'Tutor-Caused SIs',   c: totSiT5>10?RED:GOLD },
-            { v: totSiS5,                               l: 'School-Caused SIs',  c: GOLD  },
+            { v: totSIs5,                               l: 'Total Not Counted',  c: totSIs5>20?RED:GOLD },
+            { v: totSiT5,                               l: 'Undelivered (tutor)', c: totSiT5>10?RED:GOLD },
+            { v: totSiS5,                               l: 'School Cancellations', c: GOLD  },
             { v: netSurv5 !== null ? netSurv5+'/5':'—', l: 'Avg Scholar Sat.', c: netSurv5&&netSurv5>=4?GREEN:GOLD },
             { v: netMo5 !== null ? netMo5+' mo':'—',   l: 'Avg Months Gained', c: netMo5&&netMo5>=4.5?GREEN:netMo5&&netMo5>=3.0?GOLD:RED },
           ];
@@ -5756,7 +5758,7 @@
           doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
           doc.text('MISSED SESSIONS NOT COUNTED vs MONTHS OF LEARNING GAINED · BY TUTOR', 20, p5y);
           doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,120,145);
-          doc.text('Tutors with high SIs but strong growth demonstrate resilience. High SIs + low growth = coaching conversation needed.', 20, p5y+4);
+          doc.text('Tutors with many missed sessions not counted against attendance but strong growth demonstrate resilience. Many + low growth = coaching conversation needed.', 20, p5y+4);
           p5y += 8;
 
           const siVsGrowth5 = tutorImpact
@@ -5765,12 +5767,12 @@
 
           doc.autoTable({
             startY: p5y,
-            head: [['Tutor','N','Mo Gained','% Typical','Att%','T-SIs','S-SIs','Hrs','Scholar Sat.','Signal']],
+            head: [['Tutor','N','Mo Gained','% Typical','Att%','Undeliv.','Sch Canc.','Hrs','Scholar Sat.','Signal']],
             body: siVsGrowth5.map(function(t) {
               const siTot5 = t.siTutor + t.siSchool;
               const sig5 = siTot5===0
                 ? (t.medianMonths>=4.5?'Excellent':t.medianMonths>=3.0?'Good':'Monitor')
-                : t.medianMonths>=4.5?'Resilient':siTot5>5?'SIs limited growth':'Monitor';
+                : t.medianMonths>=4.5?'Resilient':siTot5>5?'Missed sessions limited growth':'Monitor';
               return [
                 safe(t.name.length>22?t.name.slice(0,21)+'…':t.name),
                 t.n,
@@ -6479,7 +6481,7 @@
               { v: avgMedianMonths !== null ? avgMedianMonths + ' mo' : '—', l: 'Avg Months Gained', c: avgMedianMonths >= 4.5 ? '#0d6e3a' : avgMedianMonths >= 3.0 ? '#d97706' : '#b91c1c' },
               { v: totalHrs.toFixed(1) + 'h', l: 'Total Inst. Hours',   c: '#0050c8' },
               { v: avgAttRate !== null ? avgAttRate + '%' : '—', l: 'Avg Scholar Att.',  c: avgAttRate >= 95 ? '#0d6e3a' : '#d97706' },
-              { v: (totalSiTutor + totalSiSchool + totalSiOther) || '0', l: 'Total SIs',  c: (totalSiTutor + totalSiSchool + totalSiOther) > 10 ? '#b91c1c' : '#92400e' },
+              { v: (totalSiTutor + totalSiSchool + totalSiOther) || '0', l: 'Total Not Counted',  c: (totalSiTutor + totalSiSchool + totalSiOther) > 10 ? '#b91c1c' : '#92400e' },
               ...(avgTutorSurvey ? [{ v: avgTutorSurvey + '/5', l: 'Avg Tutor Survey', c: parseFloat(avgTutorSurvey) >= 4 ? '#0d6e3a' : '#d97706' }] : []),
             ].map(c => `<div style="background:var(--surface-2);border-radius:8px;padding:.75rem;text-align:center;border:1px solid var(--border-2)">
               <div style="font-size:1.375rem;font-weight:800;color:${c.c}">${c.v}</div>
@@ -6548,10 +6550,10 @@
               ${hasPearl ? `
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Total instructional hours delivered">Hours</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Math hours / ELA hours">M/E Hrs</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar attendance rate (attended ÷ attended+absent, SIs excluded)">Att%</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar attendance rate (attended ÷ attended+absent; missed sessions not counted against attendance are excluded)">Att%</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar absences (scholar-caused misses)">Abs</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Classroom Teacher pull-outs (counted as scholar absence)">CT Pulls</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Missed sessions not counted against attendance: Tutor-caused / School-caused / Other">SIs (T/S/O)</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Missed sessions not counted against attendance: Undelivered / School cancellations / Internal &amp; other">Not Ctd (U/S/O)</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar post-session satisfaction avg">Scholar Sat.</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Instructor post-session survey avg">Tutor Survey</th>
               ` : ''}
@@ -6588,8 +6590,8 @@
           </table></div>
           <div style="font-size:.75rem;color:var(--muted);margin-top:.75rem;line-height:1.5">
             Matching: SESS student names (primary) · Pearl UID · name index · school-scoped fuzzy fallback.
-            Att% = scholar sessions attended ÷ (attended + absent); SIs excluded from denominator.
-            SIs: T=tutor/coverage-caused · S=school/facility-caused · O=other (not scholar's fault).
+            Att% = scholar sessions attended ÷ (attended + scholar absences); missed sessions not counted against attendance are excluded from the denominator.
+            Not counted: U=undelivered (tutor absent / vacancy) · S=school-driven cancellations · O=internal tracking, NJTC issues &amp; other (none are the scholar's fault).
             Abs = scholar-caused absences. CT Pulls = Classroom Teacher kept scholar from tutoring.
             Scholar Sat. / Tutor Survey = post-session survey averages. Min 3 scholars per tutor.
           </div>`;
@@ -6649,9 +6651,9 @@
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)">Med % Typical</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total scholar absences (scholar-caused misses)">Scholar Abs</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:#7c3aed;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Classroom Teacher pull-outs (scholars kept from tutoring by teacher)">CT Pulls</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total interrupted sessions (not scholar's fault)">Total SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Tutor/coverage-caused missed sessions not counted against attendance">Tutor SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School/site/testing-caused missed sessions not counted against attendance">School SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total missed sessions not counted against attendance (not the scholar's fault)">Total Not Counted</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Undelivered Sessions — tutor absent (not covered) / vacancy">Undelivered</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School-driven Session Cancellations (events, testing, closures, schedule changes, weather)">School Cancel.</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholar post-session satisfaction avg">Scholar Sat.</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Instructor post-session survey avg">Tutor Survey</th>
                 </tr></thead>
@@ -6676,8 +6678,8 @@
                 </tbody>
               </table></div>
               <div style="font-size:.75rem;color:var(--muted);margin-top:.625rem;line-height:1.5">
-                Att classification mirrors Pearl's classifyRecord(): Absent = scholar-caused (Absent / Declined / CT pull) ·
-                SIs = ATT_STATUS "Missed" with non-scholar reason (tutor vacancy, testing, closure, etc.).
+                Same rules as Pearl Operations: Absent = Scholar Absences (Absent / Declined / Left Early / CT pull / blank) ·
+                Not Counted = "Missed" with any other reason — Undelivered (tutor absent / vacancy), School cancellations (events, testing, closures) and Internal / NJTC / other.
                 CT Pulls = "Classroom Teacher Requested to Keep Scholar in Class" (counted as scholar absence, tracked separately).
                 Faded rows = no Pearl attendance data found for that school name.
               </div>
@@ -9036,13 +9038,6 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
       url:  'https://docs.google.com/spreadsheets/d/1meBFuYvhzzOaDiuyT-1QIkMI4Q6JTp6MYOUdFDiWe3k/edit?gid=34364495#gid=34364495',
       desc: 'KPI Target Google Form — Question submission and response log',
       tag:  'KPI · Form Responses',
-    },
-    {
-      name: 'Asana Annual Goal Tracking',
-      type: 'asana',
-      url:  'https://app.asana.com/1/1202967547815613/project/1211431518555737/list/1211431677026997',
-      desc: 'Annual Goal Tracking Project Plan, Potential Department Project Plans',
-      tag:  'Asana · Project Mgmt',
     },
     {
       name: 'Hiring Decisions Form',

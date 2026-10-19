@@ -2,6 +2,9 @@
 
   const SUPPORT_LOG_DEPTS = ['hr','data'];
   window.SUPPORT_LOG_DEPTS = SUPPORT_LOG_DEPTS;
+  // KPI Analytics is leadership-facing; every department keeps KPI Targets.
+  const KPI_ANALYTICS_DEPTS = ['leadership','kb','data'];
+  window.KPI_ANALYTICS_DEPTS = KPI_ANALYTICS_DEPTS;
 
   function initDeptNav(dept) {
     // Show/hide perf + talent + concern nav based on dept
@@ -17,6 +20,8 @@
     const showTalent  = TALENT_FULL_DEPTS.includes(dept) || TALENT_FINANCE_DEPT.includes(dept);
 
     perfBtns.forEach(b    => b.style.display = showPerf    ? '' : 'none');
+    // KPI Analytics — leadership-facing (Leadership, Executive, Data)
+    document.querySelectorAll('.dept-nav-kpi-analytics').forEach(b => b.style.display = KPI_ANALYTICS_DEPTS.includes(dept) ? '' : 'none');
     concernBtns.forEach(b => b.style.display = showConcern ? '' : 'none');
     talentBtns.forEach(b  => b.style.display = showTalent  ? '' : 'none');
 

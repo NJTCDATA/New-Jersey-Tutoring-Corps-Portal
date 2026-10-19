@@ -165,6 +165,8 @@
     _tdActiveSeason = key;
     if (_pdSubTab)     window.tdPDSubTab(_pdSubTab, null);
     if (_intakeSubTab) window.tdIntakeSubTab(_intakeSubTab, null);
+    const prog = document.getElementById('td-content-program');
+    if (prog && prog.style.display !== 'none' && _tdLoaded.program) renderProgramSupportTab();
   };
 
   function seasonBadge(dateStr) {
@@ -912,6 +914,7 @@
         case 'intake':       renderIntakeTab();       break;
         case 'apprentice':   renderApprenticeTab();   break;
         case 'survey-intel': renderSurveyIntelTab();  break;
+        case 'program':      renderProgramSupportTab(); break;
       }
     }
   }
@@ -923,7 +926,7 @@
     Object.keys(_tdLoaded).forEach(k => delete _tdLoaded[k]);
     Object.keys(_tdCharts).forEach(k => destroyChart(k));
     // Clear all panels
-    ['pd','intake','apprentice','survey-intel'].forEach(id => {
+    ['pd','intake','apprentice','survey-intel','program'].forEach(id => {
       const el = document.getElementById('td-content-' + id);
       if (el) el.innerHTML = '';
     });
@@ -3595,11 +3598,150 @@
   //  INITIALIZATION & DEPT-AWARE SETUP
   // ══════════════════════════════════════════════════════════════════
 
+  // ═════════════════════════════════════════════════════════════════
+  //  SUB-TAB: PROGRAM SUPPORT — the Programming lens on T&D data
+  //  "Where do our onsite staff need support?" Built only from the data
+  //  the other T&D tabs already load (PD feedback, training intake, tutor /
+  //  site leader observations) with the same parsing — nothing re-scored.
+  //  Each section loads on its own, so one unreachable sheet never blanks
+  //  the rest. SY 2025-26 data until the SY 26-27 / Summer sheets are wired.
+  // ═════════════════════════════════════════════════════════════════
+  function _tdE(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  async function _ensurePD() {
+    if (!_pdData) {
+      const parsed = parseCsvText(await fetchCSV(PD_URL), 0);
+      _pdData = parsed.rows.filter(r => isValidRow(r, 'pd'));
+    }
+    return _pdData;
+  }
+  async function _ensureIntake() {
+    if (!_intakeData) {
+      const text = await fetchCSV(TRAINING_INTAKE_URL);
+      let parsed = parseCsvText(text, 0);
+      if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') parsed = parseCsvText(text, 1);
+      if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') throw new Error('Intake CSV header not found.');
+      _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
+    }
+    return _intakeData;
+  }
+
+  async function renderProgramSupportTab() {
+    const el = document.getElementById('td-content-program');
+    if (!el) return;
+    const showNames = getDept() !== 'finance';
+    el.innerHTML = `${buildSeasonFilterBar()}
+      <div class="ta-card" style="padding:1.1rem 1.25rem;margin-bottom:1rem;border-left:4px solid #0050c8">
+        <div style="font-weight:800;color:var(--navy);font-size:1rem">🎯 Program Support — where onsite staff need support</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">What site leaders and new hires told T&amp;D, and where observations have not happened yet. <strong>SY 2025–26 data</strong> — SY 26–27 and Summer 2026 appear here once those T&amp;D sheets are connected.</div>
+      </div>
+      <div id="tdps-pd">${loadingHTML('Loading PD feedback…')}</div>
+      <div id="tdps-intake">${loadingHTML('Loading training intake…')}</div>
+      <div id="tdps-obs">${loadingHTML('Loading observations…')}</div>`;
+    const sec = (id, html) => { const n = document.getElementById(id); if (n) n.innerHTML = html; };
+    const card = (title, sub, body) => `<div class="ta-card" style="padding:1.1rem 1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">${title}</div>${sub ? `<div style="font-size:.75rem;color:var(--muted);margin:-.25rem 0 .75rem">${sub}</div>` : ''}${body}</div>`;
+    const list = rows => rows.length ? rows.map(([l, n]) => `<div style="display:flex;justify-content:space-between;gap:1rem;padding:.3rem 0;border-bottom:1px solid var(--border-2);font-size:.82rem"><span>${_tdE(l)}</span><strong>${n}</strong></div>`).join('') : '<div style="font-size:.82rem;color:var(--muted)">No responses yet.</div>';
+    const fail = (id, what, e) => sec(id, card(what, '', `<div style="font-size:.82rem;color:#991b1b">Could not load: ${_tdE(e && e.message || 'network error')}</div>`));
+
+    // 1. PD feedback — focus areas needing support + requested follow-ups
+    _ensurePD().then(all => {
+      const rows = filterBySeason(all, 'Date of PD Session');
+      // A short header naming the site — not a question that merely mentions
+      // "your site" (findCol's substring match would accept those).
+      const SITE = rows.length ? (Object.keys(rows[0]).find(k => k.trim().length <= 40 && /^(what )?(is your )?(site|school|location|district)\b/i.test(k.trim())) || null) : null;
+      const focus = [], bySite = {};
+      rows.forEach(r => parseMultiSelect(r['What focus areas need additional support?']).forEach(v => {
+        focus.push(v);
+        if (SITE) { const s = (r[SITE] || 'Unknown').trim() || 'Unknown'; (bySite[s] = bySite[s] || []).push(v); }
+      }));
+      const siteRows = Object.keys(bySite).sort().map(s => {
+        const top = countFreq(bySite[s]).slice(0, 3).map(([l, n]) => `${_tdE(l)} (${n})`).join(' · ');
+        return `<tr><td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2)">${_tdE(s)}</td><td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2)">${top}</td></tr>`;
+      }).join('');
+      const FU = 'What additional supports or follow-up would help you implement what was learned?';
+      const followUps = rows.map(r => ({ txt: (r[FU] || '').trim(), site: SITE ? (r[SITE] || '') : '', role: r['Role'] || '' }))
+        .filter(x => x.txt && !/^(n\/?a|none|no)\.?$/i.test(x.txt));
+      sec('tdps-pd',
+        card('🧭 What site staff asked for support with', `${rows.length} PD feedback responses · "What focus areas need additional support?"`,
+          `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem">
+             <div>${list(countFreq(focus).slice(0, 8))}</div>
+             ${siteRows ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.78rem"><thead><tr><th style="text-align:left;padding:.35rem .5rem;color:var(--muted)">Site</th><th style="text-align:left;padding:.35rem .5rem;color:var(--muted)">Top asks</th></tr></thead><tbody>${siteRows}</tbody></table></div>` : ''}
+           </div>`) +
+        card('🤝 Follow-up supports they requested', `${followUps.length} written requests — verbatim`,
+          followUps.length ? `<div style="max-height:320px;overflow-y:auto">${followUps.slice(0, 60).map(x => `<div style="padding:.45rem 0;border-bottom:1px solid var(--border-2);font-size:.82rem">“${_tdE(x.txt)}”<div style="font-size:.7rem;color:var(--muted)">${_tdE([x.role, x.site].filter(Boolean).join(' · '))}</div></div>`).join('')}</div>` : '<div style="font-size:.82rem;color:var(--muted)">No written requests.</div>'));
+    }).catch(e => fail('tdps-pd', '🧭 PD feedback', e));
+
+    // 2. Training intake — new-hire readiness by district
+    _ensureIntake().then(all => {
+      const rows = filterBySeason(all, 'Timestamp');
+      const PREP = findCol(rows, 'how prepared do you feel', 'prepared to begin working');
+      const ASSET = findCol(rows, 'additional training on implementing an asset', 'asset-based mindset in training');
+      const DIST = 'What District are you assigned to?';
+      const by = {};
+      rows.forEach(r => {
+        const d = (r[DIST] || 'Not given').trim() || 'Not given';
+        const g = by[d] = by[d] || { n: 0, prep: [], low: 0, asset: 0 };
+        g.n++;
+        const p = PREP ? parseFloat(r[PREP]) : NaN;
+        if (!isNaN(p)) { g.prep.push(p); if (p <= 3) g.low++; }
+        if (ASSET && (r[ASSET] || '').toLowerCase().startsWith('y')) g.asset++;
+      });
+      const trs = Object.keys(by).sort((a, b) => (avg(by[a].prep) || 9) - (avg(by[b].prep) || 9)).map(d => {
+        const g = by[d], a = g.prep.length ? avg(g.prep) : null;
+        return `<tr>
+          <td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2)">${_tdE(d)}</td>
+          <td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2);text-align:right">${g.n}</td>
+          <td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2);text-align:right;font-weight:700;color:${a == null ? 'var(--muted)' : a >= 4 ? '#166534' : a >= 3.5 ? '#92400e' : '#991b1b'}">${a == null ? '—' : a.toFixed(2) + '/5'}</td>
+          <td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2);text-align:right">${g.low}</td>
+          <td style="padding:.35rem .5rem;border-bottom:1px solid var(--border-2);text-align:right">${g.asset}</td></tr>`;
+      }).join('');
+      sec('tdps-intake', card('🌱 New-hire readiness by district', `${rows.length} training intake responses · "How prepared do you feel to begin working with scholars?" (1–5) · lowest first`,
+        `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <thead><tr><th style="text-align:left;padding:.35rem .5rem;color:var(--muted)">District</th><th style="text-align:right;padding:.35rem .5rem;color:var(--muted)">Responses</th><th style="text-align:right;padding:.35rem .5rem;color:var(--muted)">Avg prepared</th><th style="text-align:right;padding:.35rem .5rem;color:var(--muted)">Rated 1–3</th><th style="text-align:right;padding:.35rem .5rem;color:var(--muted)">Want asset-based training</th></tr></thead>
+          <tbody>${trs || '<tr><td colspan="5" style="padding:.5rem;color:var(--muted)">No responses yet.</td></tr>'}</tbody></table></div>`));
+    }).catch(e => fail('tdps-intake', '🌱 Training intake', e));
+
+    // 3. Observations — who has not been observed yet
+    fetchAllSheets().then(d => {
+      const tutorObs = window._njtcTutorObs || {}, slObs = window._njtcSLObs || {};
+      // A tracker row is a tutor only when something besides the name is filled
+      // (NE section-header rows carry a site leader label and nothing else).
+      const people = (rows, nameCol, region) => rows
+        .filter(r => Object.keys(r).some(k => k !== nameCol && String(r[k] || '').trim()))
+        .map(r => ({ name: (r[nameCol] || '').trim(), region })).filter(p => p.name && !/^\d+$/.test(p.name));
+      const tutors = people(d.neTutorObs, 'Tutor Name (ADP)', 'NE').concat(people(d.swTutorObs, 'Tutor Name', 'SW'));
+      const seen = new Set(), uniq = [];
+      tutors.forEach(p => { const k = p.region + '|' + p.name.toLowerCase(); if (!seen.has(k)) { seen.add(k); uniq.push(p); } });
+      const key = n => { const c = normalizeApprenticeName(n) || n; return c.toLowerCase().replace(/\s+/g, ' ').trim(); };
+      const obsCount = n => (tutorObs[key(n)] || tutorObs[n.toLowerCase().replace(/\s+/g, ' ').trim()] || []).filter(x => x.observed).length;
+      const never = uniq.filter(p => obsCount(p.name) === 0);
+      const slNames = [...new Set(d.neSLObs.concat(d.swSLObs).map(r => (r['Site Leader'] || '').trim()).filter(Boolean))];
+      const byReg = r => never.filter(p => p.region === r);
+      const nameList = arr => !showNames ? '' : arr.length ? `<div style="font-size:.8rem;line-height:1.7;margin-top:.35rem">${arr.map(p => _tdE(p.name)).join(' · ')}</div>` : '<div style="font-size:.8rem;color:#166534;margin-top:.35rem">Everyone has at least one observation.</div>';
+      sec('tdps-obs', card('👀 Observation coverage', `Tutors with no completed observation on the T&amp;D observation trackers · ${slNames.length} site leaders on the site leader trackers`,
+        `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:.75rem">
+           ${kpiCard(uniq.length, 'Tutors on trackers', '#1B2A4A')}
+           ${kpiCard(uniq.length - never.length, 'Observed at least once', '#166534')}
+           ${kpiCard(never.length, 'Not yet observed', never.length ? '#991b1b' : '#166534')}
+         </div>
+         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem">
+           <div><strong style="font-size:.8rem">North-East — ${byReg('NE').length} not yet observed</strong>${nameList(byReg('NE'))}</div>
+           <div><strong style="font-size:.8rem">South-West — ${byReg('SW').length} not yet observed</strong>${nameList(byReg('SW'))}</div>
+         </div>`));
+    }).catch(e => fail('tdps-obs', '👀 Observations', e));
+  }
+
   function initTDModule() {
     // Show exec PDF button for data dept
     const execBtn = document.getElementById('tdExecPDFBtn');
     if (execBtn) execBtn.style.display = (getDept() === 'data') ? '' : 'none';
 
+    // Programming opens on its own lens of the T&D data
+    if (getDept() === 'programming' && !_tdLoaded.program) {
+      const pb = document.getElementById('tdTab-program');
+      if (pb) { tdShowTab('program', pb); return; }
+    }
     // Load the first (active) tab
     const firstActive = document.querySelector('#tdTabNav .pst-tab.active');
     if (firstActive) {
@@ -3611,6 +3753,7 @@
           case 'intake':       renderIntakeTab();       break;
           case 'apprentice':   renderApprenticeTab();   break;
           case 'survey-intel': renderSurveyIntelTab();  break;
+          case 'program':      renderProgramSupportTab(); break;
           default:             renderPDTab();
         }
       }

@@ -37,11 +37,14 @@
 name: Sync Asana Tasks
 
 on:
-  # Run automatically every 30 minutes
-  schedule:
-    - cron: '*/30 * * * *'
+  # PAUSED (Oct 2026): PROJECT_ID below is the SY 25-26 Annual Goal Tracking
+  # project, and its banner was removed from the portal. To turn this back on
+  # for SY 26-27: set PROJECT_ID to the new project, restore the schedule
+  # below, and re-add asana-service.js + deadline-alerts.js in central/index.html.
+  # schedule:
+  #   - cron: '*/30 * * * *'
 
-  # Also allow manual trigger from the Actions tab
+  # Manual trigger from the Actions tab still works
   workflow_dispatch:
 
 jobs:

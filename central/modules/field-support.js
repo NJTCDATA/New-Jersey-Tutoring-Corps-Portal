@@ -191,7 +191,9 @@
       const tutorAttended = tutRows.some(r => ['Attended', 'Late'].includes(r[ATT.ATT_STATUS]));
       const tutorMissedRows = tutRows.filter(r => (r[ATT.ATT_STATUS] || '') === 'Missed');
       const tutorReasons = new Set(tutorMissedRows.map(r => r[ATT.MISS_REASON] || ''));
-      const tutorTrulyAbsent = [...tutorReasons].some(x => TUTOR_MISS.has(x));
+      // Absent with nobody covering — a covered absence means the session ran with a
+      // sub, so a scholar reason (e.g. Absent) on the scholar's row is legitimate.
+      const tutorTrulyAbsent = [...tutorReasons].some(x => TUTOR_MISS.has(x) && !/covered by/i.test(x) && !/left early/i.test(x));
 
       // Row-level checks (scholar rows)
       const cancelTypeReasons = new Set();

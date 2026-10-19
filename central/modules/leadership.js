@@ -123,6 +123,7 @@
     // Differs from totalMins — each session's duration is counted once per scholar present in that session.
     const totalScholarMins = poStats ? (poStats.totalScholarMins || null) : null;
     const survAvg   = ldData  ? ldData.scholarSurvey  : (poStats ? poStats.surveyAvg : null);
+    const tutorSurvAvg = ldData ? ldData.tutorSurvey : null;
 
     // ── 2. Operational Health ─────────────────────────────────────────
     const scholAtt = ldData ? ldData.scholarRate : (poStats ? poStats.scholAttPct : null);
@@ -350,6 +351,7 @@
           <div style="font-size:.8rem;line-height:1.9;color:#334155">
             <div>Missed sessions not counted against attendance logged: <strong>${siCount != null ? fc(siCount) : '—'}</strong></div>
             <div>Scholar survey average: <strong>${survAvg != null ? survAvg + ' / 5' : '—'}</strong></div>
+            <div>Tutor survey average: <strong>${tutorSurvAvg != null ? tutorSurvAvg + ' / 5' : '—'}</strong></div>
             <div>Sessions on record: <strong>${sessions != null ? fc(sessions) : '—'}</strong></div>
           </div>
           <div style="font-size:.7rem;color:#94a3b8;margin-top:.5rem">Scholar tiers, school leaderboard, and iReady academic data will appear after fall diagnostics.</div>
@@ -380,7 +382,7 @@
             <div class="ecd-att-track"><div class="ecd-att-fill ${tutAttCls(tutorAtt||0)}" style="width:${tutPct}%"></div></div>
             <div class="ecd-att-pct">${fp(tutorAtt)}</div>
           </div>
-          ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
+          ${survAvg != null ? `<div class="ecd-survey-row">Scholar Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${tutorSurvAvg != null ? ` &nbsp;&middot;&nbsp; Tutor Survey Avg <strong>${tutorSurvAvg.toFixed(1)}/5.0</strong>` : ''}${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
         </div>
         <div class="ecd-card">
           <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined). Missed sessions not counted against attendance (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 80%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>

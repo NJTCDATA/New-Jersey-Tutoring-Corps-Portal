@@ -72,11 +72,11 @@
   // always the same wherever a partner asks.
   const GLOSSARY = [
     { term: 'Scholar Attendance Rate', def: 'Attended sessions ÷ (Attended + Missed) sessions, scholars only. Late arrivals still count as Attended. Excused time — school events, testing days, holidays, tutor staffing gaps — is left out of both sides of that math entirely, so it never pulls the rate down. This matches the calculation NJTC uses internally.' },
-    { term: 'Missed Session', def: 'A scheduled session the scholar did not attend, for a reason on the school/scholar side (declined the session, kept in class by a teacher, etc.). Sessions that did not happen because of an NJTC-side issue (a staffing gap, an internal error) are handled separately and never count as a scholar "missing" anything.' },
+    { term: 'Missed Session', def: 'A scheduled session the scholar did not attend, for a scholar-side reason (absent, declined the session, left early, or kept in class by a classroom teacher). Sessions that did not happen because of an NJTC-side issue (a staffing gap, an internal error) are handled separately and never count as a scholar "missing" anything.' },
     { term: 'Excused Time', def: "Sessions that didn't happen for reasons outside anyone's control — a school event, a testing day, a holiday, weather — or an NJTC-side staffing gap. Never counted against the attendance rate." },
     { term: 'Scholars to Check In With', def: "Scholars with a real pattern of missed sessions: either they've never yet attended, or their attendance rate is below 80% across at least 3 real sessions. Computed directly from session records, counting only scholar-side reasons for a missed session." },
     { term: 'Session', def: 'One scheduled tutoring block for one scholar. "Sessions Delivered" counts each unique session that took place, regardless of how many scholars were in it.' },
-    { term: 'Sessions Not Delivered (school-driven)', def: 'Unique tutoring sessions that could not take place for a school-side reason — a school event or assembly, school-administered testing, a schedule change, an unscheduled closure, delay or dismissal, a drill, or weather. Counted once per session. These never count against the attendance rate.' },
+    { term: 'Sessions Not Delivered (school-driven)', def: 'Unique tutoring sessions that could not take place for a school-side reason — a school event or assembly, school-administered testing, a schedule change, an unscheduled closure, delay or dismissal, a drill, weather, a half day or a scheduled holiday. Counted once per session. These never count against the attendance rate.' },
     { term: 'Overall Rating', def: 'The "Overall, how did this session go?" question on the post-session survey, rated 1 (Poor) to 5 (Excellent). Positive = 4–5, Neutral = 3, Negative = 1–2.' },
     { term: 'Session Highlights', def: 'A curated weekly selection of comments from sessions rated 4–5 overall. Scholar comments are shown first; tutor comments fill in when a week has fewer scholar comments. Comments that name a scholar, or contain sensitive or inappropriate language, are never shown. This is a highlight reel, not a representative sample of every comment left.' },
     { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' },
@@ -1187,7 +1187,7 @@
           <div class="pt-card-title">${ICONS.trend} This Year at a Glance</div>
           ${quickBar('Attended', stats.attended, stats.attended + stats.absent, BRAND.pos)}
           ${quickBar('Missed', stats.absent, stats.attended + stats.absent, BRAND.neg)}
-          <p style="font-size:.72rem;color:var(--muted);margin:.6rem 0 .9rem">Excused time (school events, testing days, holidays) isn't counted against the rate above.</p>
+          <p style="font-size:.72rem;color:var(--muted);margin:.6rem 0 .9rem">Excused time (school events, testing days, holidays, NJTC staffing gaps) isn't counted against the rate above.</p>
           <div style="display:flex;gap:1.5rem;padding-top:.5rem;border-top:1px solid var(--border-2)">
             <div><div class="pt-kpi-val" style="font-size:1.4rem">${sessions.toLocaleString()}</div><div class="pt-kpi-sub" style="margin-top:.2rem">Sessions Delivered</div></div>
             <div><div class="pt-kpi-val" style="font-size:1.4rem">${scholarSurveys.length.toLocaleString()}</div><div class="pt-kpi-sub" style="margin-top:.2rem">Scholar Surveys</div></div>
@@ -1195,7 +1195,7 @@
           </div>
           ${notDelivered && notDelivered.total ? `<details style="margin-top:.6rem"><summary class="pt-more">Why sessions were not delivered</summary>
             ${notDelivered.byReason.map(([r, n]) => `<div style="display:flex;justify-content:space-between;gap:1rem;font-size:.8rem;padding:.2rem 0;border-bottom:1px solid var(--border-2)"><span>${esc(r)}</span><strong>${n.toLocaleString()}</strong></div>`).join('')}
-            <p style="font-size:.72rem;color:var(--muted);margin:.5rem 0 0">Sessions that could not take place because of a school event, testing, schedule change, closure or weather. Never counted against the attendance rate.</p>
+            <p style="font-size:.72rem;color:var(--muted);margin:.5rem 0 0">Sessions that could not take place because of a school event, testing, schedule change, closure, drill, weather, half day or scheduled holiday. Never counted against the attendance rate.</p>
           </details>` : ''}
         </div>
       </div>${minutesCard}`;

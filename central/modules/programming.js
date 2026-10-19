@@ -208,6 +208,7 @@
   // ════════════════════════════════════════════════════════════════
 
   const sya = (() => {
+    const _esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // ── LIVE DATA URLS ───────────────────────────────────────────────────
     // SY 25-26: frozen snapshot — still live/readable, no longer updated.
@@ -362,6 +363,26 @@
       return t;
     }
 
+    // Region from the Locations tab's NJTC Program Manager (Andrea / Tierney =
+    // South-West, Taneisha / Jenny = North-East). Blank when not recognised.
+    function regionFromPM(pm) {
+      const p = (pm || '').toLowerCase();
+      if (/andrea|tierney/.test(p)) return 'South-West';
+      if (/taneisha|jenny/.test(p)) return 'North-East';
+      return '';
+    }
+    // Content as one consistent label: "Both", "Math & ELA" → "Both (ELA & Math)".
+    function contentLabel(v) {
+      const t = (v || '').toLowerCase().trim();
+      if (!t) return '';
+      const ela = /\bela\b|english|literacy|reading/.test(t), math = /math/.test(t);
+      if (/\bboth\b/.test(t) || (ela && math)) return 'Both (ELA & Math)';
+      if (ela) return 'ELA';
+      if (math) return 'Math';
+      if (/\btbd\b/.test(t)) return 'TBD';
+      return (v || '').trim();
+    }
+
     // ── PARSE SY ROWS ─────────────────────────────────────────────────────
     // Headers detected by "fee for service" in any of the first 8 rows.
     // Accepts a column map (cols) so it works for both 25-26 and 26-27 sheets.
@@ -374,6 +395,15 @@
         if (rows[i].join(',').toLowerCase().includes('fee for service')) { hIdx = i; break; }
       }
       if (hIdx < 0) { console.warn('[SY] Header row not found'); return []; }
+
+      // Coordinates written by apps-scripts/locations-geocode.gs (columns after
+      // the last original one, found by header). Used only while "Geocoded
+      // Address" still equals the row's Address, so a re-sorted row or an
+      // edited address never shows a stale pin.
+      const H = rows[hIdx].map(h => (h || '').replace(/\s+/g, ' ').trim().toLowerCase());
+      const hFind = re => H.findIndex(h => re.test(h));
+      const cLat = hFind(/(^|\s)latitude$/), cLng = hFind(/(^|\s)longitude$/), cGeoAddr = hFind(/(^|\s)geocoded address$/);
+      const normAddr = v => (v || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim().toLowerCase();
 
       const sites = [];
       for (let i = hIdx + 1; i < rows.length; i++) {
@@ -391,14 +421,22 @@
         const filledSum = n(CM.TUTOR_FILL) + n(CM.SC_FILL) + n(CM.IC_FILL) + n(CM.DR_FILL);
         const address   = (cols2[CM.ADDRESS] || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
         const cycleRaw  = CM.CYCLE >= 0 ? g(CM.CYCLE) : '';
+        let lat = null, lng = null, geocodeReason = '';
+        if (cLat >= 0 && cLng >= 0) {
+          const la = parseFloat(cols2[cLat]), lo = parseFloat(cols2[cLng]);
+          const okBox = la >= 38.8 && la <= 41.4 && lo >= -75.8 && lo <= -73.8;
+          const sameAddr = cGeoAddr < 0 || normAddr(cols2[cGeoAddr]) === normAddr(address);
+          if (!isNaN(la) && !isNaN(lo) && okBox && sameAddr) { lat = la; lng = lo; }
+          else if (!isNaN(la) && !sameAddr) geocodeReason = 'Address changed since it was geocoded — re-run NJTC Locations → Geocode';
+        }
 
         sites.push({
           key: district + ' | ' + school,
           district, school, address,
           cycle: cycleRaw,
-          status: g(CM.STATUS), county: g(CM.COUNTY), pm: g(CM.PM),
+          status: g(CM.STATUS), county: g(CM.COUNTY), pm: g(CM.PM), region: regionFromPM(g(CM.PM)),
           act: n(CM.ACT), est: n(CM.EST),
-          content: g(CM.CONTENT), grades: normalizeGrades(g(CM.GRADES)),
+          content: contentLabel(g(CM.CONTENT)), grades: normalizeGrades(g(CM.GRADES)),
           tutorType: g(CM.TUTOR_TYPE), block: g(CM.BLOCK),
           startDate: g(CM.START), midpoint: g(CM.MIDPOINT), endpoint: g(CM.ENDPOINT),
           days: g(CM.DAYS), assessModel: g(CM.ASSESS),
@@ -415,7 +453,7 @@
           partnerName: g(CM.PARTNER_NM), partnerEmail: g(CM.PARTNER_EM),
           mou: g(CM.MOU), dsName: g(CM.DS_NAME), dsEmail: g(CM.DS_EMAIL),
           baName: g(CM.BA_NAME),
-          lat: null, lng: null, geocodeFailed: false, geocodeReason: '',
+          lat, lng, coordSource: lat != null ? 'address' : '', geocodeFailed: false, geocodeReason,
         });
       }
       return sites;
@@ -446,7 +484,9 @@
       nk.forEach(k => {
         if (!ok.has(k)) return;
         const fc = TRACKED.reduce((a,[f,lbl]) => {
-          const ov = String(oldSnap[k][f]??''), nv = String(ns[k][f]??'');
+          // content labels were normalized (Oct 2026) — compare like with like
+          const norm = v => f === 'content' ? contentLabel(String(v ?? '')) : String(v ?? '');
+          const ov = norm(oldSnap[k][f]), nv = norm(ns[k][f]);
           if (ov !== nv) a.push({field:lbl, from:ov||'—', to:nv||'—'});
           return a;
         }, []);
@@ -549,8 +589,8 @@
     // ── FILTERS ───────────────────────────────────────────────────────────
     function applyFilters() {
       const v = id => (document.getElementById(id)||{}).value||'';
-      const fD=v('syFDistrict'),fC=v('syFContent'),fT=v('syFType'),
-            fA=v('syFAssess'),  fW=v('syFDays'),   fS=v('syFStatus');
+      const fR=v('syFRegion'),fD=v('syFDistrict'),fK=v('syFSite'),fC=v('syFContent'),fT=v('syFType'),
+            fA=v('syFAssess'),fS=v('syFStatus');
 
       // Cycle filter — 26-27 sheet has both Summer 2026 and SY 26-27 rows
       const cycleLC = _activePeriod === 'summer2026' ? 'summer 2026'
@@ -559,15 +599,16 @@
 
       _filtered = _allSites.filter(s =>
         (!cycleLC || (s.cycle||'').toLowerCase().includes(cycleLC)) &&
+        (!fR || s.region === fR) &&
         (!fD || s.district === fD) &&
-        (!fC || s.content.toLowerCase().includes(fC.toLowerCase())) &&
-        (!fT || s.tutorType.toLowerCase().includes(fT.toLowerCase())) &&
-        (!fA || s.assessModel.toLowerCase().includes(fA.toLowerCase())) &&
-        (!fW || s.days.toLowerCase().includes(fW.toLowerCase())) &&
+        (!fK || s.key === fK) &&
+        (!fC || s.content === fC) &&
+        (!fT || s.tutorType === fT) &&
+        (!fA || s.assessModel === fA) &&
         (!fS || s.status === fS)
       );
       const fi = document.getElementById('syFilterInfo');
-      const active = !!(fD||fC||fT||fA||fW||fS);
+      const active = !!(fR||fD||fK||fC||fT||fA||fS);
       if (fi) fi.textContent = active ? `${_filtered.length} site${_filtered.length!==1?'s':''} matching` : '';
       if (_selKey && !_filtered.some(s => s.key === _selKey)) {
         _selKey = null;
@@ -578,7 +619,7 @@
     }
 
     function clearFilters() {
-      ['syFDistrict','syFContent','syFType','syFAssess','syFDays','syFStatus']
+      ['syFRegion','syFDistrict','syFSite','syFContent','syFType','syFAssess','syFStatus']
         .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
       applyFilters();
     }
@@ -591,21 +632,46 @@
     }
 
     function populateFilters() {
-      function pop(id, vals) {
+      // Options come from the sites in the period being viewed (value, label).
+      function pop(id, pairs) {
         const el = document.getElementById(id); if (!el) return;
         const cur = el.value, first = el.options[0] ? el.options[0].outerHTML : '';
-        el.innerHTML = first + [...vals].filter(Boolean).sort()
-          .map(v => `<option value="${v}">${v}</option>`).join('');
+        const seen = new Map();
+        pairs.forEach(([v, l]) => { if (v && !seen.has(v)) seen.set(v, l || v); });
+        el.innerHTML = first + [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+          .map(([v, l]) => `<option value="${_esc(v).replace(/"/g, '&quot;')}">${_esc(l)}</option>`).join('');
         if ([...el.options].some(o => o.value === cur)) el.value = cur;
       }
-      pop('syFDistrict', new Set(_allSites.map(s => s.district)));
-      pop('syFContent',  new Set(_allSites.map(s => s.content)));
-      pop('syFType',     new Set(_allSites.map(s => s.tutorType)));
-      pop('syFAssess',   new Set(_allSites.map(s => s.assessModel)));
-      pop('syFDays',     new Set(_allSites.map(s => s.days)));
+      const cycleLC = _activePeriod === 'summer2026' ? 'summer 2026' : _activePeriod === 'sy2627' ? 'school year' : '';
+      const inPeriod = _allSites.filter(s => !cycleLC || (s.cycle || '').toLowerCase().includes(cycleLC));
+      const one = f => inPeriod.map(s => [s[f], s[f]]);
+      pop('syFRegion',   one('region'));
+      pop('syFDistrict', one('district'));
+      pop('syFSite',     inPeriod.map(s => [s.key, s.school + ' · ' + s.district]));
+      pop('syFContent',  one('content'));
+      pop('syFType',     one('tutorType'));
+      pop('syFAssess',   one('assessModel'));
+      pop('syFStatus',   one('status'));
     }
 
     // ── STATS ─────────────────────────────────────────────────────────────
+    // Tutors tile — Onsite Tracker roster for the cycle (has a role, offer not
+    // declined, not terminated). Tutor + Certified Tutor are counted; Dual Role
+    // and Sub-Tutors are shown underneath (not added in). Program-wide, like
+    // the Total Staff tile.
+    function _setTutorTile(inCycle) {
+      if (!_trackerReady || !_trackerRows.length) { setText('syStatTutors', '—'); setText('syStatTutorsSub', 'Onsite Tracker loading…'); return; }
+      const nk = n => (n||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+      const termed = new Set((window._njtcOnsiteTerms2627||[]).map(t => nk(t.name)));
+      const roster = _trackerRows.filter(r => inCycle(r) && (r.isRostered !== undefined ? r.isRostered : r.isActive) && !r.isTerminated && !termed.has(nk(r.fullName)));
+      const role = r => (r.role || '').toLowerCase();
+      const tutors = roster.filter(r => /tutor/.test(role(r)) && !/sub/.test(role(r))).length;
+      const subs   = roster.filter(r => /sub/.test(role(r)) && /tutor/.test(role(r))).length;
+      const dual   = roster.filter(r => /dual/.test(role(r))).length;
+      setText('syStatTutors', roster.length ? tutors.toLocaleString() : '—');
+      setText('syStatTutorsSub', roster.length ? `+ ${dual} dual role · ${subs} sub-tutors` : 'No roster rows for this period');
+    }
+
     function updateStats() {
       const s = _filtered;
       // Summer 2026: Sites/Districts/Est. Scholars come from the Locations tab's
@@ -634,15 +700,9 @@
         } else {
           setText('syStatActual', '—');
         }
-        if (_sumLoc.length) {
-          // Quoted capacity — Locations tab "Estimated # of Scholars (Quote)", Summer 2026 rows
-          setText('syStatEst', _sumLoc.reduce((a,r) => a + r.est, 0).toLocaleString());
-        } else if (_poIsSummer && _poStatsSummer.rosteredScholars != null) {
-          // Fallback: Pearl's rostered (enrolled) scholar count
-          setText('syStatEst', _poStatsSummer.rosteredScholars.toLocaleString());
-        } else {
-          setText('syStatEst', '—');
-        }
+        _setTutorTile(r => r.isSummer);
+        const _sumRunning = _sumLoc.filter(r => /active|running/i.test(r.status || '')).length;
+        setText('syStatSitesSub', _sumLoc.length ? (_sumRunning ? _sumRunning + ' running' : 'Program wrapped · archived') : 'District & school data');
         if (!_poIsSummer && window.po && typeof window.po.setPeriod === 'function') {
           window.po.setPeriod('summer2026'); // triggers refresh; next updateStats() pass will have real numbers
         }
@@ -669,6 +729,9 @@
         return;
       }
       setText('syStatSites',     s.length);
+      const _running = s.filter(r => /active|running/i.test(r.status || '')).length;
+      const _pendingSt = s.filter(r => /pending/i.test(r.status || '')).length;
+      setText('syStatSitesSub', (_running || _pendingSt) ? `${_running} running · ${_pendingSt} pending start` : 'District & school data');
       setText('syStatDistricts', new Set(s.map(r => r.district)).size);
       // Active scholars: pull directly from Pearl live data (unique scholars with ≥1 Attended/Late session).
       // Falls back to SY database enrollment sum if Pearl hasn't loaded, OR if Pearl's own
@@ -681,7 +744,7 @@
       setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
       const _actSub = document.getElementById('syStatActual') && document.getElementById('syStatActual').parentElement.querySelector('.st-sub');
       if (_actSub) _actSub.innerHTML = _pearlActive != null ? 'Attended &ge;1 session &middot; Pearl live' : 'Rostered Scholars in Pearl &middot; Locations tab';
-      setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
+      _setTutorTile(r => r.isSY);
       // Total Staff — SY 26-27: live Onsite Tracker roster (offer accepted, not
       // terminated). SY 25-26: HR Master List (authoritative). DB sum fallback.
       // Active onsite staff = tracker rows for the School Year cycle with a role,
@@ -828,7 +891,7 @@
         <div class="sy-detail-school">${s.school}</div>
         <div class="sy-detail-district">${s.district}</div>
         ${sec('Scholars')}
-        ${row('Actual (Pearl)', s.act||null)}${row('Estimated', s.est||null)}
+        ${row('Actual (Pearl)', s.act||null)}${row('Quoted (estimate)', s.est||null)}
         ${sec('Programming')}
         ${row('Content', v(s.content))}${row('Tutoring Type', v(s.tutorType))}
         ${row('Days of Week', v(s.days))}${row('Assessment', v(s.assessModel))}
@@ -880,7 +943,7 @@
       }).join(' ') + ' Z';
     }
 
-    const SITE_COORDS = {"ilearn charter school- bergen es":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- bergen ms":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- clifton es":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- clifton ms":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- passaic es":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- passaic ms":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- paterson es":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- paterson ms":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- hudson ms":{"lat":40.7282,"lng":-74.0776},"hamilton township school district":{"lat":40.226,"lng":-74.7018},"hamilton township- mercerville":{"lat":40.226,"lng":-74.7018},"hamilton township- kuser":{"lat":40.2107,"lng":-74.7235},"hamilton township- hamilton":{"lat":40.226,"lng":-74.7018},"hoboken dual language charter school":{"lat":40.744,"lng":-74.0324},"hoboken charter school":{"lat":40.744,"lng":-74.0324},"hola":{"lat":40.744,"lng":-74.0324},"haddon township school district":{"lat":39.9001,"lng":-75.0652},"haddon township":{"lat":39.9001,"lng":-75.0652},"van sciver":{"lat":39.9001,"lng":-75.0652},"strawbridge":{"lat":39.9101,"lng":-75.0552},"global leadership academy":{"lat":39.9526,"lng":-75.1652},"gla- west":{"lat":39.949,"lng":-75.218},"gla west":{"lat":39.949,"lng":-75.218},"salem city school district":{"lat":39.5718,"lng":-75.4688},"salem middle school":{"lat":39.5718,"lng":-75.4688},"john fenwick":{"lat":39.5718,"lng":-75.4688},"penns grove":{"lat":39.729,"lng":-75.5135},"carneys point":{"lat":39.6679,"lng":-75.4649},"field street":{"lat":39.729,"lng":-75.5135},"penns grove middle":{"lat":39.7218,"lng":-75.519},"lawrence township":{"lat":40.2815,"lng":-74.7293},"slackwood":{"lat":40.2815,"lng":-74.7293},"gloucester township":{"lat":39.7776,"lng":-75.0316},"erial":{"lat":39.749,"lng":-75.0513},"loring flemming":{"lat":39.7776,"lng":-75.0316},"first philadelphia prep":{"lat":39.9942,"lng":-75.154},"american paradigm":{"lat":39.9942,"lng":-75.154},"central jersey college prep":{"lat":40.5018,"lng":-74.2954},"paterson charter":{"lat":40.9168,"lng":-74.1719},"pcsst":{"lat":40.9168,"lng":-74.1719},"middlesex stem":{"lat":40.5665,"lng":-74.4007},"thurgood marshall":{"lat":40.2260,"lng":-74.7018},"philadelphia charter":{"lat":39.9526,"lng":-75.1652}};
+    const SITE_COORDS = {"ilearn charter school- bergen es":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- bergen ms":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- clifton es":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- clifton ms":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- passaic es":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- passaic ms":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- paterson es":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- paterson ms":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- hudson ms":{"lat":40.7282,"lng":-74.0776},"hamilton township school district":{"lat":40.226,"lng":-74.7018},"hamilton township- mercerville":{"lat":40.226,"lng":-74.7018},"hamilton township- kuser":{"lat":40.2107,"lng":-74.7235},"hamilton township- hamilton":{"lat":40.226,"lng":-74.7018},"hoboken dual language charter school":{"lat":40.744,"lng":-74.0324},"hoboken charter school":{"lat":40.744,"lng":-74.0324},"hola":{"lat":40.744,"lng":-74.0324},"haddon township school district":{"lat":39.9001,"lng":-75.0652},"haddon township":{"lat":39.9001,"lng":-75.0652},"van sciver":{"lat":39.9001,"lng":-75.0652},"strawbridge":{"lat":39.9101,"lng":-75.0552},"global leadership academy":{"lat":39.9526,"lng":-75.1652},"gla- west":{"lat":39.949,"lng":-75.218},"gla west":{"lat":39.949,"lng":-75.218},"salem city school district":{"lat":39.5718,"lng":-75.4688},"salem middle school":{"lat":39.5718,"lng":-75.4688},"john fenwick":{"lat":39.5718,"lng":-75.4688},"penns grove":{"lat":39.729,"lng":-75.5135},"carneys point":{"lat":39.6679,"lng":-75.4649},"field street":{"lat":39.729,"lng":-75.5135},"penns grove middle":{"lat":39.7218,"lng":-75.519},"lawrence township":{"lat":40.2815,"lng":-74.7293},"slackwood":{"lat":40.2815,"lng":-74.7293},"gloucester township":{"lat":39.7776,"lng":-75.0316},"erial":{"lat":39.749,"lng":-75.0513},"loring flemming":{"lat":39.7776,"lng":-75.0316},"first philadelphia prep":{"lat":39.9942,"lng":-75.154},"american paradigm":{"lat":39.9942,"lng":-75.154},"central jersey college prep":{"lat":40.5018,"lng":-74.2954},"paterson charter":{"lat":40.9168,"lng":-74.1719},"pcsst":{"lat":40.9168,"lng":-74.1719},"middlesex stem":{"lat":40.5665,"lng":-74.4007},"philadelphia charter":{"lat":39.9526,"lng":-75.1652}};
 
     function lookupCoords(site) {
       const name = (site.school || '').toLowerCase();
@@ -900,8 +963,8 @@
     function assignCoords() {
       _allSites.forEach(s => {
         if (s.lat && s.lng) return;
-        const c = lookupCoords(s);
-        if (c) { s.lat = c.lat; s.lng = c.lng; }
+        const c = lookupCoords(s);   // fallback: approximate name table
+        if (c) { s.lat = c.lat; s.lng = c.lng; s.coordSource = 'table'; }
       });
     }
 
@@ -1012,7 +1075,7 @@
               <text x="91" y="36" font-size="9.5" fill="#374151" font-family="system-ui,sans-serif">Multiple</text>
             </g>
           </svg>
-          ${unmapped.length ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.78);color:#cbd5e1;font-size:.7rem;padding:.35rem 1rem;backdrop-filter:blur(6px);border-radius:0 0 var(--radius) var(--radius)">⚠️ ${unmapped.length} unmapped: ${unmapped.map(s=>s.school).join(', ')}</div>` : ''}
+          ${unmapped.length ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.78);color:#cbd5e1;font-size:.7rem;padding:.35rem 1rem;backdrop-filter:blur(6px);border-radius:0 0 var(--radius) var(--radius)">⚠️ ${unmapped.length} unmapped: ${unmapped.map(s=>_esc(s.school)).join(', ')} <span style="opacity:.75">· add coordinates with the Onsite Tracker menu NJTC Locations → Geocode new / changed addresses</span></div>` : ''}
         </div>`;
     }
 
@@ -1963,7 +2026,7 @@
     const canSeeIndiv  = () => ['leadership','data','hr','programming','kb'].includes(role());
 
     // ── Module-level region detector (used by ticket system and school cards) ─
-    const _NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+    const _NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey','lyndhurst','vernon','asbury park'];
     const _SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                     'string theory','global leadership academy','global leadership',
                     'penns grove','carneys point','haddon township','haddon',
@@ -1971,13 +2034,20 @@
     const _SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver',
                     'strawbridge','first philadelphia prep','first philly prep',
                     'the philadelphia charter','philadelphia charter school','global leadership academy'];
-    // SY 26-27 South-West sites — the ONLY SW districts that year; every other site
-    // (all of iLearn CMO included) is NE. Checked before the NE keywords.
-    //   Pemberton Township → Denbo-Crichton School;  Hamilton Township → Greenwood ES
-    //   Global Leadership Academy (district = school) → SW team
-    const _SW_PRIORITY = ['pemberton','denbo','crichton','greenwood',
-                          'hamilton township','hamilton twp','lea - hamilton','lea- hamilton',
-                          'global leadership','glaw'];
+    // SY 26-27 South-West sites — every district Andrea (SW) manages in the SY
+    // 26-27 Onsite Tracker "Locations" tab (Program Manager column). Everything
+    // else (iLearn CMO, Lyndhurst, Vernon, Asbury Park — Taneisha) is NE.
+    // Checked before the NE keywords. Matched against district OR school name.
+    const _SW_PRIORITY = ['pemberton','denbo','crichton',
+                          'hamilton township','hamilton twp','lea - hamilton','lea- hamilton','greenwood',
+                          'global leadership','glaw',
+                          'haddon','clyde s jennings','stoy elementary','strawbridge','thomas edison','van sciver',
+                          'penns grove','carneys point','field street','carleton',
+                          'berlin',
+                          'gloucester township','gloucester twp','blackwood','erial elementary','lilley','loring flemming',
+                          'lawrence township','lawrence intermediate',
+                          'leap academy',
+                          'string theory'];
     function _isSWPriority(school, district) {
       const s = (school||'').toLowerCase(), d = (district||'').toLowerCase();
       return _SW_PRIORITY.some(k => d.includes(k) || s.includes(k));
@@ -2371,6 +2441,9 @@
       getAttRows: function() {
         return _attRows ? _attRows.slice() : [];
       },
+
+      // classifyRecord(row) — 'attended' | 'absent' | 'service_interruption' | 'not_recorded' | 'other'
+      classifyRecord: function(r) { return classifyRecord(r); },
 
       // isDataLoaded() — true once at least one successful fetch has completed
       isDataLoaded: function() {
@@ -3630,7 +3703,7 @@
           // Vacancy is NOT counted in attendance — it is a staffing gap flag for HR, Programming, and Leadership
           sc.flags.push({ type:'vacancy_si', severity:'high', audience:'HR · Programming · Leadership', msg:`${vacancySI} sessions impacted by tutor vacancy — backfill coordination recommended` });
         if (otherHighSI > 0)
-          sc.flags.push({ type:'high_si', severity:'high', msg:`${otherHighSI} high-priority interruptions (closures / archived scholars) — further context recommended` });
+          sc.flags.push({ type:'high_si', severity:'high', msg:`${otherHighSI} high-priority missed sessions not counted against attendance (closures / archived scholars) — further context recommended` });
 
         // Declined sessions: count across all student rows for this school
         // Declines count as absences in attendance AND surface to Programming
@@ -4164,7 +4237,7 @@
           <span style="text-transform:none;letter-spacing:0;font-weight:500">Counts are scholar sessions unless noted · follows the filters above</span></div>
         <div style="padding:.9rem 1.1rem">
         <div style="display:flex;flex-wrap:wrap;gap:.75rem">
-          ${card('Undelivered Sessions', n(C[K.UNDELIVERED].count), 'Tutor absent / vacancy · not counted against scholar attendance · talking point, no action needed', '#d97706', reasonList(C[K.UNDELIVERED].reasons))}
+          ${card('Undelivered Sessions', n(C[K.UNDELIVERED].count), 'Tutor absent (not covered) / vacancy · not counted against scholar attendance · talking point, no action needed', '#d97706', reasonList(C[K.UNDELIVERED].reasons))}
           ${card('Cancellation Reasons Logged as Missed', n(C[K.CANCELLATION].count), 'School / NJTC-driven · not counted against attendance · under the new process these sessions are cancelled in Pearl', '#b91c1c', reasonList(C[K.CANCELLATION].reasons))}
           ${card('Internal Tracking', n(C[K.INTERNAL].count), 'NJTC-internal · not counted against attendance', '#64748b', reasonList(C[K.INTERNAL].reasons))}
           ${card('Scholar Absences', n(C[K.ABSENCE].count), 'Count toward Scholar Attendance %', '#0d6e3a', reasonList(C[K.ABSENCE].reasons))}
@@ -4834,7 +4907,7 @@
       if (critDistricts > 0) actions.push({ icon:'📍', title: `${critDistricts} District${critDistricts>1?'s':''} Warrant a Closer Look`, body: `Scholar attendance below 75% — worth reviewing with site leadership. Click a district row to drill into specific schools.`, sev:'crit' });
       const ctDists = d.districts.filter(dt => dt.ctFlag);
       if (ctDists.length) actions.push({ icon:'📋', title: `High CT Pull-out Rate in ${ctDists.map(x=>x.name).join(', ')}`, body: `Classroom teacher requests are limiting scholar access to tutoring sessions. Consider follow-up with site leadership.`, sev:'warn' });
-      if (d.absenceDrivers.controllable.total > 0) actions.push({ icon:'🔧', title: `${d.absenceDrivers.controllable.total} Controllable Absences This Period`, body: `Includes tutor absences, vacancies, and internal scheduling issues — factors within program control.`, sev:'warn' });
+      if (d.absenceDrivers.controllable.total > 0) actions.push({ icon:'🔧', title: `${d.absenceDrivers.controllable.total} NJTC-side Missed Sessions This Period`, body: `Tutor absent (not covered), tutor vacancy, tutor left early (no sub) and NJTC internal errors — within program control; not counted against scholar attendance.`, sev:'warn' });
       if (!actions.length) actions.push({ icon:'✅', title: 'All Areas Looking Good', body: 'Program is operating within all healthy thresholds. Keep up the great work.', sev:'ok' });
       const actionHTML = actions.map(a => `<div class="po-exec-action-item"><div class="po-exec-action-icon">${a.icon}</div><div><div class="po-exec-action-title">${a.title}</div><div class="po-exec-action-body">${a.body}</div></div></div>`).join('');
 
@@ -4925,11 +4998,11 @@
           <div class="po-exec-absence">
             <div class="po-exec-card-title">🧩 Why Are Sessions Missed?</div>
             <div class="po-exec-driver-section">
-              <div class="po-exec-driver-heading" style="color:var(--notmet)">⚡ Within Our Control (${ctrl.total})</div>
+              <div class="po-exec-driver-heading" style="color:var(--notmet)">⚡ NJTC-side — within our control (${ctrl.total})</div>
               ${ctrlRows}
             </div>
             <div class="po-exec-driver-section" style="margin-bottom:0">
-              <div class="po-exec-driver-heading" style="color:var(--blue-mid)">🏫 Outside Our Control (${unctrl.total})</div>
+              <div class="po-exec-driver-heading" style="color:var(--blue-mid)">🏫 School-side — cancellations &amp; teacher pull-outs (${unctrl.total})</div>
               ${unctrlRows}
             </div>
           </div>
@@ -5088,8 +5161,8 @@
             <div class="po-ops-donut-center"><div class="po-ops-donut-pct">${totalAbs}</div><div class="po-ops-donut-sub">total</div></div>
           </div>
           <div class="po-ops-donut-legend">
-            <div class="po-ops-donut-leg-row"><div class="po-ops-donut-leg-dot" style="background:#b91c1c"></div><div class="po-ops-donut-leg-lbl">Controllable</div><div class="po-ops-donut-leg-cnt">${ctrl.total}</div></div>
-            <div class="po-ops-donut-leg-row"><div class="po-ops-donut-leg-dot" style="background:#0050c8"></div><div class="po-ops-donut-leg-lbl">External</div><div class="po-ops-donut-leg-cnt">${unctrl.total}</div></div>
+            <div class="po-ops-donut-leg-row"><div class="po-ops-donut-leg-dot" style="background:#b91c1c"></div><div class="po-ops-donut-leg-lbl">NJTC-side</div><div class="po-ops-donut-leg-cnt">${ctrl.total}</div></div>
+            <div class="po-ops-donut-leg-row"><div class="po-ops-donut-leg-dot" style="background:#0050c8"></div><div class="po-ops-donut-leg-lbl">School-side</div><div class="po-ops-donut-leg-cnt">${unctrl.total}</div></div>
             ${ctrl.reasons.slice(0,2).map(r=>`<div class="po-ops-donut-leg-row" style="padding-left:.75rem"><div class="po-ops-donut-leg-dot" style="background:#fee2e2;border:1px solid #b91c1c"></div><div class="po-ops-donut-leg-lbl" style="font-size:.7rem">${r.label}</div><div class="po-ops-donut-leg-cnt" style="font-size:.7rem">${r.count}</div></div>`).join('')}
           </div>
         </div>`;
@@ -5204,7 +5277,7 @@
 
             <!-- Absence Breakdown -->
             <div class="po-ops-panel">
-              <div class="po-ops-panel-hd">🧩 Absence Breakdown</div>
+              <div class="po-ops-panel-hd">🧩 Missed Sessions Breakdown</div>
               <div class="po-ops-panel-body">${donutHTML}</div>
             </div>
 
@@ -5516,7 +5589,7 @@
           <div class="sg-stat" style="--sc:${compCol}">
             <div class="sg-stat-val" style="color:${compCol}">${completionPct}%</div>
             <div class="sg-stat-lbl">Completion Rate</div>
-            <div class="sg-stat-sub">${deliveredSess.length} of ${totalSessionsAll} non-cancelled sessions</div>
+            <div class="sg-stat-sub">${deliveredSess.length} of ${totalSessionsAll} scheduled, non-cancelled sessions</div>
           </div>
           <div class="sg-stat" style="--sc:${riskCol}">
             <div class="sg-stat-val" style="color:${riskCol}">~${interruptionHrs}h</div>
@@ -5547,7 +5620,7 @@
             <div class="sg-triage-left">
               <span class="sg-triage-badge" style="background:${hasCrit?'#fee2e2':'#fef3c7'};color:${hasCrit?'#991b1b':'#92400e'}">${hasCrit?'High Missed-Session Risk':'Elevated Missed Sessions'}</span>
               <div class="sg-triage-school">${sc.school}</div>
-              <div class="sg-triage-detail">${sc.district} · ${intPct}% of sessions interrupted · est. ~${estLost}h affected</div>
+              <div class="sg-triage-detail">${sc.district} · ${intPct}% of sessions not counted against attendance · est. ~${estLost}h affected</div>
             </div>
             <div class="sg-triage-right">
               <div style="font-size:1.25rem;font-weight:800;color:${hasCrit?'#b91c1c':'#d97706'};font-family:system-ui,-apple-system,sans-serif;line-height:1">${sc.stuInterruptions}</div>
@@ -6233,7 +6306,7 @@
         + '<th style="' + thStyle + ';text-align:center">Att. Rate</th>'
         + '<th style="' + thStyle + ';text-align:center">Attended</th>'
         + '<th style="' + thStyle + ';text-align:center">Absent</th>'
-        + '<th style="' + thStyle + ';text-align:center">Interrupts</th>'
+        + '<th style="' + thStyle + ';text-align:center">Not Counted</th>'
         + '<th style="' + thStyle + '">Consec.</th>'
         + '<th style="' + thStyle + '">Flags</th>'
         + '<th style="' + thStyle + '">Tutor(s) · Minutes</th>'
@@ -7001,6 +7074,16 @@
         }
       }
       const scholarSurvey = surveyCount > 0 ? Math.round(surveyTotal / surveyCount * 10) / 10 : null;
+      // ── Tutor survey avg — same four questions as the Pearl Ops tile ──
+      let tSurvTotal = 0, tSurvCount = 0;
+      for (const r of _instRows) {
+        if (!matchesSchoolFilter(r[INST_S.SCHOOL], r[INST_S.DISTRICT])) continue;
+        for (const col of [INST_S.ENGAGEMENT, INST_S.ENJOYMENT, INST_S.LEARNING, INST_S.OVERALL]) {
+          const v = parseFloat(r[col]);
+          if (!isNaN(v) && v > 0) { tSurvTotal += v; tSurvCount++; }
+        }
+      }
+      const tutorSurvey = tSurvCount > 0 ? Math.round(tSurvTotal / tSurvCount * 10) / 10 : null;
 
       // ── Scholar performance tiers — ACTIVE SCHOLARS ONLY ──────────────
       // Active = attended at least 1 session (attended or late).
@@ -7080,20 +7163,33 @@
         'Absent; Not Covered (Tutor not available)': 'No coverage available',
         'NJTC Internal Issue/Error':            'Internal scheduling issue',
       };
+      // School-side = every school-driven reason in shared/pearl-categories.js
+      // (SCHOOL_DRIVEN) plus classroom-teacher pull-outs. Labels below only
+      // prettify; an unlisted school-driven reason still counts, shown as-is.
       const UNCONTROLLABLE = {
         'Classroom Teacher Requested to Keep Scholar in Class': 'Teacher kept scholar in class',
+        'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group request',
         'School-administered Testing':          'School testing day',
+        'School Administered Testing':          'School testing day',
         'School Event':                         'School event',
+        'School Event/Assembly':                'School event',
         'Holiday - scheduled':                  'Holiday',
         'Unscheduled School Closure/Delay/Dismissal': 'School closure / delay',
-        'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group request',
+        'School Schedule Changed':              'School schedule change',
+        'Weather Closure':                      'Weather closure',
+        'Scheduled/Unscheduled School Drill':   'School drill',
+        'Half Day':                             'Half day',
       };
+      const _CATS = window.NJTC_PEARL_CATEGORIES;
+      const isNjtcSide   = reason => !!CONTROLLABLE[reason] || (_CATS && _CATS.categoryOf(reason) === _CATS.CATEGORY.UNDELIVERED);
+      const isSchoolSide = reason => !!UNCONTROLLABLE[reason] || (_CATS && _CATS.isSchoolDriven(reason));
       const ctrlCounts = {}, unctrlCounts = {};
       for (const r of _attRows) {
         if (r[ATT.ROLE] !== 'Student' || r[ATT.ATT_STATUS] !== 'Missed') continue;
         const reason = r[ATT.MISS_REASON];
-        if (CONTROLLABLE[reason])   ctrlCounts[reason]   = (ctrlCounts[reason]   || 0) + 1;
-        if (UNCONTROLLABLE[reason]) unctrlCounts[reason] = (unctrlCounts[reason] || 0) + 1;
+        if (!reason) continue;
+        if (isNjtcSide(reason))        ctrlCounts[reason]   = (ctrlCounts[reason]   || 0) + 1;
+        else if (isSchoolSide(reason)) unctrlCounts[reason] = (unctrlCounts[reason] || 0) + 1;
       }
       const toReasons = (map, labels) => Object.entries(map)
         .sort((a,b) => b[1]-a[1]).slice(0, 4)
@@ -7122,7 +7218,7 @@
       const scholarsServed = onTrack + atRisk + needsAction;
 
       return {
-        scholarRate, tutorRate, sessionsDelivered, scholarSurvey,
+        scholarRate, tutorRate, sessionsDelivered, scholarSurvey, tutorSurvey,
         scholarsServed,
         scholarOnTrack: onTrack, scholarAtRisk: atRisk, scholarNeedsAction: needsAction,
         districts,
@@ -9527,6 +9623,9 @@
       getAttRows: function() {
         return _attRows ? _attRows.slice() : [];
       },
+
+      // classifyRecord(row) — 'attended' | 'absent' | 'service_interruption' | 'not_recorded' | 'other'
+      classifyRecord: function(r) { return classifyRecord(r); },
 
       // isDataLoaded() — true once at least one successful fetch has completed
       isDataLoaded: function() {

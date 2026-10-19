@@ -620,6 +620,58 @@
       ],
       "region": "South-West",
       "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-gloucester-township-school-district-tim-trow",
+      "name": "Tim Trow",
+      "title": "Assistant Superintendent for Instruction",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Gloucester Township School District",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-lyndhurst-school-district-michael-rizzo",
+      "name": "Michael Rizzo",
+      "title": "Lyndhurst Middle School Principal",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Lyndhurst School District",
+      "schools": [
+        "ALL"
+      ],
+      "region": "North-East",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-lyndhurst-school-district-alma-morel",
+      "name": "Alma Morel",
+      "title": "Assistant Superintendent",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Lyndhurst School District",
+      "schools": [
+        "ALL"
+      ],
+      "region": "North-East",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-vernon-township-school-district-vinny-gagliostro",
+      "name": "Vinny Gagliostro",
+      "title": "Assistant Superintendent",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Vernon Township School District",
+      "schools": [
+        "ALL"
+      ],
+      "region": "North-East",
+      "pearlStatus": "pending"
     }
   ]
 }

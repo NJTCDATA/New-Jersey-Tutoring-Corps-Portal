@@ -372,8 +372,8 @@ function renderThisWeek(d) {
   if (cw.incompletes > 0) actions.push('📋 <strong>' + cw.incompletes + ' sessions</strong> are still marked Scheduled — remind tutors to complete their attendance entry.');
   if (cw.siByLevel && (cw.serviceInterruptions.critical.length || cw.serviceInterruptions.high.length)) {
     var critN = cw.serviceInterruptions.critical.length, highN = cw.serviceInterruptions.high.length;
-    if (critN) actions.push('🔴 <strong>' + critN + ' critical interruption' + (critN>1?'s':'') + '</strong> — review immediately (NJTC Internal Error).');
-    if (highN) actions.push('🟠 <strong>' + highN + ' high-severity interruption' + (highN>1?'s':'') + '</strong> — check for tutor vacancies and escalate to HR if needed.');
+    if (critN) actions.push('🔴 <strong>' + critN + ' critical missed session' + (critN>1?'s':'') + '</strong> — review immediately (NJTC Internal Error).');
+    if (highN) actions.push('🟠 <strong>' + highN + ' high-severity missed session' + (highN>1?'s':'') + '</strong> — check for tutor vacancies and escalate to HR if needed.');
   }
   if (cw.lowRatingSites && cw.lowRatingSites.length) actions.push('⭐ <strong>' + cw.lowRatingSites.length + ' site' + (cw.lowRatingSites.length>1?'s have':' has') + ' survey scores below 3.5</strong> — schedule a follow-up conversation with those site leaders.');
   if (schRate !== null && schRate < 80) actions.push('📞 Attendance is below 80%. Contact Program Managers to identify root causes at the lowest-performing sites.');
@@ -386,7 +386,7 @@ function renderThisWeek(d) {
   var topMiss = cw.missedReasons.slice(0, 6);
   var maxMiss = topMiss.length ? topMiss[0].count : 1;
   html += buildBarRows(topMiss, maxMiss, '#457b9d');
-  html += '<div class="pds-card-body" style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-2)">Absences marked <strong>Tutor Absent</strong> are a staffing issue — loop in HR. <strong>Scholar Absent</strong> is normal but watch for patterns. <strong>School Closure</strong> requires no action.</div></div>';
+  html += '<div class="pds-card-body" style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-2)"><strong>Tutor Absent / Tutor Vacancy</strong> are Undelivered Sessions — not counted against scholar attendance; a talking point for partner conversations (vacancies go to HR for backfill). <strong>Scholar Absent</strong> counts toward Scholar Attendance % — watch for patterns. School closures, events and testing are <strong>Session Cancellations</strong> — no action needed.</div></div>';
 
   // Service interruptions
   var siCards = '';
@@ -470,7 +470,7 @@ function renderTrends(d) {
 
   // Detailed week table
   html += '<div class="pds-card"><div class="pds-card-title">Week-by-Week Detail</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem">';
-  html += '<thead><tr style="background:var(--surface-2)"><th style="padding:.4rem .5rem;text-align:left;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Week</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Scholar Att</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Tutor Att</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Interruptions</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Survey Avg</th></tr></thead><tbody>';
+  html += '<thead><tr style="background:var(--surface-2)"><th style="padding:.4rem .5rem;text-align:left;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Week</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Scholar Att</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Tutor Att</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Not Counted</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Survey Avg</th></tr></thead><tbody>';
   trend.slice().reverse().forEach(function(w) {
     html += '<tr style="border-bottom:1px solid var(--border-2)">' +
       '<td style="padding:.35rem .5rem;font-weight:600">' + w.week + '</td>' +
@@ -558,7 +558,7 @@ function renderYoY() {
   html += buildStatGrid([
     { val: _fmtPct(C.scholarRate), label: 'Scholar Att. · ' + cfg.label + ' ' + _fmtPct(P.scholarRate), color: '#059669' },
     { val: _fmtPct(C.tutorRate), label: 'Tutor Att. · ' + cfg.label + ' ' + _fmtPct(P.tutorRate), color: '#0891b2' },
-    { val: C.siPer100 == null ? '—' : C.siPer100, label: 'Interruptions / 100 scholar records · ' + cfg.label + ' ' + (P.siPer100 == null ? '—' : P.siPer100), color: '#ea580c',
+    { val: C.siPer100 == null ? '—' : C.siPer100, label: 'Not counted / 100 scholar records · ' + cfg.label + ' ' + (P.siPer100 == null ? '—' : P.siPer100), color: '#ea580c',
       tooltip: 'Missed sessions not counted against attendance per 100 scholar attendance records — normalised so program size differences between years do not distort the comparison.' },
   ]);
   }
@@ -566,7 +566,7 @@ function renderYoY() {
   // Week-by-week table
   html += '<div class="pds-card"><div class="pds-card-title">Week by Week · this year vs same week last year</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:620px">' +
     '<thead><tr style="text-align:left;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">' +
-    '<th style="padding:.35rem .5rem">Week</th><th>Scholar</th><th>' + cfg.label + '</th><th>Δ</th><th>Tutor</th><th>' + cfg.label + '</th><th>Interruptions</th><th>' + cfg.label + '</th></tr></thead><tbody>';
+    '<th style="padding:.35rem .5rem">Week</th><th>Scholar</th><th>' + cfg.label + '</th><th>Δ</th><th>Tutor</th><th>' + cfg.label + '</th><th>Not Counted</th><th>' + cfg.label + '</th></tr></thead><tbody>';
   cmp.rows.forEach(function(r) {
     var c = r.cur || {}, p = r.prior || {};
     var live = inProgress && r.week === N;
@@ -619,7 +619,7 @@ function renderYoY() {
     cmp.aheadRows.forEach(function(a) {
       html += '<div style="display:flex;gap:.75rem;flex-wrap:wrap;padding:.3rem 0;border-top:1px dashed var(--border);font-size:.8rem">' +
         '<div style="min-width:130px;font-weight:600">W' + a.week + ' · week of ' + _fmtMD(PW.mondayOf(cur.anchor, a.week)) + '</div>' +
-        '<div>Scholar ' + _fmtPct(a.scholarRate) + ' · Tutor ' + _fmtPct(a.tutorRate) + ' · ' + a.si + ' interruptions</div>' +
+        '<div>Scholar ' + _fmtPct(a.scholarRate) + ' · Tutor ' + _fmtPct(a.tutorRate) + ' · ' + a.si + ' not counted</div>' +
         (a.topSI ? '<div style="color:var(--muted)">Top cause: ' + escHtmlPds(a.topSI) + ' (' + a.topSICount + ')</div>' : '') + '</div>';
     });
     if (cmp.aheadRising.length) {
@@ -1016,7 +1016,7 @@ function renderAcademic() {
       html += '<div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#0891b2;margin-bottom:.5rem">Pearl Alignment · Current Week</div>';
       html += '<div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem">';
       if (schAtt !== null) html += '<div><span style="color:var(--muted)">Scholar Att: </span><strong style="color:' + (schAtt>=90?'#059669':schAtt>=80?'#d97706':'#dc2626') + '">' + schAtt + '%</strong></div>';
-      if (cw.siTotal !== undefined) html += '<div><span style="color:var(--muted)">SIs This Week: </span><strong style="color:' + (cw.siTotal>3?'#d97706':'var(--navy)') + '">' + cw.siTotal + '</strong></div>';
+      if (cw.siTotal !== undefined) html += '<div><span style="color:var(--muted)">Not Counted This Week: </span><strong style="color:' + (cw.siTotal>3?'#d97706':'var(--navy)') + '">' + cw.siTotal + '</strong></div>';
       if (cw.scholarSurvey) html += '<div><span style="color:var(--muted)">Scholar Survey: </span><strong style="color:#7c3aed">' + cw.scholarSurvey + '/5</strong></div>';
       html += '</div>';
       // Plain-language insight connecting attendance to academic growth
@@ -1276,7 +1276,7 @@ function buildDOM() {
       '<div class="pds-header-left">' +
         '<div class="pds-eyebrow" id="pdsEyebrow">Program Intelligence</div>' +
         '<div class="pds-title">Program Pulse</div>' +
-        '<div class="pds-subtitle">Your week at a glance — attendance, surveys, interruptions, and what needs your attention.</div>' +
+        '<div class="pds-subtitle">Your week at a glance — attendance, surveys, missed sessions, and what needs your attention.</div>' +
       '</div>' +
       '<button class="pds-close-btn" onclick="window.pds.close()" title="Close">✕</button>' +
     '</div>' +
