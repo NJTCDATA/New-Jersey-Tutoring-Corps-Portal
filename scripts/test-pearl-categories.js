@@ -113,4 +113,35 @@ const rec = COV.reconcileTracker(tracker, subs, '2026-10-18', new Set(['s3']));
 assert.deepStrictEqual(rec.rows.map(r => r.status), ['partial', 'not_in_pearl', 'upcoming', 'unclear']);
 assert(!rec.notOnTracker.some(s => s.sessId === 's3'), 'cancelled-session subs never reported as missing from the tracker');
 
+// ── 4. Free-text Sub Tracker → Pearl roster ─────────────────────────────────
+assert.strictEqual(COV.gradesText('3/5/2026'), '3-5');            // Sheets turned "3-5" into a date
+assert.strictEqual(COV.gradesText('2026-01-03'), '1-3');
+assert.strictEqual(COV.gradesText('4'), '4');
+assert.strictEqual(COV.gradesText('K-2'), 'K-2');
+assert(COV.looseName('Nick H.', 'Nicholas Hoover'));
+assert(COV.looseName('Katie Rose', 'Katie Rose Davis'));          // two-part first name
+assert(COV.looseName('Mike Jones', 'Michael Jones'));
+assert(!COV.looseName('Nick H.', 'Nicholas Smith'));
+assert(!COV.looseName('Rose', 'Katie Rose Davis'));
+const people = [{ id: 1, name: 'Nicholas Hoover', school: 'A' }, { id: 2, name: 'Nicole Harris', school: 'B' }];
+assert.strictEqual(COV.matchPerson('Nick H.', people, 'A').id, 1);   // site narrows it down
+assert.strictEqual(COV.matchPerson('Nick H.', people, null), null);  // ambiguous → no guess
+assert.strictEqual(COV.matchPerson('Vacant Tutor', people, 'A'), null);
+const schools = ['Pemberton Township-Denbo-Crichton School', 'Field Street Elementary School', 'Elm Street School'];
+assert.strictEqual(COV.matchSchool('Denbo', schools), schools[0]);
+assert.strictEqual(COV.matchSchool('Field Street', schools), schools[1]);
+assert.strictEqual(COV.matchSchool('Street', schools), null);        // ambiguous
+// A date range only expects coverage on days the site had sessions
+const tr2 = COV.parseTracker([
+  ['Sub', 'Tutor Covering', 'Grades', 'Subjects', 'Date', 'Site Covering'],
+  ['Lilia Quintero', 'Nick H.', '3/5/2026', 'ELA', '10/13-10/16', 'Denbo'],
+  ['Lilia Quintero', 'Nick H.', '3/5/2026', 'ELA', '10/13-10/16', 'Nowhere'],
+], 'SW', 2026);
+const roster = { schools, people: [{ id: 'A', name: 'Nicholas Hoover', school: schools[0] }],
+  sessionDays: sc => sc === schools[0] ? new Set(['2026-10-13', '2026-10-15']) : null };
+const rec2 = COV.reconcileTracker(tr2, [], '2026-10-18', new Set(), roster);
+assert.strictEqual(rec2.rows[0].due, 2); assert(rec2.rows[0].rangeChecked);
+assert.strictEqual(rec2.rows[0].tutorMatch.name, 'Nicholas Hoover'); assert.strictEqual(rec2.rows[0].grades, '3-5');
+assert.strictEqual(rec2.rows[1].due, 4); assert(!rec2.rows[1].rangeChecked);   // site not matched → every weekday
+
 console.log('pearl categories + coverage: all checks passed');

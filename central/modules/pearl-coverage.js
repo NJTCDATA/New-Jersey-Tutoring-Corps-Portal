@@ -195,17 +195,89 @@
     const k = Object.keys(o).find(x => x.indexOf(prefix) === 0);
     return k ? o[k] : '';
   }
+  // Google Sheets auto-converts a Grades entry like "3-5" into the date
+  // 3/5/2026. A real date never belongs in Grades, so turn it back.
+  function gradesText(v) {
+    const t = str(v);
+    let m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s.*)?$/);
+    if (m && +m[3] >= 2000 && +m[3] < 2100) return (+m[1]) + '-' + (+m[2]);
+    m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?$/);
+    if (m && +m[1] >= 2000 && +m[1] < 2100) return (+m[2]) + '-' + (+m[3]);
+    return t;
+  }
+
+  // ── Free-text names / sites → Pearl roster ─────────────────────────────
+  // Common nicknames; any first name that is a prefix of the other
+  // (Nick/Nicholas, Sam/Samantha) also matches.
+  const NICK = {
+    nick: ['nicholas', 'nicolas', 'nicole'], katie: ['katherine', 'kathryn', 'kathleen', 'catherine', 'caitlin', 'kaitlyn'],
+    kate: ['katherine', 'kathryn', 'kathleen', 'catherine'], kathy: ['katherine', 'kathryn', 'kathleen'], cathy: ['catherine'],
+    chris: ['christopher', 'christina', 'christine'], tina: ['christina', 'martina'], mike: ['michael'], liz: ['elizabeth'],
+    beth: ['elizabeth', 'bethany'], betty: ['elizabeth'], jen: ['jennifer'], jenny: ['jennifer'], matt: ['matthew'],
+    tom: ['thomas'], bill: ['william'], will: ['william'], bob: ['robert'], rob: ['robert'], jim: ['james'], jimmy: ['james'],
+    joe: ['joseph'], dan: ['daniel', 'danielle'], dave: ['david'], steve: ['stephen', 'steven'], tony: ['anthony'],
+    jess: ['jessica'], becky: ['rebecca'], mandy: ['amanda'], abby: ['abigail'], pat: ['patricia', 'patrick'],
+    sue: ['susan', 'suzanne'], ben: ['benjamin'], andy: ['andrew'], drew: ['andrew'], vicky: ['victoria'], tori: ['victoria'],
+    meg: ['margaret', 'megan'], maggie: ['margaret'], peggy: ['margaret'], deb: ['deborah', 'debra'], debbie: ['deborah', 'debra'],
+    cindy: ['cynthia'], kim: ['kimberly'], tim: ['timothy'], greg: ['gregory'], jon: ['jonathan'], john: ['jonathan'],
+    ed: ['edward'], eddie: ['edward'], rick: ['richard'], rich: ['richard'], ron: ['ronald'], don: ['donald'],
+    alex: ['alexander', 'alexandra', 'alexis'], sam: ['samuel', 'samantha'], val: ['valerie'], gabby: ['gabriella', 'gabrielle'],
+    lexi: ['alexis', 'alexandra'], manny: ['manuel'], tash: ['natasha'], nate: ['nathan', 'nathaniel'], zach: ['zachary'],
+  };
+  function sameFirst(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+    if (s.length >= 3 && l.indexOf(s) === 0) return true;
+    return (NICK[a] || []).indexOf(b) >= 0 || (NICK[b] || []).indexOf(a) >= 0;
+  }
+  // "Nick H." ~ "Nicholas Hoover"; "Katie Rose" ~ "Katherine Rose"; exact
+  // names via sameName. The last name may be a single initial.
+  function looseName(a, b) {
+    if (sameName(a, b)) return true;
+    const x = normName(a).split(' '), y = normName(b).split(' ');
+    if (x.length < 2 || y.length < 2) return false;
+    // "Katie Rose" ~ "Katie Rose Davis" (two-part first name, last name left off)
+    const [sh, lo] = x.length <= y.length ? [x, y] : [y, x];
+    if (sh.length < lo.length && sh.every((w, i) => w === lo[i])) return true;
+    const lx = x[x.length - 1], ly = y[y.length - 1];
+    const lastOk = lx === ly || (lx.length === 1 && ly[0] === lx) || (ly.length === 1 && lx[0] === ly);
+    return lastOk && sameFirst(x[0], y[0]);
+  }
+  // The one roster person a free-text name refers to — searched within the
+  // site's school first. null when there is no match or more than one.
+  function matchPerson(text, people, school) {
+    if (!str(text) || /vacan/i.test(text)) return null;
+    const pick = list => { const hit = list.filter(p => looseName(text, p.name)); return hit.length === 1 ? hit[0] : null; };
+    if (school) { const h = pick(people.filter(p => p.school === school)); if (h) return h; }
+    return pick(people);
+  }
+  const SITE_STOP = new Set(['school', 'schools', 'elementary', 'es', 'ms', 'hs', 'middle', 'high', 'the', 'of', 'and', 'lea',
+    'township', 'twp', 'regional', 'district', 'campus', 'upper', 'lower', 'primary', 'intermediate']);
+  function siteTokens(v) {
+    return str(v).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(t => t && !SITE_STOP.has(t));
+  }
+  // Free-text "Site Covering" (e.g. "Denbo", "Field Street") → the one Pearl
+  // school whose name contains every word of it. null if none or ambiguous.
+  function matchSchool(site, schools) {
+    const t = siteTokens(site);
+    if (!t.length) return null;
+    const hit = schools.filter(sc => { const st = siteTokens(sc); return t.every(w => st.indexOf(w) >= 0); });
+    return hit.length === 1 ? hit[0] : null;
+  }
+
   function parseTracker(rows, region, syStartYear) {
     return rowsToObjects(rows, 'sub').map(o => {
       const dateRaw = findCol(o, 'date');
       const pd = parseTrackerDates(dateRaw, syStartYear);
-      const covering = findCol(o, 'tutor covering');
+      const covering = findCol(o, 'tutor covering') || findCol(o, 'absent tutor');
       return {
         region,
         sub: findCol(o, 'sub'),
         absentTutor: covering,
         isVacancy: /vacan/i.test(covering),
         subjects: findCol(o, 'subjects'),
+        grades: gradesText(findCol(o, 'grades')),
         dateRaw, dates: pd.dates, isRange: pd.range,
         hours: findCol(o, 'hours'),
         site: findCol(o, 'site covering'),
@@ -220,30 +292,43 @@
   // status: 'in_pearl' | 'partial' | 'not_in_pearl' | 'upcoming' | 'unclear'
   // skipSessIds: Pearl sessions to leave out of "not on tracker" (cancelled /
   // rescheduled sessions — nothing was covered).
-  function reconcileTracker(entries, subs, todayISO, skipSessIds) {
+  // roster (optional): { schools: [name], people: [{id, name, school}],
+  //   sessionDays: school → Set(iso) of days that school had sessions }.
+  //   With it, each entry gets its Pearl school / absent tutor, and a DATE
+  //   RANGE only expects coverage on days the site actually had sessions.
+  function reconcileTracker(entries, subs, todayISO, skipSessIds, roster) {
     const used = new Set();
     const rows = entries.map(e => {
-      if (!e.dates.length) return Object.assign({}, e, { status: 'unclear', due: 0, found: 0, matches: [] });
-      const due = e.dates.filter(d => !todayISO || d <= todayISO);
-      if (!due.length) return Object.assign({}, e, { status: 'upcoming', due: 0, found: 0, matches: [] });
+      const school = roster ? matchSchool(e.site, roster.schools || []) : null;
+      const tutor = roster ? matchPerson(e.absentTutor, roster.people || [], school) : null;
+      const base = Object.assign({}, e, { school, tutorMatch: tutor });
+      if (!e.dates.length) return Object.assign(base, { status: 'unclear', due: 0, found: 0, matches: [] });
+      let dates = e.dates;
+      let rangeChecked = false;
+      if (e.isRange && school && roster.sessionDays) {
+        const days = roster.sessionDays(school);
+        if (days) { dates = dates.filter(d => days.has(d) || (todayISO && d > todayISO)); rangeChecked = true; }
+      }
+      const due = dates.filter(d => !todayISO || d <= todayISO);
+      if (!due.length) return Object.assign(base, { status: dates.length ? 'upcoming' : (rangeChecked ? 'no_sessions' : 'upcoming'), due: 0, found: 0, matches: [], rangeChecked });
       const matches = [];
       let found = 0;
       due.forEach(d => {
-        const hit = subs.filter(s => s.date === d && sameName(s.subName, e.sub));
+        const hit = subs.filter(s => s.date === d && looseName(s.subName, e.sub));
         if (hit.length) { found++; hit.forEach(s => { used.add(s); matches.push(s); }); }
       });
       const status = found === due.length ? 'in_pearl' : found ? 'partial' : 'not_in_pearl';
-      return Object.assign({}, e, { status, due: due.length, found, matches });
+      return Object.assign(base, { status, due: due.length, found, matches, rangeChecked });
     });
     // Pearl substitutions (already happened) with no tracker line for that sub + date.
     const notOnTracker = subs.filter(s => !used.has(s) && s.date && (!todayISO || s.date <= todayISO) &&
       !(skipSessIds && skipSessIds.has(s.sessId)) &&
-      !entries.some(e => e.dates.indexOf(s.date) >= 0 && sameName(e.sub, s.subName)));
+      !entries.some(e => e.dates.indexOf(s.date) >= 0 && looseName(e.sub, s.subName)));
     return { rows, notOnTracker };
   }
 
-  const API = { toISODate, rowsToObjects, normName, sameName, parseSubstitutions, coveredAbsences,
-                parseTrackerDates, parseTracker, reconcileTracker };
+  const API = { toISODate, rowsToObjects, normName, sameName, looseName, matchPerson, matchSchool, gradesText,
+                parseSubstitutions, coveredAbsences, parseTrackerDates, parseTracker, reconcileTracker };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.NJTC_PEARL_COVERAGE = API;
 })(typeof window !== 'undefined' ? window : this);

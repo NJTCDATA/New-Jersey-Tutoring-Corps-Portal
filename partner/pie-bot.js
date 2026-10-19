@@ -104,6 +104,10 @@
     const sessions = window.NJTCPartnerReport && window.NJTCPartnerReport.deliveredSessions
       ? window.NJTCPartnerReport.deliveredSessions(b.sessions || [], b.attendance || [])
       : new Set((b.attendance || []).map(r => r[ATT.SESSION]).filter(Boolean)).size;
+    // School-driven sessions not delivered — same definition as the Summary card
+    const notDelivered = window.NJTCPartnerReport && window.NJTCPartnerReport.schoolDrivenNotDelivered && (b.sessions || []).length
+      ? window.NJTCPartnerReport.schoolDrivenNotDelivered(b.sessions, b.attendance || [])
+      : null;
 
     function sentiment(rows, col) {
       let pos = 0, neu = 0, neg = 0;
@@ -113,7 +117,7 @@
     }
 
     return {
-      identity: b.identity, rate, sessions, attended, absent, total, checkInCount,
+      identity: b.identity, rate, sessions, attended, absent, total, checkInCount, notDelivered,
       generatedAt: b.generatedAt || null, season: b.season || null,
       scholarSent: sentiment(b.scholarSurveys || [], STU.OVERALL),
       tutorSent: sentiment(b.tutorSurveys || [], INST.OVERALL),
@@ -124,12 +128,14 @@
   const QUICK_CHIPS_SCHOOL = [
     "What's my attendance rate?",
     'What does "excused time" mean?',
+    'How many sessions were not delivered?',
     'Show me around',
     "Who do I contact with questions?"
   ];
   const QUICK_CHIPS_DISTRICT = [
     'Which school needs attention?',
     "What's my attendance rate?",
+    'How many sessions were not delivered?',
     'Show me around',
     "Who do I contact with questions?"
   ];
@@ -161,6 +167,14 @@
       return glossaryHits.map(g => `<b>${g.term}:</b> ${g.def}`).join('<br><br>');
     }
 
+    if (/not delivered|weren.?t delivered|didn.?t (happen|take place)|cancel|sessions? (lost|that didn)|school.?driven/.test(q)) {
+      const nd = s.notDelivered;
+      if (!nd) return `Session-level detail isn't available for this view yet, so I can't count sessions that didn't take place. Excused time — school events, testing days, holidays — is never counted against your attendance rate.`;
+      if (!nd.total) return `No sessions are recorded as not delivered for a school-driven reason so far this year. Excused time is never counted against your attendance rate.`;
+      return `<b>${nd.total.toLocaleString()}</b> session${nd.total === 1 ? '' : 's'} could not take place this year for a school-driven reason: ` +
+        nd.byReason.map(([r, n]) => `${r} (${n.toLocaleString()})`).join(', ') +
+        `. These are counted once per session and never count against your attendance rate. The breakdown is on the Summary tab under "This Year at a Glance."`;
+    }
     if (/attendance rate|how am i doing|missed|absent|check.?in/.test(q)) {
       return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? '' : 's'} could use a check-in — see the "Scholars to Check In With" list on the Attendance Tracking tab.` : `No scholars are currently flagged for a check-in — nice.`}`;
     }

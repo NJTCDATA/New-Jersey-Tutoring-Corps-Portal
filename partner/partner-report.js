@@ -910,6 +910,28 @@
       y = doc.lastAutoTable.finalY + 22;
     }
 
+    // Sessions not delivered — school-driven only (never NJTC-side reasons).
+    // Unique sessions, year to date — same definition as the dashboard card.
+    const nd = m.notDeliveredSchool;
+    if (nd && nd.total > 0) {
+      ensure(48 + nd.byReason.length * 18);
+      font('bold', 9); setText(C.text); doc.text(pdfText('Sessions not delivered for a school-driven reason (year to date): ' + nd.total.toLocaleString()), M, y); y += 11;
+      font('normal', 7.5); setText(C.muted);
+      const ndNote = doc.splitTextToSize(pdfText('Unique sessions that could not take place because of a school event, testing, a schedule change, a closure or weather. Never counted against the attendance rate.'), CW);
+      doc.text(ndNote, M, y);
+      y += ndNote.length * 9 + 2;
+      doc.autoTable({
+        startY: y, margin: { left: M, right: M },
+        head: [['Reason', 'Sessions']],
+        body: nd.byReason.map(([r, n]) => [pdfText(r), n.toLocaleString()]),
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, textColor: C.text, lineColor: C.line, lineWidth: .4 },
+        headStyles: { fillColor: C.blue, textColor: C.white, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: C.soft },
+        columnStyles: { 1: { halign: 'right', cellWidth: 70 } }
+      });
+      y = doc.lastAutoTable.finalY + 22;
+    }
+
     // Check-ins
     section('Scholars to check in with');
     font('normal', 8); setText(C.text2);
