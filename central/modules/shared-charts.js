@@ -6008,7 +6008,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   </div>
 
   <!-- Reason breakdown -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;align-items:start">
     <div>
       <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Termination Reason Breakdown</div>
       ${reasonBarsHtml}
@@ -6180,7 +6180,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   </div>
 
   <!-- Reason breakdown -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;align-items:start">
     <div>
       <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Termination Reason Breakdown</div>
       ${reasonBarsHtml}

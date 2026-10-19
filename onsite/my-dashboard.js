@@ -1401,7 +1401,7 @@
     <div class="njtc-sp-att-row">
       <div class="njtc-sp-att-chip"><span style="color:#22c55e;">✅</span> ${s.attended} attended</div>
       <div class="njtc-sp-att-chip"><span style="color:#ef4444;">❌</span> ${s.absent} missed</div>
-      ${s.si ? `<div class="njtc-sp-att-chip"><span style="color:rgba(255,255,255,0.4);">📅</span> ${s.si} school interruptions</div>` : ''}
+      ${s.si ? `<div class="njtc-sp-att-chip"><span style="color:rgba(255,255,255,0.4);">📅</span> ${s.si} not counted (undelivered / cancelled)</div>` : ''}
     </div>`;
 
     // Miss reasons
@@ -1591,7 +1591,7 @@
           </div>
           <div class="njtc-att-row">
             <div class="njtc-att-row-label">
-              <div style="color:rgba(255,255,255,0.5);">📅 School closings &amp; interruptions</div>
+              <div style="color:rgba(255,255,255,0.5);">📅 Not counted against attendance</div>
               <div class="njtc-att-si-note">These don't count against you</div>
             </div>
             <div class="njtc-att-row-count" style="color:rgba(255,255,255,0.4);">${data.mySI}</div>
@@ -1772,7 +1772,7 @@
 
     el.innerHTML = `<span class="njtc-section-title">💬 Why Your Students Miss Sessions</span>
       <div class="njtc-si-note">
-        School closings and interruptions are shown separately and don't affect your students' attendance record.
+        Undelivered sessions (tutor absent / vacancy), cancellations and internal tracking are shown separately and don't affect your students' attendance record.
       </div>
       <div>${bars}</div>`;
 
@@ -1874,14 +1874,14 @@
     el.innerHTML = `
       <div class="njtc-collapsible-header" id="njtc-si-header">
         <span class="njtc-section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
-          📅 School Closings &amp; Schedule Changes
+          📅 Missed Sessions Not Counted Against Attendance
           <span style="font-size:0.8em;font-weight:400;color:rgba(255,255,255,0.45);margin-left:0.5rem;">(${data.serviceInterruptions} this year — not counted against anyone)</span>
         </span>
         <button class="njtc-collapsible-toggle" id="njtc-si-toggle" aria-expanded="false" aria-controls="njtc-si-body">▼</button>
       </div>
       <div class="njtc-collapsible-body" id="njtc-si-body">
         <div style="margin-top:1rem;">
-          <div class="njtc-si-note">These are school closings, holidays, and testing days — they are NOT counted against you or your students' attendance.</div>
+          <div class="njtc-si-note">Undelivered sessions, session cancellations (school events, closures, testing, holidays, NJTC issues) and internal tracking (NJTC diagnostic testing) — NOT counted against your students' attendance.</div>
           ${bars}
         </div>
       </div>`;

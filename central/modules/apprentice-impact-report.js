@@ -2405,7 +2405,7 @@
     lines.push(row('Scholar attribution (MOY, in priority order): (0) iReady User Name = Pearl login ID exact join; (1) instructor field in MOY CSV; (1.5) name bridge from ELA Pearl IDs — fixes Math when Math tab lacks User Name column; (2) Pearl session sets scoped to school or Pearl district ID (Column G); (3) single-apprentice school fallback; (3.5) single-apprentice district ID fallback; (4) survey name fallback.'));
     lines.push(row('Scholar attribution (EOY/IRLAB): (0) Pearl student ID; (A) IRLAB instructor field; (B) Pearl session name sets; (B2) school-level fallback when no session data; (B3) survey name fallback.'));
     lines.push(row('Pearl district account IDs (Column G in MOY sheet) scope attribution to correct district: nj-ilear99637 (iLearn), nj-hamil44973 (Hamilton), nj-haddo65937 (Haddon), nj-penns90725 (Penns Grove).'));
-    lines.push(row('Attendance rate = attended / (attended + personal absences). Service interruptions excluded — matches Pearl Operations portal exactly.'));
+    lines.push(row('Scholar attendance rate = (Attended + Late) / (Attended + Late + scholar absences). Undelivered sessions, cancellations and internal tracking are excluded — matches Pearl Operations.'));
     lines.push(row('Academic data as of ' + now + '.'));
     lines.push(row('Standards Mastery: Class Teacher(s) field identifies the NJTC apprentice. Form A = Pre-assessment, Form B = Post-assessment.'));
     lines.push('');

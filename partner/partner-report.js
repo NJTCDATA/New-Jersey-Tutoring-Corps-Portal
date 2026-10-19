@@ -29,7 +29,8 @@
   const REGION_DISTRICTS = {
     'North-East': [
       'iLearn CMO', 'Hoboken Dual Language Charter Schools', 'Paterson',
-      'Central Jersey College Prep', 'Middlesex County STEM Charter School'
+      'Central Jersey College Prep', 'Middlesex County STEM Charter School',
+      'Lyndhurst School District', 'Vernon Township School District'
     ],
     'South-West': [
       'Lawrence Township Schools', 'LEAP Academy Charter School', 'Pemberton Twp Schools',
@@ -870,7 +871,7 @@
     barRow('Attended', m.stats.attended, m.stats.total, C.pos, M, colW);
     barRow('Missed', m.stats.absent, m.stats.total, C.neg, M, colW);
     font('normal', 7.5); setText(C.muted);
-    doc.text(pdfText(m.stats.excused.toLocaleString() + ' excused sessions (school events, testing days, holidays) are not counted against the rate.'), M, y + 6, { maxWidth: colW });
+    doc.text(pdfText(m.stats.excused.toLocaleString() + ' excused sessions (school events, testing days, holidays, NJTC staffing gaps) are not counted against the rate.'), M, y + 6, { maxWidth: colW });
     const yAfterBars = y + 30;
 
     // Trend mini-chart (last up to 10 weeks)
@@ -917,7 +918,7 @@
       ensure(48 + nd.byReason.length * 18);
       font('bold', 9); setText(C.text); doc.text(pdfText('Sessions not delivered for a school-driven reason (year to date): ' + nd.total.toLocaleString()), M, y); y += 11;
       font('normal', 7.5); setText(C.muted);
-      const ndNote = doc.splitTextToSize(pdfText('Unique sessions that could not take place because of a school event, testing, a schedule change, a closure or weather. Never counted against the attendance rate.'), CW);
+      const ndNote = doc.splitTextToSize(pdfText('Unique sessions that could not take place because of a school event, testing, a schedule change, a closure, a drill, weather, a half day or a scheduled holiday. Never counted against the attendance rate.'), CW);
       doc.text(ndNote, M, y);
       y += ndNote.length * 9 + 2;
       doc.autoTable({

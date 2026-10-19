@@ -155,8 +155,8 @@
 
   // ── Definitions library ─────────────────────────────────────────────────────
   var DEFINITIONS = {
-    'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Missed sessions that are not absences — undelivered sessions (tutor absent / vacancy), cancellations (school events, testing days, closures, schedule changes) and internal tracking — are NOT counted against you or your scholars.** Goals: scholars 80% or higher, tutors 90% or higher.' },
-    'service_interruption': { term:'Not Counted Against Attendance (formerly "Service Interruption")', category:'Attendance', short:'A missed session that is not a scholar absence — it never counts against attendance.', full:'NJTC now groups these as:\n• **Undelivered Sessions** — tutor absent or tutor vacancy\n• **Session Cancellations** — school events, school-administered testing, schedule changes, closures, weather or an NJTC issue. Site Leaders cancel these in Pearl with a Canceled Reason.\n• **Internal Tracking** — NJTC diagnostic testing, archived scholars\n\nNone of these are held against you or your scholars, and there is nothing you need to do about them. You\'ll see them tracked separately on your dashboard.' },
+    'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Missed sessions that are not absences — undelivered sessions (tutor absent and not covered / vacancy), cancellations (school events, testing days, closures, schedule changes) and internal tracking — are NOT counted against your scholars.** Your own absences (Absent; Not Covered, Absent; Covered by …, Tutor Left Early) do count toward your tutor attendance rate; when a sub covers you, the session itself still counts as delivered. Goals: scholars 80% or higher, tutors 90% or higher.' },
+    'service_interruption': { term:'Not Counted Against Attendance (formerly "Service Interruption")', category:'Attendance', short:'A missed session that is not a scholar absence — it never counts against attendance.', full:'NJTC now groups these as:\n• **Undelivered Sessions** — tutor absent (not covered) or tutor vacancy\n• **Session Cancellations** — school events, school-administered testing, schedule changes, closures, weather or an NJTC issue. Site Leaders cancel these in Pearl with a Canceled Reason.\n• **Internal Tracking** — NJTC diagnostic testing, archived scholars\n\nNone of these count against your scholars\' attendance (your own absences are counted in your tutor attendance), and there is nothing you need to do about them. You\'ll see them tracked separately on your dashboard.' },
     'not_recorded': { term:'Not Recorded', category:'Pearl', short:'A session where attendance was never entered in Pearl.', full:'When a session shows "Not recorded," no one logged attendance for that day. This is an action item — go into Pearl and mark attendance as soon as possible. Sessions that stay unrecorded affect program data quality.' },
     'unique_scholars': { term:'Unique Scholars', category:'Pearl', short:'The number of individual students you\'ve worked with this year.', full:'This counts each student only once, regardless of how many sessions they attended. It comes from Pearl operations data for the current school year only — not historical iReady data.' },
     'survey_rate': { term:'Survey Completion Rate', category:'Surveys', short:'The % of your sessions where you submitted an instructor survey.', full:'Calculated as: Surveys submitted ÷ Sessions attended. The goal is 100% — every session you attend should have a survey. Surveys help leadership understand how your sessions are going.' },
@@ -458,8 +458,9 @@
           var recentMS = (d.missingSurveys || []).filter(function(s){ return s.recent; }).length;
           if (recentNR > 0) flags.push('**' + recentNR + ' session' + (recentNR > 1 ? 's' : '') + '** need attendance recorded');
           if (recentMS > 0) flags.push('**' + recentMS + ' survey' + (recentMS > 1 ? 's' : '') + '** still missing');
-          var attColor = d.myAttRate >= 90 ? '🟢' : d.myAttRate >= 80 ? '🟡' : '🔴';
-          extra = '\n\nYour attendance is at **' + (d.myAttRate !== null ? d.myAttRate + '%' : '—') + '** ' + attColor + ' · **' + d.uniqueScholarCount + ' scholars** this year.';
+          var hasRate = d.myAttRate != null && !isNaN(d.myAttRate);
+          var attColor = !hasRate ? '' : d.myAttRate >= 90 ? '🟢' : d.myAttRate >= 80 ? '🟡' : '🔴';
+          extra = '\n\nYour attendance is at **' + (hasRate ? d.myAttRate + '%' : '—') + '** ' + attColor + ' · **' + d.uniqueScholarCount + ' scholars** this year.';
           if (flags.length) extra += '\n\n🔔 Quick heads-up:\n• ' + flags.join('\n• ');
         }
         return greet + ' I\'m **Connor**, your NJTC program fox 🦊 — here to help you understand your data, answer program questions, and dig into your scholars.' + extra;
@@ -539,8 +540,9 @@
       respond: function() {
         var d = pd();
         if (!d || !d.hasData) return 'Your Pearl data is still loading — give it a moment!';
-        var rate = d.myAttRate;
-        var status = rate >= 90 ? '🟢 Above the 90% goal — great work!' :
+        var rate = (d.myAttRate == null || isNaN(d.myAttRate)) ? null : d.myAttRate;
+        var status = rate === null ? 'No attendance rate yet — it appears once your sessions are logged in Pearl.' :
+                     rate >= 90 ? '🟢 Above the 90% goal — great work!' :
                      rate >= 80 ? '🟡 Close to 90% — a few more sessions and you\'ll be there.' :
                      '🔴 Below 80% — please reach out to your program manager if you\'re facing challenges.';
         var msg = '**Your attendance: ' + (rate !== null ? rate + '%' : '—') + '**\n\n' + status;
@@ -876,7 +878,7 @@
           }
         });
         if (tableRows.length) msg += dataTable(tableRows);
-        msg += '\n\nThese are **never counted against your attendance rate** and there\'s nothing you need to do about them — they help program staff understand why sessions didn\'t happen. (This used to be called "service interruptions".)';
+        msg += '\n\nThese are **never counted against your scholars\' attendance rate** and there\'s nothing you need to do about them — they help program staff understand why sessions didn\'t happen. (This used to be called "service interruptions".)';
         return msg;
       }
     },

@@ -25,11 +25,11 @@
   // ── Department lenses: chapter order (anything visible but unlisted is
   //    appended at the end, so a new section is never left out) ───────────
   const ORDER = {
-    hr:          ['home', 'talent', 'concern', 'perf', 'tap-standalone', 'training-analytics', 'pearl-ops', 'sy-analytics', 'kpi', 'kpi-analytics', 'policies', 'iready-lab', 'knowtion'],
-    programming: ['home', 'pearl-ops', 'sy-analytics', 'perf', 'talent', 'onsite-feedback', 'scholar-feedback', 'survey-feedback', 'annual-report', 'tap-standalone', 'training-analytics', 'kpi', 'kpi-analytics', 'iready-lab', 'policies', 'knowtion'],
-    finance:     ['home', 'finance-analytics', 'kpi', 'kpi-analytics', 'tap-standalone', 'pearl-ops', 'sy-analytics', 'training-analytics', 'iready-lab', 'policies', 'knowtion'],
+    hr:          ['home', 'talent', 'concern', 'perf', 'tap-standalone', 'training-analytics', 'pearl-ops', 'sy-analytics', 'kpi', 'policies', 'iready-lab', 'knowtion'],
+    programming: ['home', 'pearl-ops', 'sy-analytics', 'perf', 'talent', 'onsite-feedback', 'scholar-feedback', 'survey-feedback', 'annual-report', 'tap-standalone', 'training-analytics', 'kpi', 'iready-lab', 'policies', 'knowtion'],
+    finance:     ['home', 'finance-analytics', 'kpi', 'tap-standalone', 'pearl-ops', 'sy-analytics', 'training-analytics', 'iready-lab', 'policies', 'knowtion'],
     data:        ['home', 'pearl-ops', 'data-cabinet', 'upload', 'impact-report', 'apprentice-impact', 'iready-lab', 'sy-analytics', 'talent', 'concern', 'perf', 'tap-standalone', 'training-analytics', 'kpi', 'kpi-analytics', 'annual-report', 'survey-feedback', 'onsite-feedback', 'scholar-feedback', 'policies', 'knowtion'],
-    training:    ['home', 'training-analytics', 'tap-standalone', 'pearl-ops', 'sy-analytics', 'kpi', 'kpi-analytics', 'iready-lab', 'policies', 'knowtion'],
+    training:    ['home', 'training-analytics', 'tap-standalone', 'pearl-ops', 'sy-analytics', 'kpi', 'iready-lab', 'policies', 'knowtion'],
     leadership:  ['home', 'kpi', 'kpi-analytics', 'advocacy', 'annual-report', 'pearl-ops', 'sy-analytics', 'talent', 'perf', 'tap-standalone', 'training-analytics', 'iready-lab', 'survey-feedback', 'onsite-feedback', 'scholar-feedback', 'upload', 'policies', 'knowtion'],
     kb:          ['home', 'kpi', 'kpi-analytics', 'advocacy', 'annual-report', 'pearl-ops', 'sy-analytics', 'talent', 'perf', 'tap-standalone', 'training-analytics', 'iready-lab', 'survey-feedback', 'onsite-feedback', 'scholar-feedback', 'upload', 'policies', 'knowtion'],
   };
@@ -61,11 +61,12 @@
       ],
     },
     'pearl-ops': {
-      why: 'Live tutoring operations from Pearl: attendance, sessions, surveys and interruptions.',
+      why: 'Live tutoring operations from Pearl: attendance, sessions, surveys and missed sessions (undelivered, cancellations, tutor coverage).',
       steps: [
         { t: ['#panel-pearl-ops .ph-title'], title: 'Pearl Operations', text: 'Live data from Pearl for every site. It refreshes every 5 minutes; ↺ Refresh pulls it right away.' },
         { t: ['#poPeriodBtn_sy2627', '#poPeriodBtn_sy2526'], title: 'Pick the school year', text: 'SY 26-27 is live. SY 25-26 and Summer 2026 are archived snapshots for comparison.' },
-        { t: ['#poStatsStrip'], title: 'The numbers that matter', text: 'Scholar attendance (goal 80%), tutor attendance (goal 90%), sessions delivered, undelivered sessions (tutor absent / vacancy), survey averages and pending sessions. Undelivered sessions, cancellations and internal tracking never count against scholar attendance — the panel below breaks them down and lists what needs follow-up.' },
+        { t: ['#poStatsStrip'], title: 'The numbers that matter', text: 'Scholar attendance (goal 80%), tutor attendance (goal 90%), sessions delivered, undelivered sessions (tutor absent and not covered / vacancy), survey averages and pending sessions. The Tutor Attendance tile shows the official recorded rate plus the rate including covered absences (Pearl substitutions). Undelivered sessions, cancellations and internal tracking never count against scholar attendance.' },
+        { t: ['#poMissedCoverage'], title: 'Missed sessions & tutor coverage', text: 'Missed sessions by category — Undelivered Sessions (tutor absent / vacancy), cancellation reasons logged as missed, Internal Tracking, and Scholar Absences (the only ones counted in Scholar Attendance %) — plus Session Cancellations from Session Details, Tutor Absence Coverage from Pearl substitutions and the Sub Trackers, and a Needs Follow-Up list.' },
         { t: ['#poFilterStrip', '#poGlobalSearch'], title: 'Filter and search', text: 'Narrow everything by district, school or week, or search for a tutor or scholar by name. ✕ Clear resets it.' },
         { t: ['#poMainContent'], title: 'Drill from site to person', text: 'Click a school to open its full view, then a tutor or scholar for their sessions, surveys and missed reasons. The breadcrumb takes you back.' },
         { t: ['[data-tour="po-support-ne"]'], only: ['programming', 'data'], title: 'Regional support reports', text: 'NE Support Report and SW Support Report list exactly who needs follow-up: incomplete sessions, missing tutor and scholar surveys, blank or mismatched missed reasons, and teacher pull-outs, by campus and by tutor. Download a PDF for field staff or Excel for the full lists with Session IDs.' },
@@ -172,7 +173,7 @@
       ],
     },
     'impact-report': {
-      why: 'Build an impact or interruption report in minutes.',
+      why: 'Build a missed-session impact report in minutes.',
       steps: [
         { t: ['#panel-impact-report .ph-title'], title: 'Impact Report Builder', text: 'Build a report for any reasons, schools and dates, straight from Pearl.' },
         { t: ['#irbConfigPanel'], title: 'Choose reasons', text: 'Quick buttons pick all missed sessions not counted against attendance, scholar reasons, tutor-related reasons or school closures.' },

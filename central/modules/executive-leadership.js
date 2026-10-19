@@ -489,7 +489,7 @@
           headline:fmtN(po.siCount)+' missed sessions not counted against attendance documented — real-time accountability',
           body: tone==='fiscal'
             ? 'NJTC tracks every non-delivery event in Pearl in real time. Appropriators can audit actual delivery vs. planned delivery with session-level precision.'
-            : 'Your district office can request a full interruption log at any time. Pearl captures reason codes for every missed session.',
+            : 'Your district office can request a full missed-session log at any time. Pearl captures reason codes for every missed session.',
           source:'Pearl Missed-Session Tracking · Live Google Sheet'});
       }
 

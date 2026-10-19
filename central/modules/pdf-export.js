@@ -589,7 +589,7 @@
       if (y > BOTTOM_LIMIT - 30) { doc.addPage(); y = TOP_START; }
       doc.autoTable({
         startY: y,
-        head: [['School', 'Scholar Att.', 'Sessions', 'Incomplete', 'Teacher Pull-outs', 'SI', 'Scholar Survey', 'Survey Capture']],
+        head: [['School', 'Scholar Att.', 'Sessions', 'Incomplete', 'Teacher Pull-outs', 'Not Counted', 'Scholar Survey', 'Survey Capture']],
         body: opSchools.map(sc => [
           safeStr(trunc(sc.name, 40)),
           (sc.stuAttended + sc.stuAbsent) > 0 ? pct(sc.attRate, 1) : '--',

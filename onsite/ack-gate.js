@@ -48,8 +48,12 @@ function checkDailyAcknowledgement(uid) {
         if (DEBUG) console.log('✅ Already acknowledged today');
         return;
     }
+    // A decline is logged to the form like an agree, but never blocks the
+    // portal (someone would have to do the declining staff member's work for
+    // them, and a mis-click would lock them out for the day). Either answer
+    // counts as today's response — no re-prompt.
     if (status === 'decline') {
-        showLockedMessage();
+        if (DEBUG) console.log('ℹ️ Declined earlier today — portal stays open');
         return;
     }
     showAcknowledgementModal(uid, dayKey);
@@ -254,27 +258,32 @@ function submitToGoogleForm(decision, site, signatureWithUID, dayKey, modal) {
             if (DEBUG) console.log('✅ Acknowledged - portal access granted');
         } else {
             modal.remove();
-            showLockedMessage();
+            showDeclineNotice();
         }
     }, 800);
 }
-function showLockedMessage() {
+// Shown once after a decline. Informational only — the portal stays open.
+function showDeclineNotice() {
     const modal = document.createElement('div');
-    modal.id = 'njtc-locked-modal';
+    modal.id = 'njtc-decline-modal';
     modal.className = 'njtc-modal-overlay';
     modal.innerHTML = `
-        <div class="njtc-modal-content njtc-modal-small njtc-modal-locked">
-            <div class="njtc-modal-header njtc-header-error">
-                <h2>Portal Access Locked</h2>
+        <div class="njtc-modal-content njtc-modal-small">
+            <div class="njtc-modal-header">
+                <h2>Response Recorded</h2>
             </div>
             <div class="njtc-modal-body">
-                <div class="locked-icon">🔒</div>
-                <p class="locked-message">You declined to acknowledge your daily responsibilities. Access to the portal is locked for today.</p>
-                <p class="locked-instruction">Please contact your Site Coordinator or Program Manager if you have questions.</p>
+                <p>Your response was recorded. You can continue into the portal.</p>
+                <p>If you have questions about any of the daily responsibilities, please reach out to your Site Coordinator or Program Manager.</p>
+                <div class="form-actions">
+                    <button type="button" id="njtc-decline-continue" class="njtc-btn njtc-btn-primary">Continue to the Portal</button>
+                </div>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
+    const btn = modal.querySelector('#njtc-decline-continue');
+    if (btn) btn.addEventListener('click', () => modal.remove());
 }
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

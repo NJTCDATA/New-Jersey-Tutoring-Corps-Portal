@@ -37,29 +37,13 @@
   // In-memory OJT activity selection store — survives panel DOM rebuilds
   var _ojtSelectionStore = {}; // keyed by tutor nk
 
-  // ── Service Interruption patterns (canonical, used across all SI computations)
-  // A Service Interruption = any session where tutoring service was not delivered,
-  // whether caused by the tutor (absent/no coverage) or the school (closure/event/drill).
-  // Holidays and planned breaks are NOT service interruptions.
-  const SI_REASON_PATTERNS = [
-    // Tutor-caused
-    'Absent; Not Covered (Tutor not available)',
-    'Absent; Not Covered',
-    'Tutor Left Early (no sub)',
-    'Tutor Absent',
-    // School-caused (service interrupted regardless of tutor availability)
-    'Unscheduled School Closure',
-    'Scheduled/Unscheduled School Drill',
-    'School Event',
-    'Emergency School Closure',
-    'School Cancelled',
-    'School Closed',
-  ];
-  // Test whether a status/reason string matches any SI pattern
+  // A tutor's own Missed row that is not a tutor absence (and not a scholar
+  // reason) — the "not counted" rows computeAttMetrics() keeps out of the rate.
   function isSI(status, reason) {
     const s = (status || '').trim();
     const r = (reason  || '').trim();
-    return SI_REASON_PATTERNS.some(p => s.includes(p) || r.includes(p));
+    if (!ltIsMissed(s)) return false;
+    return !LT_TUTOR_MISS.has(r) && !(r && LT_SCHOLAR_MISS.has(r));
   }
 
 
@@ -1135,6 +1119,27 @@
     return map;
   }
 
+  // Org-wide attendance rules (same as Pearl Operations / onsite pearl-data.js):
+  // rate = (Attended + Late) ÷ (Attended + Late + absences). Missed rows with
+  // any other reason (undelivered, cancellations, internal) are "not counted"
+  // (si) and stay out of the rate; Not recorded rows are left out too.
+  const LT_TUTOR_MISS = new Set([
+    'Absent; Not Covered (Tutor not available)',
+    'Absent; Covered by Sub Tutor',
+    'Absent; Covered by Dual Role',
+    'Absent; Covered by the Site Leader',
+    'Absent; Covered by the Instructional Coach',
+    'Tutor Left Early (no sub)'
+  ]);
+  const LT_SCHOLAR_MISS = new Set([
+    'Absent',
+    'Scholar declined attending tutoring session',
+    'Scholar Left Early',
+    'Classroom Teacher Requested to Keep Scholar in Class',
+    'HADDON TWP ONLY -- Teacher requested whole group support'
+  ]);
+  const ltIsMissed = status => status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status);
+
   function computeAttMetrics(attRows) {
     let attended = 0, absent = 0, si = 0, total = 0;
     const absenceReasons = {};
@@ -1143,20 +1148,16 @@
       const status = (r['Attendance Status'] || r['Status'] || vals[6] || '').trim();
       const reason = ltFixReason((r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || vals[7] || '').trim(), r);
       total++;
-      // Pearl ATT exact status values (confirmed from Central portal)
       if (status === 'Attended' || status === 'Late') attended++;
-      else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) {
-        absent++;
-        // Only add to absence reasons if this is NOT a service interruption
-        // SIs are tracked separately so the table only shows genuine absence reasons
-        if (reason && !isSI(status, reason)) {
+      else if (ltIsMissed(status)) {
+        // Tutor's own rows: only tutor-absence reasons (covered or not) count
+        if (LT_TUTOR_MISS.has(reason)) {
+          absent++;
           absenceReasons[reason] = (absenceReasons[reason] || 0) + 1;
-        }
+        } else if (isSI(status, reason)) si++;
       }
-      // Service interruption: any session where tutoring service was not delivered
-      if (isSI(status, reason)) si++;
     });
-    return { attended, absent, si, total, absenceReasons, rate: pct(attended, total) };
+    return { attended, absent, si, total, absenceReasons, rate: pct(attended, attended + absent) };
   }
 
   // attStudentRows = Pearl ATT rows where Role = "Student" scoped to this tutor's scholars
@@ -1192,12 +1193,14 @@
       if (!scholarMap[key].grade && grade) scholarMap[key].grade = grade;
       scholarMap[key].total++;
       if (status === 'Attended' || status === 'Late') scholarMap[key].attended++;
-      else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) scholarMap[key].absent++;
-      // Service Interruption: tutor absent with no sub (tracked separately from scholar absences)
-      if (isSI(status, reason)) scholarMap[key].si++;
+      else if (ltIsMissed(status)) {
+        // Scholar Absences (incl. blank reason) count; anything else is not counted
+        if (!reason || LT_SCHOLAR_MISS.has(reason)) scholarMap[key].absent++;
+        else scholarMap[key].si++;
+      }
     });
     const scholars = Object.values(scholarMap);
-    scholars.forEach(s => { s.rate = pct(s.attended, s.total); });
+    scholars.forEach(s => { s.rate = pct(s.attended, s.attended + s.absent); });
     const uniqueCount = scholars.length;
     // Survey scores — index-primary matching Central portal (STU: col2=Conf, col3=Enjoy, col4=Learn, col5=Overall)
     const parseV = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
@@ -1375,11 +1378,13 @@
     }).map(r => {
       const status = (r['Attendance Status'] || r['Status'] || '').trim();
       const reason = ltFixReason((r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim(), r);
-      // Categorize: tutor-caused vs school-caused
-      const tutorCaused = ['Absent; Not Covered', 'Tutor Left Early', 'Tutor Absent'];
-      const category = tutorCaused.some(p => status.includes(p) || reason.includes(p))
-        ? 'Tutor Absence'
-        : 'School Disruption';
+      // Category from shared/pearl-categories.js (Undelivered Sessions /
+      // Session Cancellations / Internal Tracking)
+      const CAT = window.NJTC_PEARL_CATEGORIES;
+      const tutorCaused = ['Absent; Not Covered', 'Tutor Left Early', 'Tutor Absent', 'Tutor Vacancy'];
+      const category = CAT && reason
+        ? CAT.LABELS[CAT.categoryOf(reason)]
+        : (tutorCaused.some(p => status.includes(p) || reason.includes(p)) ? 'Undelivered Sessions' : 'Session Cancellations');
       return {
         date:     r['Session Date'] || r['Date'] || r['Sess Date'] || '',
         status:   status,
@@ -2365,7 +2370,7 @@
           <div class="njtc-kpi-mini"><div class="njtc-kpi-mini-val" style="${renderAttColor(attMetrics.rate)}">${attMetrics.rate != null ? attMetrics.rate+'%' : '—'}</div><div class="njtc-kpi-mini-label">Att. Rate</div></div>
           <div class="njtc-kpi-mini"><div class="njtc-kpi-mini-val">${attended}</div><div class="njtc-kpi-mini-label">Attended</div></div>
           <div class="njtc-kpi-mini"><div class="njtc-kpi-mini-val">${absent}</div><div class="njtc-kpi-mini-label">Absent</div></div>
-          <div class="njtc-kpi-mini"><div class="njtc-kpi-mini-val" style="${si >= 5 ? 'color:#ef4444' : ''}">${si}</div><div class="njtc-kpi-mini-label">Serv. Int.</div></div>
+          <div class="njtc-kpi-mini"><div class="njtc-kpi-mini-val" style="${si >= 5 ? 'color:#ef4444' : ''}">${si}</div><div class="njtc-kpi-mini-label">Not Counted</div></div>
           <div class="njtc-kpi-mini"><div class="njtc-kpi-mini-val">${total}</div><div class="njtc-kpi-mini-label">Total</div></div>
         </div>
         ${absReasonRows ? `
@@ -2378,7 +2383,7 @@
           <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Scholar Attendance</div>
           <div style="overflow-x:auto">
             <table class="njtc-table">
-              <thead><tr><th>Name</th><th>Grade</th><th>Att.</th><th>Abs.</th><th>SI</th><th>Rate</th><th>Status</th></tr></thead>
+              <thead><tr><th>Name</th><th>Grade</th><th>Att.</th><th>Abs.</th><th title="Missed sessions not counted against attendance">Not Ctd.</th><th>Rate</th><th>Status</th></tr></thead>
               <tbody>${scholarRows}</tbody>
             </table>
           </div>
@@ -2518,11 +2523,11 @@
     function renderSIBlock(siList) {
       if (!siList || siList.length === 0) return '';
       // Group by category for cleaner display
-      const tutorSIs  = siList.filter(s => s.category === 'Tutor Absence');
-      const schoolSIs = siList.filter(s => s.category !== 'Tutor Absence');
+      const tutorSIs  = siList.filter(s => s.category === 'Undelivered Sessions');
+      const schoolSIs = siList.filter(s => s.category !== 'Undelivered Sessions');
       var rows = '';
       siList.forEach(function(s) {
-        const catColor = s.category === 'Tutor Absence' ? '#f97316' : '#fbbf24';
+        const catColor = s.category === 'Undelivered Sessions' ? '#f97316' : '#fbbf24';
         rows +=
           '<tr>' +
             '<td style="padding:6px 8px;font-size:.75rem;color:#e2e8f0;white-space:nowrap">' + escHtml(s.date) + '</td>' +
@@ -2531,9 +2536,9 @@
             '<td style="padding:6px 8px;font-size:.73rem;color:#94a3b8">' + escHtml(s.school) + '</td>' +
           '</tr>';
       });
-      const summary = (tutorSIs.length ? tutorSIs.length + ' tutor' : '') +
+      const summary = (tutorSIs.length ? tutorSIs.length + ' undelivered' : '') +
         (tutorSIs.length && schoolSIs.length ? ', ' : '') +
-        (schoolSIs.length ? schoolSIs.length + ' school' : '');
+        (schoolSIs.length ? schoolSIs.length + ' cancellation / internal' : '');
       return '<div class="njtc-section-block" style="border-color:rgba(148,163,184,.35)">' +
         '<div class="njtc-section-block-title" style="color:#cbd5e1">Missed Sessions Not Counted Against Attendance (' + siList.length + ')' +
           (summary ? '<span style="font-size:.68rem;color:#94a3b8;font-weight:400;margin-left:8px">— ' + summary + '</span>' : '') +

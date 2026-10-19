@@ -602,6 +602,20 @@
       cursor: pointer; transition: var(--transition);
     }
     .kss-tile:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    /* KPI Targets — prior-year label + goal-area digest */
+    .kpi-prior-note { background:#fff7e0; border:1px solid #f5d27a; color:#7a5400; border-radius:var(--radius); padding:.6rem 1rem; font-size:.8125rem; margin-bottom:1rem; }
+    .kgd-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); margin-bottom:1.25rem; overflow:hidden; }
+    .kgd-hd { padding:.7rem 1.1rem; border-bottom:1px solid var(--border); background:var(--surface-2); display:flex; justify-content:space-between; gap:.75rem; flex-wrap:wrap; font-size:.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+    .kgd-hd span:last-child { text-transform:none; letter-spacing:0; font-weight:500; }
+    .kgd-row { display:grid; grid-template-columns:minmax(160px,1.2fr) minmax(180px,2fr) auto; gap:.9rem; align-items:center; padding:.7rem 1.1rem; border-bottom:1px solid var(--border-2); cursor:pointer; background:none; border-left:0; border-right:0; border-top:0; width:100%; text-align:left; font:inherit; color:inherit; }
+    .kgd-row:last-child { border-bottom:0; }
+    .kgd-row:hover, .kgd-row:focus-visible { background:var(--surface-2); outline:none; }
+    .kgd-goal { font-weight:700; color:var(--navy); font-size:.875rem; }
+    .kgd-owners { font-size:.7rem; color:var(--muted); margin-top:.15rem; }
+    .kgd-bar { display:flex; height:12px; border-radius:6px; overflow:hidden; background:var(--surface-3); }
+    .kgd-bar span { display:block; height:100%; }
+    .kgd-counts { font-size:.75rem; color:var(--text-2); white-space:nowrap; }
+    @media (max-width: 640px) { .kgd-row { grid-template-columns:1fr; gap:.4rem; } }
     .kss-tile.active { border-color: var(--blue-mid); background: var(--prog-bg); }
     .kss-num { font-family: 'DM Serif Display', serif; font-size: 1.75rem; line-height: 1; letter-spacing: -.03em; }
     .kss-label { font-size: .6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: .25rem; color: var(--muted); }
@@ -922,12 +936,15 @@
       display: flex; align-items: center; gap: .625rem;
       flex: 1; position: relative;
     }
+    /* Connector line: a flex item AFTER the label, so it fills the gap to the
+       next step instead of running through the label text. */
     .sp-step:not(:last-child)::after {
       content: '';
-      position: absolute; left: calc(28px + .625rem); right: 0; top: 50%;
+      flex: 1 1 auto; min-width: 12px;
       height: 2px; background: var(--border-2);
-      z-index: 0;
+      margin-right: .25rem;
     }
+    .sp-label { white-space: nowrap; }
     .sp-step.completed::after { background: var(--blue-mid); }
     .sp-num {
       width: 28px; height: 28px; border-radius: 50%;
@@ -1352,7 +1369,7 @@
     .pdf-upload-item .pui-dept { font-size:.7rem; color:var(--muted); }
     .pdf-upload-item .pui-del { color:#e63946; cursor:pointer; font-size:.875rem; border:none; background:none; }
     /* ── Talent Filter Select ────────────────────────────────────── */
-    .filter-select { padding:.4rem .65rem; border:1.5px solid var(--border); border-radius:6px; font-size:.8125rem; background:#fff; color:var(--text); }
+    .filter-select { padding:.4rem .65rem; border:1.5px solid var(--border); border-radius:6px; font-size:.8125rem; background:#fff; color:var(--text); max-width:100%; text-overflow:ellipsis; }
     .filter-select:focus { outline:none; border-color:var(--navy); }
     /* ── Change Notification Toast ──────────────────────────────── */
     #changeNotifContainer { position:fixed; bottom:1.25rem; right:1.25rem; z-index:9999; display:flex; flex-direction:column; gap:.5rem; pointer-events:none; }
@@ -5470,13 +5487,6 @@
       <button class="sidebar-link active" data-panel="home" onclick="showPanel('home',this)" title="Your department's overview, KPIs, and quick-access actions">
         <span class="sl-icon">🏠</span> Department Home
       </button>
-      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)" title="Set and track your department's key performance indicator targets">
-        <span class="sl-icon">📊</span> KPI Targets
-        <span class="sl-badge gold" id="metBadge">—</span>
-      </button>
-      <button class="sidebar-link" data-panel="kpi-analytics" onclick="showPanel('kpi-analytics',this)" title="Visualize KPI trends and drill into performance data over time">
-        <span class="sl-icon">🔍</span> KPI Analytics
-      </button>
     </div>
 
     <div class="sidebar-group">
@@ -5562,6 +5572,20 @@
       </button>
       <button class="sidebar-link dept-nav-survey" data-panel="scholar-feedback" onclick="showPanel('scholar-feedback',this)" title="Review scholar self-reported confidence and program satisfaction survey results">
         <span class="sl-icon">🎓</span> Scholar Feedback
+      </button>
+    </div>
+
+    <!-- Goals & KPIs — moved below the department pages (Program Team feedback).
+         KPI Analytics is leadership-facing: shown by initDeptNav() for
+         Leadership, Executive (kb) and Data only. -->
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">Goals &amp; KPIs</div>
+      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)" title="This school year's organizational targets — summary by goal area, with every target underneath">
+        <span class="sl-icon">📊</span> KPI Targets
+        <span class="sl-badge gold" id="metBadge">—</span>
+      </button>
+      <button class="sidebar-link dept-nav-kpi-analytics" data-panel="kpi-analytics" onclick="showPanel('kpi-analytics',this)" style="display:none" title="Leadership view: goal health, trends and year-over-year performance">
+        <span class="sl-icon">🔍</span> KPI Analytics
       </button>
     </div>
 
@@ -5660,26 +5684,27 @@
       <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.75rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)">
         <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">View:</span>
         <button id="syPeriodBtn_sy2526" class="pst-tab" onclick="sya.setPeriod('sy2526')" title="Archived snapshot — no longer updated">SY 25-26 <span style="font-size:.65rem;opacity:.65">archived</span></button>
-        <button id="syPeriodBtn_summer2026" class="pst-tab" onclick="sya.setPeriod('summer2026')" title="Summer 2026 sites — live from the 26-27 tracker">☀️ Summer 2026</button>
+        <button id="syPeriodBtn_summer2026" class="pst-tab" onclick="sya.setPeriod('summer2026')" title="Summer 2026 sites — archived (program wrapped)">☀️ Summer 2026 <span style="font-size:.65rem;opacity:.65">archived</span></button>
         <button id="syPeriodBtn_sy2627" class="pst-tab active" onclick="sya.setPeriod('sy2627')" title="School Year 2026-27 sites — live">SY 26-27</button>
         <span id="sySummerBadge" style="display:inline;padding:.2rem .65rem;border-radius:20px;font-size:.72rem;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;margin-left:.25rem;cursor:pointer" onclick="sya.setPeriod('summer2026')" title="Summer 2026 is currently running — click to view summer sites">☀️ Summer 2026 is Active</span>
       </div>
       <div class="stats-strip">
-        <div class="stat-tile" style="--accent-color:var(--blue-mid)" title="Active Sites: Total school sites listed in the SY Program Sheet. Note: Pilot schools are counted separately from the main school program — pilot site totals are tracked independently from Pearl roster data."><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Active Sites <span style="font-size:.6rem;background:rgba(0,80,200,.12);color:#003087;border-radius:99px;padding:.05rem .3rem;cursor:help;font-weight:700" title="Pilot schools are counted separately from the actual school program due to Pearl roster upload. The site count reflects all sites listed in the SY Program Sheet.">ⓘ</span></div><div class="st-sub">District &amp; school data</div></div>
+        <div class="stat-tile" style="--accent-color:var(--blue-mid)" title="Active Sites: Total school sites listed in the SY Program Sheet. Note: Pilot schools are counted separately from the main school program — pilot site totals are tracked independently from Pearl roster data."><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Sites <span style="font-size:.6rem;background:rgba(0,80,200,.12);color:#003087;border-radius:99px;padding:.05rem .3rem;cursor:help;font-weight:700" title="Pilot schools are counted separately from the actual school program due to Pearl roster upload. The site count reflects all sites listed in the SY Program Sheet.">ⓘ</span></div><div class="st-sub" id="syStatSitesSub">District &amp; school data</div></div>
         <div class="stat-tile" style="--accent-color:var(--prog)"><div class="st-icon">🏛️</div><div class="st-value" id="syStatDistricts">—</div><div class="st-label">Districts</div><div class="st-sub">Unique partners</div></div>
         <div class="stat-tile" style="--accent-color:var(--met)" title="Active Scholars: Unique students with at least 1 attended session (Attended or Late) in Pearl Operations live data. Network-wide total — matches Pearl Operations dashboard active scholar count."><div class="st-icon">🎓</div><div class="st-value" id="syStatActual">—</div><div class="st-label">Active Scholars</div><div class="st-sub">Attended &ge;1 session &middot; Pearl live</div></div>
-        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">📋</div><div class="st-value" id="syStatEst">—</div><div class="st-label">Est. Scholars</div><div class="st-sub">Quoted capacity</div></div>
+        <div class="stat-tile" style="--accent-color:var(--partial)" title="Tutors — SY 26-27 Onsite Tracker roster (School Year cycle, role Tutor or Certified Tutor, offer not declined, not terminated). Dual Role and Sub-Tutors are listed underneath, not added in."><div class="st-icon">🧑‍🏫</div><div class="st-value" id="syStatTutors">—</div><div class="st-label">Tutors</div><div class="st-sub" id="syStatTutorsSub">Onsite Tracker roster</div></div>
         <div class="stat-tile" style="--accent-color:var(--notmet)" title="Total Staff — SY 26-27: onsite staff on the SY Database roster (Onsite Tracker: School Year cycle, has a role, offer not declined, not terminated); the subtitle shows how many are active in Pearl (led at least 1 session that has started). SY 25-26: HR Master List. Summer 2026: unique instructors in Pearl."><div class="st-icon">👥</div><div class="st-value" id="syStatStaff">—</div><div class="st-label">Total Staff</div><div class="st-sub" id="syStatStaffSub">Active FT staff &middot; HR Master List</div></div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm)">
         <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
           <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">Filter:</span>
-          <select class="filter-select" id="syFDistrict" onchange="sya.applyFilters()"><option value="">All Districts</option></select>
-          <select class="filter-select" id="syFContent"  onchange="sya.applyFilters()"><option value="">All Content</option></select>
-          <select class="filter-select" id="syFType"     onchange="sya.applyFilters()"><option value="">All Tutoring Types</option></select>
-          <select class="filter-select" id="syFAssess"   onchange="sya.applyFilters()"><option value="">All Assessments</option></select>
-          <select class="filter-select" id="syFDays"     onchange="sya.applyFilters()"><option value="">All Days</option></select>
-          <select class="filter-select" id="syFStatus"   onchange="sya.applyFilters()"><option value="">All Statuses</option><option>Active</option><option>Inactive</option></select>
+          <select class="filter-select" id="syFRegion"   onchange="sya.applyFilters()" aria-label="Region"><option value="">All Regions</option></select>
+          <select class="filter-select" id="syFDistrict" onchange="sya.applyFilters()" aria-label="District"><option value="">All Districts</option></select>
+          <select class="filter-select" id="syFSite"     onchange="sya.applyFilters()" aria-label="Site"><option value="">All Sites</option></select>
+          <select class="filter-select" id="syFContent"  onchange="sya.applyFilters()" aria-label="Content"><option value="">All Content</option></select>
+          <select class="filter-select" id="syFType"     onchange="sya.applyFilters()" aria-label="Program type"><option value="">All Program Types</option></select>
+          <select class="filter-select" id="syFAssess"   onchange="sya.applyFilters()" aria-label="Assessment"><option value="">All Assessments</option></select>
+          <select class="filter-select" id="syFStatus"   onchange="sya.applyFilters()" aria-label="Status"><option value="">All Statuses</option></select>
           <button class="btn btn-secondary" onclick="sya.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">✕ Clear</button>
           <span id="syFilterInfo" style="font-size:.8125rem;color:var(--muted)"></span>
         </div>
@@ -5711,7 +5736,7 @@
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">District</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">School</th>
               <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Actual</th>
-              <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Est.</th>
+              <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap" title="Estimated # of Scholars from the quote — not a count">Quoted</th>
               <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Staff</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Content</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Type</th>
@@ -5773,10 +5798,10 @@
 
       <!-- Executive Stats Strip -->
       <div class="stats-strip" id="poStatsStrip">
-        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Scholar Attendance</div><div class="st-sub">Attended + Late</div></div>
+        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Scholar Attendance</div><div class="st-sub">Attended + Late ÷ (+ scholar absences)</div></div>
         <div class="stat-tile" style="--accent-color:#0ea5e9"><div class="st-icon">🎓</div><div class="st-value" id="poStatInstAtt">—</div><div class="st-label">Tutor Attendance</div><div class="st-sub" id="poStatInstAttSub">Recorded rate (official)</div></div>
         <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">📅</div><div class="st-value" id="poStatSessions">—</div><div class="st-label">Sessions Delivered</div><div class="st-sub" id="poStatSessionsSub">Full + Partial attended</div></div>
-        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Undelivered Sessions</div><div class="st-sub" id="poStatInterruptionsSub">Tutor absent / vacancy · not counted against attendance</div></div>
+        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Undelivered Sessions</div><div class="st-sub" id="poStatInterruptionsSub">Tutor absent (not covered) / vacancy · not counted against attendance</div></div>
         <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurveyScholar">—</div><div class="st-label">Scholar Survey Avg</div><div class="st-sub">Confidence · Learning · Overall</div></div>
         <div class="stat-tile" style="--accent-color:#a855f7"><div class="st-icon">📋</div><div class="st-value" id="poStatSurveyTutor">—</div><div class="st-label">Tutor Survey Avg</div><div class="st-sub" id="poStatSurveyTutorSub">Engagement · Quality · Overall</div></div>
         <div class="stat-tile" style="--accent-color:var(--gold)"><div class="st-icon">🕐</div><div class="st-value" id="poStatSchedIncomplete">—</div><div class="st-label">Pending Sessions</div><div class="st-sub">Scheduled / not yet completed</div></div>
@@ -5828,12 +5853,16 @@
         <div class="sync-dot loading" id="kpiSyncDot"></div>
         <div class="sync-text" id="kpiSyncText">Fetching live data from Google Sheet…</div>
       </div>
+      <div class="kpi-prior-note" data-kpi-prior-note style="display:none"></div>
       <div class="kpi-summary-strip" id="kpiSummary"></div>
+      <!-- Goal-area summary: raw status counts from the sheet, click to drill into the targets below -->
+      <div id="kpiGoalDigest"></div>
       <div class="kpi-filters">
+        <select class="filter-select" id="kpiOwnerFilter" onchange="filterKPI()" style="display:none" aria-label="Department / owner"><option value="">All Departments</option></select>
         <select class="filter-select" id="kpiGoalFilter" onchange="filterKPI()">
           <option value="">All Goal Areas</option>
         </select>
-        <select class="filter-select" id="kpiCycleFilter" onchange="filterKPI()">
+        <select class="filter-select" id="kpiCycleFilter" onchange="buildKPISummary();filterKPI()">
           <option value="mid">Mid-Year Status</option>
           <option value="end">End of Year Status</option>
         </select>
@@ -5885,6 +5914,7 @@
         </div>
       </div>
       <!-- Content area filled by JS -->
+      <div class="kpi-prior-note" data-kpi-prior-note style="display:none"></div>
       <div id="kpiAnalyticsContent"></div>
 
       <!-- Quarterly Report Out — shown for all depts in KPI Analytics -->
@@ -5972,7 +6002,7 @@
             <button class="irb-qbtn" onclick="irb.applyPreset('si')">All Not Counted vs. Attendance</button>
             <button class="irb-qbtn" onclick="irb.applyPreset('scholar')">All Scholar Reasons</button>
             <button class="irb-qbtn" onclick="irb.applyPreset('tutor')">Tutor-Related Only</button>
-            <button class="irb-qbtn" onclick="irb.applyPreset('closures')">School Closures</button>
+            <button class="irb-qbtn" onclick="irb.applyPreset('closures')">School-Driven Cancellations</button>
             <button class="irb-qbtn irb-qbtn-clear" onclick="irb.applyPreset('none')">Clear All</button>
           </div>
 
@@ -5981,23 +6011,26 @@
           <div class="irb-reason-box">
             <div class="irb-reason-group-hdr">NOT COUNTED VS. ATTENDANCE</div>
 
-            <div class="irb-reason-subgroup">TUTOR-RELATED</div>
-            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-T1"> Tutor Absent</label>
+            <div class="irb-reason-subgroup">UNDELIVERED SESSIONS (TUTOR)</div>
+            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-T1"> Tutor Absent (not covered)</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-T2"> Tutor Left Early (No Sub)</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-T3"> Tutor Vacancy</label>
 
-            <div class="irb-reason-subgroup" style="margin-top:.5rem">SCHOOL-RELATED</div>
+            <div class="irb-reason-subgroup" style="margin-top:.5rem">SESSION CANCELLATIONS (SCHOOL-DRIVEN)</div>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S1"> School-Administered Testing</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S2"> School Event</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S3"> Scheduled / Unscheduled School Drill</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S4"> Half Day</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S5"> Holiday – Scheduled</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S6"> Unscheduled School Closure / Delay / Dismissal</label>
+            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S7"> School Schedule Changed</label>
+            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-S8"> Weather Closure</label>
 
-            <div class="irb-reason-subgroup" style="margin-top:.5rem">PROGRAM-RELATED</div>
+            <div class="irb-reason-subgroup" style="margin-top:.5rem">NJTC-DRIVEN &amp; INTERNAL TRACKING</div>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-P1"> NJTC Diagnostic Testing</label>
-            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-P2"> NJTC Scheduling Error</label>
+            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-P2"> NJTC Internal Issue/Error</label>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-P3"> Scholar Archived / Removed from Sessions</label>
+            <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SI-P4"> Haddon Twp – Program Redevelopment</label>
 
             <div class="irb-reason-group-hdr" style="margin-top:.75rem">SCHOLAR MISSED REASONS</div>
             <label class="irb-cb-row"><input type="checkbox" class="irb-cb" value="SM-1"> Scholar Absent</label>
@@ -6315,6 +6348,7 @@
         <button class="pst-tab"        id="tdTab-intake"    onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
         <button class="pst-tab"        id="tdTab-apprentice"    onclick="tdShowTab('apprentice',this)">🎓 T&D Analytics</button>
         <button class="pst-tab"        id="tdTab-survey-intel"  onclick="tdShowTab('survey-intel',this)">🗺️ Field Intel</button>
+        <button class="pst-tab"        id="tdTab-program"       onclick="tdShowTab('program',this)" title="Programming lens: where onsite staff need support">🎯 Program Support</button>
       </div>
 
       <!-- Sub-tab content panels -->
@@ -6322,6 +6356,7 @@
       <div id="td-content-intake"       class="td-tab-content" style="display:none"></div>
       <div id="td-content-apprentice"   class="td-tab-content" style="display:none"></div>
       <div id="td-content-survey-intel" class="td-tab-content" style="display:none"></div>
+      <div id="td-content-program"      class="td-tab-content" style="display:none"></div>
 
       <!-- Legacy target for backward-compat (hidden) -->
       <div id="trainingAnalyticsContent" style="display:none"></div>
@@ -6933,42 +6968,43 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=43"></script>
-<script src="modules/shared-charts.js?v=21"></script>
-<script src="modules/shared-filters.js?v=5"></script>
+<script src="modules/shared-utils.js?v=44"></script>
+<script src="modules/shared-charts.js?v=22"></script>
+<script src="modules/shared-filters.js?v=6"></script>
 <script src="modules/home-shortcuts.js?v=3"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
-<script src="modules/leadership.js?v=10"></script>
-<script src="modules/training-development.js?v=8"></script>
-<script src="modules/data-department.js?v=10"></script>
+<script src="modules/leadership.js?v=11"></script>
+<script src="modules/training-development.js?v=9"></script>
+<script src="modules/data-department.js?v=11"></script>
 <script src="modules/hr-department.js?v=3"></script>
 <script src="modules/dol-report.js?v=11"></script>
 <script src="../shared/pearl-categories.js?v=1"></script>
 <script src="modules/pearl-coverage.js?v=2"></script>
-<script src="modules/programming.js?v=24"></script>
-<script src="modules/pdf-export.js?v=8"></script>
-<script src="modules/field-support.js?v=5"></script>
-<script src="modules/portal-tour.js?v=6"></script>
-<script src="../partner/partner-report.js?v=7"></script>
+<script src="modules/programming.js?v=25"></script>
+<script src="modules/pdf-export.js?v=9"></script>
+<script src="modules/field-support.js?v=6"></script>
+<script src="modules/portal-tour.js?v=7"></script>
+<script src="../partner/partner-report.js?v=8"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=2"></script>
 <script src="modules/finance.js?v=6"></script>
-<script src="../alerts/asana-service.js?v=1"></script>
-<script src="../alerts/deadline-alerts.js?v=1"></script>
+<!-- SY 25-26 Annual Goal Tracking Asana banner (red — alerts/asana-service.js +
+     deadline-alerts.js, project 1211431518555737) removed for SY 26-27. Re-add these two
+     tags once .github/workflows/sync-asana-tasks.yml points at the new SY project. -->
 <script src="../alerts/asana-service2.js?v=1"></script>
 <script src="../alerts/deadline-alerts2.js?v=1"></script>
 
 <script id="irlabDataScript" src="data-irlab-embedded.js?v=1"></script>
-<script src="modules/executive-leadership.js?v=19"></script>
-<script src="modules/impact-report.js?v=4"></script>
+<script src="modules/executive-leadership.js?v=20"></script>
+<script src="modules/impact-report.js?v=5"></script>
 <script src="modules/survey-feedback.js?v=10"></script>
 <script src="modules/scholar-feedback.js?v=2"></script>
 <script src="modules/onsite-feedback.js?v=3"></script>
 <script src="modules/annual-report.js?v=1"></script>
 <script src="modules/pulse-weekly.js?v=3"></script>
-<script src="modules/program-data-summary.js?v=4"></script>
-<script src="modules/apprentice-impact-report.js?v=11"></script>
+<script src="modules/program-data-summary.js?v=5"></script>
+<script src="modules/apprentice-impact-report.js?v=12"></script>
 
 <script>
 /* ── TAP Standalone Dashboard — NJTCTapDash ────────────────────────────────
