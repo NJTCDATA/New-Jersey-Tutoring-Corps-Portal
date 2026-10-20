@@ -198,6 +198,12 @@
 
   // ── Programming: what needs attention (Field Support Report engine) ───────
   let _fsCache = null;
+  // Region filter on Home (Central Team feedback): Pearl-based attention items
+  // for Programming and Data follow the region picked in the box header.
+  const REGION_DEPTS = ['programming', 'data'];
+  let _homeRegion = (() => { try { return localStorage.getItem('NJTC_HOME_REGION') || 'ALL'; } catch (e) { return 'ALL'; } })();
+  if (!['ALL', 'NE', 'SW'].includes(_homeRegion)) _homeRegion = 'ALL';
+
   function fieldSupportResults() {
     const po = window.po, fs = window.njtcFieldSupport;
     if (!po || typeof po.getFieldSupportInput !== 'function' || !fs || typeof fs.computeFieldSupport !== 'function') return null;
@@ -207,10 +213,10 @@
     const today = new Date();
     const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const wkFrom = ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6)), wkTo = ymd(today);
-    const sig = period + '|' + base.attRows.length + '|' + (base.instRows || []).length + '|' + (base.stuRows || []).length + '|' + wkTo;
+    const sig = period + '|' + _homeRegion + '|' + base.attRows.length + '|' + (base.instRows || []).length + '|' + (base.stuRows || []).length + '|' + wkTo;
     if (_fsCache && _fsCache.sig === sig) return _fsCache;
-    const all = fs.computeFieldSupport(Object.assign({}, base, { region: 'ALL', school: '', from: '', to: '' }));
-    const week = fs.computeFieldSupport(Object.assign({}, po.getFieldSupportInput('ALL'), { region: 'ALL', school: '', from: wkFrom, to: wkTo }));
+    const all = fs.computeFieldSupport(Object.assign({}, base, { region: _homeRegion, school: '', from: '', to: '' }));
+    const week = fs.computeFieldSupport(Object.assign({}, po.getFieldSupportInput('ALL'), { region: _homeRegion, school: '', from: wkFrom, to: wkTo }));
     _fsCache = { sig, all, week, wkFrom, wkTo };
     return _fsCache;
   }
@@ -470,7 +476,8 @@
       ? `<div class="hs-loading">${slow ? `⚠️ Couldn't load ${esc(res.loading.join(', '))} — some items may be missing. Refresh the page to try again.` : `⏳ Still loading: ${esc(res.loading.join(', '))}…`}</div>`
       : '';
     return `<div class="hs-att">
-      <div class="hs-att-hdr">Needs your attention${res.items.length ? ` <span class="hs-att-n">${res.items.length}</span>` : ''}</div>
+      <div class="hs-att-hdr">Needs your attention${res.items.length ? ` <span class="hs-att-n">${res.items.length}</span>` : ''}${REGION_DEPTS.includes(dept) ? `
+        <select class="hs-region" data-hs-region aria-label="Region">${[['ALL', 'All regions'], ['NE', 'North-East'], ['SW', 'South-West']].map(([v, l]) => `<option value="${v}"${v === _homeRegion ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}</div>
       ${body}${load}
     </div>`;
   }
@@ -557,6 +564,7 @@
     .hs-name{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap;font-size:.78rem;padding:.18rem 0}
     .hs-person{background:none;border:none;padding:0;font:inherit;font-weight:700;color:#1d4ed8;text-decoration:underline;cursor:pointer}
     .hs-sub{color:var(--muted,#64748b);font-size:.74rem}
+    .hs-region{margin-left:auto;font-size:.74rem;padding:.2rem .45rem;border:1px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;color:var(--text,#1e293b);text-transform:none;letter-spacing:0;font-weight:500}
     .hs-clear{font-size:.84rem;color:#047857;font-weight:600;padding:.2rem 0}
     .hs-loading{font-size:.74rem;color:var(--muted,#64748b);margin-top:.35rem}
     @media (max-width:640px){.hs-btn{flex:1 1 calc(50% - .5rem);justify-content:flex-start}.hs-actions{margin-left:0}.hs-names{margin-left:.2rem}}
@@ -576,6 +584,15 @@
            : { items: [], loading: [] };
     } catch (e) { return { items: [], loading: ['portal data'] }; }
   }
+
+  document.addEventListener('change', ev => {
+    const t = ev.target.closest && ev.target.closest('[data-hs-region]');
+    if (!t) return;
+    _homeRegion = t.value;
+    try { localStorage.setItem('NJTC_HOME_REGION', _homeRegion); } catch (e) {}
+    const el = container(); if (el) el.__html = null;
+    render();
+  });
 
   window.njtcHome = { render, refresh: scheduleRender, attention };
   // Home may already be built if this file loads late

@@ -10,5 +10,9 @@
     return;
   }
 
+  // KB doesn't need a separate portal (Central Team feedback, Oct 2026): the KB
+  // login is still accepted and opens the Leadership view.
+  if (session.dept === 'kb') session.dept = 'leadership';
+
   window.NJTC_SESSION = session;
 })();

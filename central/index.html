@@ -5482,20 +5482,32 @@
       <div class="sdc-native-role" id="sdcNativeRole" style="display:none"></div>
     </div>
 
-    <div class="sidebar-group">
+    <div class="sidebar-group" id="sbNavGroup">
       <div class="sidebar-group-label">Navigation</div>
       <button class="sidebar-link active" data-panel="home" onclick="showPanel('home',this)" title="Your department's overview, KPIs, and quick-access actions">
         <span class="sl-icon">🏠</span> Department Home
       </button>
     </div>
 
+
+    <!-- Academic Intelligence sits right under Navigation (Central Team feedback: move i-Ready up) -->
     <div class="sidebar-group">
-      <div class="sidebar-group-label">Documents</div>
-      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies',this)" title="Browse NJTC policies, procedures, and compliance documents">
-        <span class="sl-icon">📚</span> Policies Library
+      <div class="sidebar-group-label">Academic Intelligence</div>
+      <button class="sidebar-link" data-panel="iready-lab" onclick="showPanel('iready-lab',this)" title="Analyze i-Ready diagnostic data and track student academic growth outcomes">
+        <span class="sl-icon">🔬</span> i-Ready Analysis Lab
+        <span class="sl-badge" style="background:#7b2d8b;color:#fff" id="irlabBadge" style="display:none"></span>
       </button>
-      <button class="sidebar-link dept-nav-upload" data-panel="upload" onclick="showPanel('upload',this)" title="Upload, manage, and access department files and shared resources" style="display:none">
-        <span class="sl-icon">☁️</span> Drive Center
+      <!-- Impact Report Builder — Data dept + leadership + kb only -->
+      <button class="sidebar-link dept-nav-irb" data-panel="impact-report" onclick="showPanel('impact-report',this)" style="display:none" title="Generate executive-ready impact reports and export program outcomes as PDF">
+        <span class="sl-icon">📊</span> Impact Report Builder
+      </button>
+      <!-- Apprentice Impact Report — Data dept + leadership only -->
+      <button class="sidebar-link dept-nav-irb" data-panel="apprentice-impact" onclick="showPanel('apprentice-impact',this)" style="display:none" title="Generate a downloadable impact report for all enrolled TAP apprentices — academic outcomes, survey scores, and attendance">
+        <span class="sl-icon">🎓</span> Apprentice Impact Report
+      </button>
+      <!-- Data Sources Cabinet — Data dept only -->
+      <button class="sidebar-link dept-nav-data-cabinet" data-panel="data-cabinet" onclick="showPanel('data-cabinet',this)" style="display:none" title="Browse all live data sources and databases used by the Data & Evaluation team">
+        <span class="sl-icon">🗄️</span> Data Sources
       </button>
     </div>
 
@@ -5531,25 +5543,6 @@
       </button>
     </div>
 
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">Academic Intelligence</div>
-      <button class="sidebar-link" data-panel="iready-lab" onclick="showPanel('iready-lab',this)" title="Analyze i-Ready diagnostic data and track student academic growth outcomes">
-        <span class="sl-icon">🔬</span> i-Ready Analysis Lab
-        <span class="sl-badge" style="background:#7b2d8b;color:#fff" id="irlabBadge" style="display:none"></span>
-      </button>
-      <!-- Impact Report Builder — Data dept + leadership + kb only -->
-      <button class="sidebar-link dept-nav-irb" data-panel="impact-report" onclick="showPanel('impact-report',this)" style="display:none" title="Generate executive-ready impact reports and export program outcomes as PDF">
-        <span class="sl-icon">📊</span> Impact Report Builder
-      </button>
-      <!-- Apprentice Impact Report — Data dept + leadership only -->
-      <button class="sidebar-link dept-nav-irb" data-panel="apprentice-impact" onclick="showPanel('apprentice-impact',this)" style="display:none" title="Generate a downloadable impact report for all enrolled TAP apprentices — academic outcomes, survey scores, and attendance">
-        <span class="sl-icon">🎓</span> Apprentice Impact Report
-      </button>
-      <!-- Data Sources Cabinet — Data dept only -->
-      <button class="sidebar-link dept-nav-data-cabinet" data-panel="data-cabinet" onclick="showPanel('data-cabinet',this)" style="display:none" title="Browse all live data sources and databases used by the Data & Evaluation team">
-        <span class="sl-icon">🗄️</span> Data Sources
-      </button>
-    </div>
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Advocacy</div>
@@ -5577,8 +5570,9 @@
 
     <!-- Goals & KPIs — moved below the department pages (Program Team feedback).
          KPI Analytics is leadership-facing: shown by initDeptNav() for
-         Leadership, Executive (kb) and Data only. -->
-    <div class="sidebar-group">
+         Leadership, Executive (kb) and Data only. For Data they stay at the
+         top under Navigation, where they were before (initDeptNav moves them). -->
+    <div class="sidebar-group" id="sbGoalsGroup">
       <div class="sidebar-group-label">Goals &amp; KPIs</div>
       <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)" title="This school year's organizational targets — summary by goal area, with every target underneath">
         <span class="sl-icon">📊</span> KPI Targets
@@ -5586,6 +5580,17 @@
       </button>
       <button class="sidebar-link dept-nav-kpi-analytics" data-panel="kpi-analytics" onclick="showPanel('kpi-analytics',this)" style="display:none" title="Leadership view: goal health, trends and year-over-year performance">
         <span class="sl-icon">🔍</span> KPI Analytics
+      </button>
+    </div>
+
+    <!-- Documents moved down (Central Team feedback: Policies Library lower in the menu) -->
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">Documents</div>
+      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies',this)" title="Browse NJTC policies, procedures, and compliance documents">
+        <span class="sl-icon">📚</span> Policies Library
+      </button>
+      <button class="sidebar-link dept-nav-upload" data-panel="upload" onclick="showPanel('upload',this)" title="Upload, manage, and access department files and shared resources" style="display:none">
+        <span class="sl-icon">☁️</span> Drive Center
       </button>
     </div>
 
@@ -5691,6 +5696,7 @@
       <div class="stats-strip">
         <div class="stat-tile" style="--accent-color:var(--blue-mid)" title="Active Sites: Total school sites listed in the SY Program Sheet. Note: Pilot schools are counted separately from the main school program — pilot site totals are tracked independently from Pearl roster data."><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Sites <span style="font-size:.6rem;background:rgba(0,80,200,.12);color:#003087;border-radius:99px;padding:.05rem .3rem;cursor:help;font-weight:700" title="Pilot schools are counted separately from the actual school program due to Pearl roster upload. The site count reflects all sites listed in the SY Program Sheet.">ⓘ</span></div><div class="st-sub" id="syStatSitesSub">District &amp; school data</div></div>
         <div class="stat-tile" style="--accent-color:var(--prog)"><div class="st-icon">🏛️</div><div class="st-value" id="syStatDistricts">—</div><div class="st-label">Districts</div><div class="st-sub">Unique partners</div></div>
+        <div class="stat-tile" style="--accent-color:var(--blue-mid)" title="Rostered Scholars: every unique scholar on a Pearl session in this period, whether or not they have attended yet (KB: if they are rostered, they count). Falls back to the Locations tab &quot;Rostered Scholars in Pearl&quot; column until Pearl loads."><div class="st-icon">📋</div><div class="st-value" id="syStatRostered">—</div><div class="st-label">Rostered Scholars</div><div class="st-sub" id="syStatRosteredSub">On a Pearl session &middot; incl. 0 attended</div></div>
         <div class="stat-tile" style="--accent-color:var(--met)" title="Active Scholars: Unique students with at least 1 attended session (Attended or Late) in Pearl Operations live data. Network-wide total — matches Pearl Operations dashboard active scholar count."><div class="st-icon">🎓</div><div class="st-value" id="syStatActual">—</div><div class="st-label">Active Scholars</div><div class="st-sub">Attended &ge;1 session &middot; Pearl live</div></div>
         <div class="stat-tile" style="--accent-color:var(--partial)" title="Tutors — SY 26-27 Onsite Tracker roster (School Year cycle, role Tutor or Certified Tutor, offer not declined, not terminated). Dual Role and Sub-Tutors are listed underneath, not added in."><div class="st-icon">🧑‍🏫</div><div class="st-value" id="syStatTutors">—</div><div class="st-label">Tutors</div><div class="st-sub" id="syStatTutorsSub">Onsite Tracker roster</div></div>
         <div class="stat-tile" style="--accent-color:var(--notmet)" title="Total Staff — SY 26-27: onsite staff on the SY Database roster (Onsite Tracker: School Year cycle, has a role, offer not declined, not terminated); the subtitle shows how many are active in Pearl (led at least 1 session that has started). SY 25-26: HR Master List. Summer 2026: unique instructors in Pearl."><div class="st-icon">👥</div><div class="st-value" id="syStatStaff">—</div><div class="st-label">Total Staff</div><div class="st-sub" id="syStatStaffSub">Active FT staff &middot; HR Master List</div></div>
@@ -5735,8 +5741,8 @@
             <thead><tr style="background:var(--surface-2)">
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">District</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">School</th>
-              <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Actual</th>
-              <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap" title="Estimated # of Scholars from the quote — not a count">Quoted</th>
+              <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap" title="Scholars rostered in Pearl at this site (Locations tab: Rostered Scholars in Pearl)">Scholars (Pearl)</th>
+              <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap" title="Estimated # of Scholars from the quote — not a count">Scholars (Quote)</th>
               <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Staff</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Content</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Type</th>
@@ -5810,6 +5816,7 @@
       <!-- Filters -->
       <div class="po-filter-strip" id="poFilterStrip">
         <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">Filter:</span>
+        <div class="ms-wrap" id="mswRegion"></div>
         <div class="ms-wrap" id="mswDistrict"></div>
         <div class="ms-wrap" id="mswSchool"></div>
         <div class="ms-wrap" id="mswWeek"></div>
@@ -5821,7 +5828,7 @@
           onfocus="this.style.borderColor='#6366f1'"
           onblur="this.style.borderColor=''"
         >
-        <button class="btn btn-secondary" onclick="sya.clearFilters();document.getElementById('poGlobalSearch').value='';po._globalSearch('')" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
+        <button class="btn btn-secondary" onclick="po.clearFilters();document.getElementById('poGlobalSearch').value='';po._globalSearch('')" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
         <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
         <div id="poDurationPill" style="display:none;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border-radius:20px;padding:.35rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(30,58,95,.25);flex-shrink:0"></div>
       </div>
@@ -6963,15 +6970,15 @@
 // Load central-guard dynamically to suppress duplicate NJTCAuth declaration error
 (function() {
   var s = document.createElement('script');
-  s.src = '../auth/central-guard.js?v=4';
+  s.src = '../auth/central-guard.js?v=5';
   s.onerror = function() {};
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=44"></script>
+<script src="modules/shared-utils.js?v=45"></script>
 <script src="modules/shared-charts.js?v=22"></script>
-<script src="modules/shared-filters.js?v=6"></script>
-<script src="modules/home-shortcuts.js?v=3"></script>
+<script src="modules/shared-filters.js?v=7"></script>
+<script src="modules/home-shortcuts.js?v=4"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
 <script src="modules/leadership.js?v=11"></script>
@@ -6981,7 +6988,7 @@
 <script src="modules/dol-report.js?v=11"></script>
 <script src="../shared/pearl-categories.js?v=1"></script>
 <script src="modules/pearl-coverage.js?v=2"></script>
-<script src="modules/programming.js?v=26"></script>
+<script src="modules/programming.js?v=27"></script>
 <script src="modules/pdf-export.js?v=9"></script>
 <script src="modules/field-support.js?v=6"></script>
 <script src="modules/portal-tour.js?v=7"></script>
