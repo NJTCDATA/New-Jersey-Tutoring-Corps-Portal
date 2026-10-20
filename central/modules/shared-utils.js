@@ -200,7 +200,8 @@
 
   // Lens switcher — departments accessible as lenses
   // Data can view all; T&D can jump to Programming; Leadership/KB can view all except Data
-  const LENS_DEPTS = ['leadership', 'kb', 'hr', 'finance', 'programming', 'training'];
+  // No separate KB lens: KB uses Leadership (Central Team feedback, Oct 2026)
+  const LENS_DEPTS = ['leadership', 'hr', 'finance', 'programming', 'training'];
   const LENS_SHORT  = { leadership: 'Leadership', kb: 'KB', hr: 'HR', finance: 'Finance', programming: 'Program', training: 'T&D', data: 'Data' };
 
   // ══════════════════════════════════════════════════════════

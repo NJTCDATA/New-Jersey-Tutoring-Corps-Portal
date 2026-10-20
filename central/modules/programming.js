@@ -697,8 +697,10 @@
         const _poIsSummer = _poStatsSummer && _poStatsSummer.activePeriod === 'summer2026';
         if (_poIsSummer && _poStatsSummer.activeScholars != null) {
           setText('syStatActual', _poStatsSummer.activeScholars.toLocaleString());
+          setText('syStatRostered', _poStatsSummer.rosteredScholars != null ? _poStatsSummer.rosteredScholars.toLocaleString() : '—');
         } else {
           setText('syStatActual', '—');
+          setText('syStatRostered', '—');
         }
         _setTutorTile(r => r.isSummer);
         const _sumRunning = _sumLoc.filter(r => /active|running/i.test(r.status || '')).length;
@@ -741,9 +743,14 @@
       // Pearl only feeds this tile when it holds the SAME period being viewed
       // (Pearl's SY 25-26 count must never appear on the SY 26-27 view).
       const _pearlActive = (_poStats && _poStats.activePeriod === _activePeriod && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
-      setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
+      setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : '—');
       const _actSub = document.getElementById('syStatActual') && document.getElementById('syStatActual').parentElement.querySelector('.st-sub');
-      if (_actSub) _actSub.innerHTML = _pearlActive != null ? 'Attended &ge;1 session &middot; Pearl live' : 'Rostered Scholars in Pearl &middot; Locations tab';
+      if (_actSub) _actSub.innerHTML = _pearlActive != null ? 'Attended &ge;1 session &middot; Pearl live' : 'Loads from Pearl Operations';
+      // Rostered scholars (KB: if they are rostered, they count) — every scholar on a
+      // Pearl session this period, attended or not. Locations-tab sum until Pearl loads.
+      const _pearlRostered = (_poStats && _poStats.activePeriod === _activePeriod && _poStats.rosteredScholars != null) ? _poStats.rosteredScholars : null;
+      setText('syStatRostered', _pearlRostered != null ? _pearlRostered.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
+      setText('syStatRosteredSub', _pearlRostered != null ? 'On a Pearl session · incl. 0 attended' : 'Rostered Scholars in Pearl · Locations tab');
       _setTutorTile(r => r.isSY);
       // Total Staff — SY 26-27: live Onsite Tracker roster (offer accepted, not
       // terminated). SY 25-26: HR Master List (authoritative). DB sum fallback.
@@ -832,7 +839,11 @@
       const tbody = document.getElementById('syTableBody');
       const cnt   = document.getElementById('syTableCount');
       if (!tbody) return;
-      if (cnt) cnt.textContent = `(${_filtered.length} of ${_allSites.length})`;
+      // Denominator = sites in the period being viewed (not every row of the Locations tab)
+      const _cyc = _activePeriod === 'summer2026' ? 'summer 2026' : _activePeriod === 'sy2627' ? 'school year' : '';
+      const _inPeriod = _allSites.filter(s => !_cyc || (s.cycle || '').toLowerCase().includes(_cyc)).length;
+      const _pLabel = _activePeriod === 'summer2026' ? 'Summer 2026' : _activePeriod === 'sy2526' ? 'SY 25-26' : 'SY 26-27';
+      if (cnt) cnt.textContent = _filtered.length === _inPeriod ? `(${_inPeriod} ${_pLabel} sites)` : `(${_filtered.length} of ${_inPeriod} ${_pLabel} sites)`;
       const dash = '<span style="color:var(--muted)">—</span>';
       tbody.innerHTML = _filtered.map(s => {
         const hl  = s.key === _selKey ? 'sy-row-hl' : '';
@@ -891,7 +902,7 @@
         <div class="sy-detail-school">${s.school}</div>
         <div class="sy-detail-district">${s.district}</div>
         ${sec('Scholars')}
-        ${row('Actual (Pearl)', s.act||null)}${row('Quoted (estimate)', s.est||null)}
+        ${row('Rostered in Pearl', s.act||null)}${row('Quoted (estimate)', s.est||null)}
         ${sec('Programming')}
         ${row('Content', v(s.content))}${row('Tutoring Type', v(s.tutorType))}
         ${row('Days of Week', v(s.days))}${row('Assessment', v(s.assessModel))}
@@ -2235,6 +2246,7 @@
     let _selPerson  = null;
     let _activeTab  = 'attendance';
     // Multi-select filter state (arrays of selected values, empty = all)
+    let _filtRegion   = [];
     let _filtDistrict = [];
     let _filtSchool   = [];
     let _filtWeek     = [];
@@ -3859,8 +3871,26 @@
     }
 
     // ── FILTERS ───────────────────────────────────────────────────────────
+    // Region → the districts whose schools sit in that region (same rule as
+    // _poRegion). Expanding into districts keeps every count, table and export
+    // that already honours the district filter in step with the region choice.
+    function _regionDistricts(regions) {
+      const out = new Set();
+      _attRows.forEach(r => {
+        const sc = r[ATT.SCHOOL], d = r[ATT.DISTRICT];
+        if (d && regions.includes(_poRegion(sc, d))) out.add(d);
+      });
+      return out;
+    }
+
     function applyFilters() {
+      _filtRegion   = getFilterSelected('region');
       _filtDistrict = getFilterSelected('district');
+      if (_filtRegion.length) {
+        const rd = _regionDistricts(_filtRegion);
+        _filtDistrict = _filtDistrict.length ? _filtDistrict.filter(d => rd.has(d)) : [...rd];
+        if (!_filtDistrict.length) _filtDistrict = ['__no_district_in_region__'];
+      }
       _filtSchool   = getFilterSelected('school');
       _filtWeek     = getFilterSelected('week');
       _filtRole     = getFilterSelected('role');
@@ -3881,7 +3911,7 @@
       const total = _attRows.length;
       const filtered = filteredAttRows().length;
       const el = document.getElementById('poFilterInfo');
-      const hasFilter = _filtDistrict.length || _filtSchool.length || _filtWeek.length || _filtRole.length || _filtFlag.length || _poGlobalQ;
+      const hasFilter = _filtRegion.length || _filtDistrict.length || _filtSchool.length || _filtWeek.length || _filtRole.length || _filtFlag.length || _poGlobalQ;
       if (el) el.textContent = hasFilter ? `${filtered.toLocaleString()} of ${total.toLocaleString()} records match` : '';
     }
 
@@ -3891,15 +3921,22 @@
     }
 
     function clearFilters() {
-      ['district','school','week','role','flag'].forEach(k => {
+      ['region','district','school','week','role','flag'].forEach(k => {
         if (_msState[k]) { _msState[k].selected = []; _msState[k].search = ''; }
       });
-      _filtDistrict = []; _filtSchool = []; _filtWeek = []; _filtRole = []; _filtFlag = [];
+      _filtRegion = []; _filtDistrict = []; _filtSchool = []; _filtWeek = []; _filtRole = []; _filtFlag = [];
       populateFilters(); // re-render widgets
       renderView();
     }
 
     function populateFilters() {
+      // Regions (North-East / South-West — SY 26-27 region rule)
+      const regions = [...new Set(_attRows.map(r => r[ATT.DISTRICT] ? _poRegion(r[ATT.SCHOOL], r[ATT.DISTRICT]) : null).filter(Boolean))].sort();
+      buildMultiSelect({
+        wrapperId: 'mswRegion', label: 'Regions', stateKey: 'region',
+        options: regions.map(v => ({ value: v, label: v === 'NE' ? 'North-East' : v === 'SW' ? 'South-West' : v }))
+      });
+
       // Districts
       const districts = [...new Set(_attRows.map(r => r[ATT.DISTRICT]).filter(Boolean))].sort();
       buildMultiSelect({
@@ -4080,7 +4117,8 @@
         const K = window.NJTC_PEARL_CATEGORIES.CATEGORY, mc = _mc.cats;
         setText('poStatInterruptions', mc[K.UNDELIVERED].count.toLocaleString());
         const notCounted = si.toLocaleString();
-        setText('poStatInterruptionsSub', `of ${notCounted} not counted against attendance · ${mc[K.CANCELLATION].count.toLocaleString()} cancellation-type · ${mc[K.INTERNAL].count.toLocaleString()} internal`);
+        setText('poStatInterruptionsSub', 'See detail below');
+        { const _t = document.getElementById('poStatInterruptionsSub'); if (_t) _t.title = `Tutor absent (not covered) / vacancy. ${notCounted} sessions not counted against attendance in all: ${mc[K.CANCELLATION].count.toLocaleString()} cancellation-type · ${mc[K.INTERNAL].count.toLocaleString()} internal. Breakdown in the "Missed sessions by category" panel below.`; }
         const adj = tutorRateWithCovered(instAtt, instAbs, _mc);
         const cvN = _mc.coverage ? _mc.coverage.covered.length : 0;
         let sub = 'Recorded rate (official)';
