@@ -449,6 +449,37 @@
       .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0) || b.absences - a.absences);
   }
 
+  // Scholars kept in class by a classroom teacher during tutoring. Each one
+  // is a missed session (scholar-side), shown so the school can act on it.
+  // Same rule as the Partner Dashboard tile and the Central region report.
+  function keptInClass(scholarRows) {
+    const byScholar = {}; let sessions = 0;
+    scholarRows.forEach(r => {
+      if ((r[ATT.ATT_STATUS] || '').trim() !== 'Missed' || !CT_SUMMARY_REASONS.has((r[ATT.MISS_REASON] || '').trim())) return;
+      sessions++;
+      const k = (r[ATT.USER_ID] || r[ATT.USER] || '').trim();
+      if (!byScholar[k]) byScholar[k] = { uid: (r[ATT.USER_ID] || '').trim(), name: (r[ATT.USER] || '').trim() || 'Unknown', school: (r[ATT.SCHOOL] || '').trim(), n: 0, last: '', lastSort: null };
+      const s = byScholar[k]; s.n++;
+      const d = parseDate((r[ATT.SESS_DATE] || '').trim());
+      if (d && (!s.lastSort || d > s.lastSort)) { s.lastSort = d; s.last = (r[ATT.SESS_DATE] || '').trim(); }
+    });
+    return { sessions, scholars: Object.values(byScholar).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)) };
+  }
+
+  // One row per school — the same numbers as the "Your Schools" tiles on the
+  // Partner Dashboard (attendance, scholars, check-ins, kept in class, loving).
+  function schoolBreakdown(attRows, stuRows) {
+    const names = [...new Set(attRows.filter(isScholarRow).map(r => (r[ATT.SCHOOL] || '').trim()).filter(Boolean))].sort();
+    return names.map(name => {
+      const rows = attRows.filter(r => (r[ATT.SCHOOL] || '').trim() === name);
+      const st = scholarStats(rows);
+      const k = keptInClass(st.rows);
+      return { school: name, rate: st.rate, served: servedScholars(rows), checkIns: scholarsToCheckIn(st.rows).length,
+        keptScholars: k.scholars.length, keptSessions: k.sessions,
+        loving: lovingPct((stuRows || []).filter(r => (r[STU.SCHOOL] || '').trim() === name)) };
+    }).sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101));
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  SESSION HIGHLIGHTS — curated, weekly, scholar comments first
   //
@@ -721,6 +752,8 @@
       sessionMinutes,
       reasons: scholarMissedReasons(stats.rows).slice(0, 6),
       checkIns: scholarsToCheckIn(throughWeek(attPlace, ATT.SESS_DATE, scope.week).filter(isScholarRow)),
+      kept: keptInClass(throughWeek(attPlace, ATT.SESS_DATE, scope.week).filter(isScholarRow)),
+      schools: schoolBreakdown(throughWeek(attPlace, ATT.SESS_DATE, scope.week), throughWeek(stuPlace, STU.DATE, scope.week)),
       scholarSurvey: {
         n: stu.length, sent: stuSent,
         questions: [
@@ -796,6 +829,9 @@
     await loadLibs();
     const exclusions = opts.exclusions || await loadExclusions();
     const m = buildReportModel(bundle, scope, exclusions);
+    // Central Team region report: same layout, plus a per-school tutor view
+    // and "Tutors to check in with" in place of the scholar check-in list.
+    const internal = opts.internal || null;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
@@ -826,7 +862,7 @@
     doc.text(pdfText(place || 'New Jersey Tutoring Corps'), M + 58, 58, { maxWidth: CW - 200 });
     doc.text(pdfText(m.weekly ? 'Week of ' + m.weekLabel : 'SY ' + m.season + ' to date'), M + 58, 72);
     font('normal', 8.5); doc.setTextColor(170, 185, 205);
-    doc.text(pdfText('Prepared for ' + (m.identity.name || 'Partner')), W - M, 42, { align: 'right' });
+    doc.text(pdfText('Prepared for ' + (internal ? (internal.preparedFor || 'NJTC Central Team') : (m.identity.name || 'Partner'))), W - M, 42, { align: 'right' });
     doc.text(pdfText('SY ' + m.season), W - M, 55, { align: 'right' });
     doc.text(pdfText('Generated ' + new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })), W - M, 68, { align: 'right' });
     y = 122;
@@ -843,15 +879,21 @@
       [m.uniqueScholars.toLocaleString(), 'Scholars served', 'Attended 1+ session'],
       [m.sessions.toLocaleString(), 'Sessions delivered', m.sessionMinutes != null ? (m.sessionMinutes / 60).toFixed(1) + ' tutoring hours' : ''],
       [m.scholarSurvey.sent.scored ? pct(m.scholarSurvey.sent.pos, m.scholarSurvey.sent.scored) + '%' : '-', 'Loved their session', m.scholarSurvey.sent.scored.toLocaleString() + ' scholar surveys'],
-      [m.checkIns.length.toLocaleString(), 'Check-ins suggested', 'Year to date']
+      internal
+        ? [internal.tutors.length.toLocaleString(), 'Tutors to check in with', 'Year to date']
+        : [m.checkIns.length.toLocaleString(), 'Scholars to check in with', 'Year to date'],
+      [m.kept.scholars.length.toLocaleString(), 'Scholars kept in class', m.kept.sessions.toLocaleString() + ' sessions YTD']
     ];
-    const gap = 8, tw = (CW - gap * (kpis.length - 1)) / kpis.length, th = 64;
+    const gap = 7, tw = (CW - gap * (kpis.length - 1)) / kpis.length, th = 70;
     kpis.forEach(([val, label, sub], i) => {
       const x = M + i * (tw + gap);
       setFill(C.soft); setDraw(C.line); doc.setLineWidth(.6); doc.roundedRect(x, y, tw, th, 6, 6, 'FD');
-      font('bold', 18); setText(C.blue); doc.text(pdfText(val), x + 10, y + 26);
-      font('bold', 8); setText(C.text); doc.text(doc.splitTextToSize(pdfText(label), tw - 16)[0], x + 10, y + 42);
-      font('normal', 7); setText(C.muted); doc.text(doc.splitTextToSize(pdfText(sub), tw - 16)[0] || '', x + 10, y + 54);
+      font('bold', 16); setText(C.blue); doc.text(pdfText(val), x + 9, y + 24);
+      font('bold', 7.5); setText(C.text);
+      const lab = doc.splitTextToSize(pdfText(label), tw - 14).slice(0, 2);
+      doc.text(lab, x + 9, y + 38);
+      font('normal', 6.5); setText(C.muted);
+      doc.text(doc.splitTextToSize(pdfText(sub), tw - 14).slice(0, 2), x + 9, y + 38 + lab.length * 9 + 2);
     });
     y += th + 26;
 
@@ -933,7 +975,74 @@
       y = doc.lastAutoTable.finalY + 22;
     }
 
-    // Check-ins
+    // Schools — same numbers as the "Your Schools" tiles on the dashboard
+    if (m.schools.length > 1) {
+      section(internal ? 'Schools at a glance' : 'Your schools');
+      font('normal', 8); setText(C.text2);
+      doc.text(pdfText('Year to date' + (m.weekly ? ' through this week' : '') + ', lowest attendance first.' + (internal ? ' Tutor attendance and the support level come from the Pearl Operations Support Report.' : '')), M, y, { maxWidth: CW });
+      y += 12;
+      const extra = (internal && internal.schoolExtra) || {};
+      const head = ['School', 'Attendance', 'Scholars', 'To check in', 'Kept in class', 'Loving sessions'];
+      if (internal) head.push('Tutor att.', 'Support');
+      doc.autoTable({
+        startY: y, margin: { left: M, right: M },
+        head: [head],
+        body: m.schools.map(x => {
+          const row = [pdfText(x.school), x.rate == null ? '-' : x.rate + '%', x.served.toLocaleString(), String(x.checkIns), String(x.keptScholars), x.loving == null ? '-' : x.loving + '%'];
+          if (internal) { const e = extra[x.school] || {}; row.push(e.tutorAttendance == null ? '-' : e.tutorAttendance + '%', e.support || '-'); }
+          return row;
+        }),
+        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 3.5, textColor: C.text, lineColor: C.line, lineWidth: .4 },
+        headStyles: { fillColor: C.blue, textColor: C.white, fontStyle: 'bold', fontSize: 7.5 },
+        alternateRowStyles: { fillColor: C.soft },
+        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'center' } },
+        didParseCell: d => {
+          if (d.section !== 'body') return;
+          const x = m.schools[d.row.index];
+          let col = null;
+          if (d.column.index === 1 && x.rate != null) col = x.rate >= 80 ? C.pos : C.neg;
+          if (internal && d.column.index === 6) { const v = (extra[x.school] || {}).tutorAttendance; if (v != null) col = v >= 90 ? C.pos : C.neg; }
+          if (internal && d.column.index === 7) { const v = (extra[x.school] || {}).support; col = v === 'High' ? C.neg : v === 'Medium' ? [180, 83, 9] : v === 'Low' ? C.pos : null; }
+          if (col) { d.cell.styles.textColor = col; d.cell.styles.fontStyle = 'bold'; }
+        }
+      });
+      y = doc.lastAutoTable.finalY + 22;
+    }
+
+    // Check-ins — tutors for the Central Team, scholars for partners
+    if (internal) {
+      section('Tutors to check in with');
+      font('normal', 8); setText(C.text2);
+      const tNote = doc.splitTextToSize(pdfText(internal.tutorRule || ''), CW);
+      doc.text(tNote, M, y);
+      y += tNote.length * 10 + 6;
+      if (internal.tutors.length) {
+        const shown = internal.tutors.slice(0, 20);
+        doc.autoTable({
+          startY: y, margin: { left: M, right: M },
+          head: [['Tutor', 'School', 'Tutor att.', 'What to follow up on']],
+          body: shown.map(t => [pdfText(t.tutor), pdfText(t.school), t.tutorAttendance == null ? '-' : t.tutorAttendance + '%', pdfText(t.why)]),
+          styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 3.5, textColor: C.text, lineColor: C.line, lineWidth: .4 },
+          headStyles: { fillColor: C.blue, textColor: C.white, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: C.soft },
+          columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 130 }, 2: { halign: 'right', cellWidth: 50 } },
+          didParseCell: d => {
+            if (d.section !== 'body' || d.column.index !== 2) return;
+            const v = shown[d.row.index].tutorAttendance;
+            if (v != null) { d.cell.styles.textColor = v >= 90 ? C.pos : C.neg; d.cell.styles.fontStyle = 'bold'; }
+          }
+        });
+        y = doc.lastAutoTable.finalY + 8;
+        if (internal.tutors.length > shown.length) {
+          font('italic', 7.5); setText(C.muted);
+          doc.text(pdfText(`+ ${internal.tutors.length - shown.length} more - see the Tutor Actions tab of the Support Report Excel for the full list.`), M, y + 6);
+          y += 12;
+        }
+        y += 16;
+      } else {
+        font('normal', 8.5); setText(C.pos); doc.text('No tutors are currently flagged for a check-in.', M, y); y += 22;
+      }
+    } else {
     section('Scholars to check in with');
     font('normal', 8); setText(C.text2);
     doc.text(pdfText('Scholars with a real pattern of missed sessions (never attended, or under 80% across 3+ sessions), year to date' + (m.weekly ? ' through this week' : '') + '. Only scholar-side reasons count. A quick check-in with the scholar, a teacher, or family often turns this around.'), M, y, { maxWidth: CW });
@@ -958,6 +1067,37 @@
       y += 16;
     } else {
       font('normal', 8.5); setText(C.pos); doc.text('No scholars are currently flagged for a check-in.', M, y); y += 22;
+    }
+    }
+
+    // Kept in class — same list as the Attendance Tracking card
+    section('Scholars kept in class during tutoring');
+    font('normal', 8); setText(C.text2);
+    doc.text(pdfText('A classroom teacher kept these scholars in class during their tutoring time, year to date' + (m.weekly ? ' through this week' : '') + '. Each one counts as a missed session, so scholars receive less of the tutoring they are scheduled for.'), M, y, { maxWidth: CW });
+    y += 26;
+    if (m.kept.scholars.length) {
+      const shown = m.kept.scholars.slice(0, 10);
+      const multi = m.schools.length > 1;
+      doc.autoTable({
+        startY: y, margin: { left: M, right: M },
+        head: [multi ? ['Pearl ID', 'Scholar', 'School', 'Times kept in class', 'Most recent'] : ['Pearl ID', 'Scholar', 'Times kept in class', 'Most recent']],
+        body: shown.map(k => multi ? [k.uid || '-', pdfText(k.name), pdfText(k.school), String(k.n), pdfText(k.last)] : [k.uid || '-', pdfText(k.name), String(k.n), pdfText(k.last)]),
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, textColor: C.text, lineColor: C.line, lineWidth: .4 },
+        headStyles: { fillColor: C.blue, textColor: C.white, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: C.soft },
+        columnStyles: multi
+          ? { 0: { font: 'courier', cellWidth: 60 }, 3: { halign: 'right', cellWidth: 80 }, 4: { cellWidth: 70 } }
+          : { 0: { font: 'courier', cellWidth: 70 }, 2: { halign: 'right', cellWidth: 90 }, 3: { cellWidth: 80 } }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+      if (m.kept.scholars.length > shown.length) {
+        font('italic', 7.5); setText(C.muted);
+        doc.text(pdfText(`Showing the 10 scholars kept in class most often, of ${m.kept.scholars.length} (${m.kept.sessions.toLocaleString()} sessions).`), M, y + 6);
+        y += 12;
+      }
+      y += 16;
+    } else {
+      font('normal', 8.5); setText(C.pos); doc.text('No scholars were kept in class during tutoring.', M, y); y += 22;
     }
 
     // ── Surveys ──
@@ -1015,11 +1155,11 @@
         doc.setPage(p);
         setDraw(C.line); doc.setLineWidth(.5); doc.line(M, H - 32, W - M, H - 32);
         font('normal', 7); setText(C.muted);
-        doc.text(pdfText('New Jersey Tutoring Corps | Partner Operations Report' + (asOf ? ' | ' + asOf : '')), M, H - 20);
+        doc.text(pdfText('New Jersey Tutoring Corps | ' + (internal ? 'Region Operations Report - internal, not for partners' : 'Partner Operations Report') + (asOf ? ' | ' + asOf : '')), M, H - 20);
         doc.text(`Page ${p} of ${pages}`, W - M, H - 20, { align: 'right' });
       }
       const slug = s => String(s || '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
-      const name = `NJTC-${m.weekly ? 'Weekly' : 'YTD'}-Report-${slug(place) || 'Partner'}${m.weekly ? '-' + m.scope.week : ''}.pdf`;
+      const name = `NJTC-${m.weekly ? 'Weekly' : 'YTD'}-${internal ? 'Region-' : ''}Report-${slug(place) || 'Partner'}${m.weekly ? '-' + m.scope.week : ''}.pdf`;
       if (opts.returnDoc) return { doc, name, model: m };
       doc.save(name);
       return { name, model: m };
@@ -1145,7 +1285,7 @@
     ATT, INST, STU, SESS, SCHOLAR_MISS_REASONS, TUTOR_MISS_REASONS,
     parseDate, weekBucket, weekRangeLabel, pct, scoped,
     isScholarRow, classifyAtt, scholarStats, scholarWeekly, servedScholars, deliveredSessions, deliveredMinutes,
-    schoolDrivenNotDelivered, schoolDrivenLabel, SCHOOL_DRIVEN_LABELS, lovingPct, scholarMissedReasons, scholarsToCheckIn,
+    schoolDrivenNotDelivered, schoolDrivenLabel, SCHOOL_DRIVEN_LABELS, lovingPct, scholarMissedReasons, scholarsToCheckIn, keptInClass, schoolBreakdown, CT_REASONS: CT_SUMMARY_REASONS,
     curateHighlights, loadExclusions, allWeeks, buildReportModel, scopeLabel,
     generatePDF, loadPearl, bundleForEntry, scopeMatches,
     SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,

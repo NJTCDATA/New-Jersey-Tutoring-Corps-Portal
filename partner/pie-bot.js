@@ -118,6 +118,7 @@
 
     return {
       identity: b.identity, rate, sessions, attended, absent, total, checkInCount, notDelivered,
+      kept: window.NJTCPartnerReport && window.NJTCPartnerReport.keptInClass ? window.NJTCPartnerReport.keptInClass(scholarRows) : null,
       generatedAt: b.generatedAt || null, season: b.season || null,
       scholarSent: sentiment(b.scholarSurveys || [], STU.OVERALL),
       tutorSent: sentiment(b.tutorSurveys || [], INST.OVERALL),
@@ -167,6 +168,13 @@
       return glossaryHits.map(g => `<b>${g.term}:</b> ${g.def}`).join('<br><br>');
     }
 
+    if (/kept in class|keep .*in class|teacher (held|kept|pull)|pull.?out|pulled out/.test(q)) {
+      const k = s.kept;
+      if (!k) return `I can't count scholars kept in class for this view yet.`;
+      if (!k.sessions) return `No scholars have been kept in class by a teacher during tutoring so far this year.`;
+      const share = s.absent ? Math.round(k.sessions / s.absent * 100) : 0;
+      return `<b>${k.scholars.length.toLocaleString()}</b> scholar${k.scholars.length === 1 ? ' was' : 's were'} kept in class by a classroom teacher during tutoring this year — <b>${k.sessions.toLocaleString()}</b> missed session${k.sessions === 1 ? '' : 's'} in all (${share}% of missed sessions). Each one counts against the attendance rate because the scholar missed tutoring. Click the "Scholars Kept in Class" tile on the Summary tab to see who.`;
+    }
     if (/not delivered|weren.?t delivered|didn.?t (happen|take place)|cancel|sessions? (lost|that didn)|school.?driven/.test(q)) {
       const nd = s.notDelivered;
       if (!nd) return `Session-level detail isn't available for this view yet, so I can't count sessions that didn't take place. Excused time — school events, testing days, holidays, NJTC staffing gaps — is never counted against your attendance rate.`;

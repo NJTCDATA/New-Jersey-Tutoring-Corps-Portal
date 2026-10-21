@@ -23,10 +23,9 @@
   }
   function fieldSupport(from, to) {
     if (!window.njtcFieldSupport || typeof window.njtcFieldSupport.open !== 'function') { nav('pearl-ops'); return; }
-    window.njtcFieldSupport.open('ALL');
-    const f = document.getElementById('fsFrom'), t = document.getElementById('fsTo');
-    if (f) f.value = from || '';
-    if (t) t.value = to || '';
+    // The report runs year to date through a chosen week; open it on the
+    // week that contains `from` (the latest week when none is given).
+    window.njtcFieldSupport.open('ALL', { weekOf: from || '' });
   }
   function execCenter() {
     const el = document.getElementById('execDashboard');

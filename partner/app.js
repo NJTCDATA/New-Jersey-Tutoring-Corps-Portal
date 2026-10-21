@@ -57,6 +57,7 @@
   const BRAND = { pos: '#0d6e3a', neu: '#7d8fa1', neg: '#b91c1c', blue: '#0050c8', gold: '#f0a500' };
 
   const ICONS = {
+    school: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M10 10h4"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
     handshake: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg>',
@@ -79,6 +80,7 @@
     { term: 'Sessions Not Delivered (school-driven)', def: 'Unique tutoring sessions that could not take place for a school-side reason — a school event or assembly, school-administered testing, a schedule change, an unscheduled closure, delay or dismissal, a drill, weather, a half day or a scheduled holiday. Counted once per session. These never count against the attendance rate.' },
     { term: 'Overall Rating', def: 'The "Overall, how did this session go?" question on the post-session survey, rated 1 (Poor) to 5 (Excellent). Positive = 4–5, Neutral = 3, Negative = 1–2.' },
     { term: 'Session Highlights', def: 'A curated weekly selection of comments from sessions rated 4–5 overall. Scholar comments are shown first; tutor comments fill in when a week has fewer scholar comments. Comments that name a scholar, or contain sensitive or inappropriate language, are never shown. This is a highlight reel, not a representative sample of every comment left.' },
+    { term: 'Scholars Kept in Class', def: 'Scholars a classroom teacher kept in class during their tutoring time (Pearl missed reason "Classroom Teacher Requested to Keep Scholar in Class"). The tile counts each scholar once; each time it happens is a missed tutoring session that counts against the attendance rate.' },
     { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' },
     { term: 'Total Session Minutes', def: "Every delivered session's duration, added up once per session — a 40-minute session with 3 scholars in it still counts as 40 minutes here." },
     { term: 'Total Scholar-Attended Minutes', def: "Every minute a scholar personally attended, summed across all scholars — the same 40-minute session with 3 scholars who all attended counts as 120 minutes here. This is the total instructional contact time scholars actually received." }
@@ -245,11 +247,12 @@
         </tbody></table></div>`;
     }
     document.getElementById('view-summary').innerHTML = heroHtml(id) + banner + `
-      <div class="pt-grid pt-grid-4">
-        ${kpiCard(ICONS.check, BRAND.pos, pctTxt(sum.scholarAttendanceRate), 'Scholar Attendance Rate')}
+      <div class="pt-grid ${sum.keptInClass != null ? 'pt-grid-5' : 'pt-grid-4'}">
+        ${kpiCard(ICONS.check, BRAND.pos, pctTxt(sum.scholarAttendanceRate), 'Scholar Attendance Rate', { view: 'attendance' })}
         ${kpiCard(ICONS.users, BRAND.blue, fmtN(sum.scholarsServed), 'Scholars Served')}
         ${kpiCard(ICONS.handshake, BRAND.gold, fmtN(sum.sessionsDelivered), 'Sessions Delivered')}
-        ${kpiCard(ICONS.heart, '#c0367a', pctTxt(sum.lovingPct), 'Scholars Loving Their Sessions')}
+        ${sum.keptInClass != null ? kpiCard(ICONS.school, BRAND.neg, fmtN(sum.keptInClass), 'Times Kept in Class', { view: 'attendance', note: 'Sessions a teacher kept a scholar in class' }) : ''}
+        ${kpiCard(ICONS.heart, '#c0367a', pctTxt(sum.lovingPct), 'Scholars Loving Their Sessions', { view: 'scholar' })}
       </div>
       <div class="pt-card" style="margin-top:1.1rem;display:flex;gap:2.2rem;flex-wrap:wrap">
         <div><div class="pt-kpi-val" style="font-size:1.4rem">${sum.scholarSurveyAvg == null ? '—' : sum.scholarSurveyAvg.toFixed(2)}</div><div class="pt-kpi-sub">Scholar survey average (of 5)</div></div>
@@ -983,7 +986,7 @@
     return {
       name, rate: st.rate, served: CORE.servedScholars(att), checkIns: scholarsToCheckIn(st.rows).length,
       loving: CORE.lovingPct(scopedScholarSurveys().filter(r => (r[STU.SCHOOL] || '').trim() === name)),
-      kept: kept.count, keptShare: st.absent ? Math.round(kept.count / st.absent * 100) : 0,
+      kept: kept.count, keptScholars: kept.scholars.length, keptShare: st.absent ? Math.round(kept.count / st.absent * 100) : 0,
     };
   }
 
@@ -1001,7 +1004,16 @@
     else { SCOPE.school = 'ALL'; renderAll(); }
   }
   function goTab(view) { const t = document.querySelector(`.pt-tab[data-view="${view}"]`); if (t) t.click(); }
-  window.NJTCPartnerNav = { openSchool, backToAllSchools, goTab, isDistrictLens: () => isDistrictLens() };
+  // KPI tiles drill into the tab (and card) that explains the number.
+  function drill(view, anchor) {
+    goTab(view);
+    const el = anchor && document.getElementById(anchor);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.remove('pt-flash'); void el.offsetWidth; el.classList.add('pt-flash');
+    } else window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  window.NJTCPartnerNav = { openSchool, backToAllSchools, goTab, drill, isDistrictLens: () => isDistrictLens() };
 
   function contactCardHtml(id) {
     const c = CORE.contactsFor(id);
@@ -1051,7 +1063,7 @@
             <div><b>${x.served.toLocaleString()}</b> scholars</div>
             <div><b>${x.checkIns}</b> to check in</div>
             <div><b>${x.loving == null ? '—' : x.loving + '%'}</b> loving sessions</div>
-            <div><b>${x.kept}</b> kept in class</div>
+            <div><b>${x.keptScholars}</b> kept in class</div>
           </div>
           <div class="pt-school-go">View school &rarr;</div>
         </button>`).join('')}
@@ -1116,6 +1128,7 @@
     // Shared definitions (partner-report.js) — identical to the PDF and YoY card
     const uniqueScholars = CORE.servedScholars(attAll);
     const checkIns = scholarsToCheckIn(stats.rows);
+    const kept = keptInClass(attAll);
     const sessions = CORE.deliveredSessions(hasSessionData() ? scopedSessions() : [], attAll);
     // School-driven only — NJTC-side reasons never surface to partners.
     const notDelivered = hasSessionData() ? CORE.schoolDrivenNotDelivered(scopedSessions(), attAll) : null;
@@ -1169,11 +1182,12 @@
     const hlItem = c => `<div class="pt-quote">"${esc(c.text)}"<div class="pt-quote-meta">— ${c.who}</div></div>`;
 
     el.innerHTML = heroHtml(id) + attentionHtml(schoolList) + `
-      <div class="pt-grid pt-grid-4" style="margin-bottom:1.1rem" id="tourKpis">
-        ${kpiCard(ICONS.check, BRAND.pos, stats.rate == null ? '—' : stats.rate + '%', 'Scholar Attendance Rate')}
-        ${kpiCard(ICONS.users, BRAND.blue, uniqueScholars.toLocaleString(), 'Scholars Served')}
-        ${kpiCard(ICONS.handshake, BRAND.gold, checkIns.length.toLocaleString(), 'Scholars to Check In With')}
-        ${kpiCard(ICONS.heart, '#c0367a', scholarScored ? pct(scholarPos, scholarScored) + '%' : '—', 'Scholars Loving Their Sessions')}
+      <div class="pt-grid pt-grid-5" style="margin-bottom:1.1rem" id="tourKpis">
+        ${kpiCard(ICONS.check, BRAND.pos, stats.rate == null ? '—' : stats.rate + '%', 'Scholar Attendance Rate', { view: 'attendance' })}
+        ${kpiCard(ICONS.users, BRAND.blue, uniqueScholars.toLocaleString(), 'Scholars Served', { view: 'attendance', anchor: 'tourRoster' })}
+        ${kpiCard(ICONS.handshake, BRAND.gold, checkIns.length.toLocaleString(), 'Scholars to Check In With', { view: 'attendance', anchor: 'tourCheckin' })}
+        ${kpiCard(ICONS.school, BRAND.neg, kept.scholars.length.toLocaleString(), 'Scholars Kept in Class', { view: 'attendance', anchor: 'tourKept', note: kept.count ? kept.count.toLocaleString() + ' missed session' + (kept.count !== 1 ? 's' : '') : '' })}
+        ${kpiCard(ICONS.heart, '#c0367a', scholarScored ? pct(scholarPos, scholarScored) + '%' : '—', 'Scholars Loving Their Sessions', { view: 'scholar' })}
       </div>
       ${district ? schoolTilesHtml(schoolList) : ''}
       <div class="pt-grid pt-grid-2">
@@ -1214,12 +1228,17 @@
       ${contactCardHtml(id)}
     </div></div>`;
   }
-  function kpiCard(iconSvg, color, val, sub) {
-    return `<div class="pt-card">
+  // go: { view, anchor, note } makes the tile a button that drills into
+  // the tab/card behind the number.
+  function kpiCard(iconSvg, color, val, sub, go) {
+    const body = `
       <div class="pt-kpi-icon" style="background:${color}18;color:${color}">${iconSvg}</div>
       <div class="pt-kpi-val">${val}</div>
       <div class="pt-kpi-sub">${sub}</div>
-    </div>`;
+      ${go && go.note ? `<div class="pt-kpi-note">${esc(go.note)}</div>` : ''}`;
+    if (!go || !go.view) return `<div class="pt-card">${body}</div>`;
+    return `<button type="button" class="pt-card pt-kpi-link" onclick="NJTCPartnerNav.drill('${go.view}','${go.anchor || ''}')" aria-label="${esc(sub)}: ${esc(String(val))} - view details">${body}
+      <div class="pt-kpi-go">View details &rarr;</div></button>`;
   }
   // Value sits beside the bar, not inside it, so a short bar (e.g. 1.7%)
   // never clips its own label on narrower screens.
@@ -1293,7 +1312,7 @@
           <div class="pt-card-title">${ICONS.search} Why Scholars Missed a Session</div>
           ${reasons.length ? distRows(reasons, reasonTotal, BRAND.blue) + missedReasonInsight(reasons) : `<p style="color:var(--muted);font-size:.85rem">No missed sessions logged.</p>`}
         </div>
-        <div class="pt-card">
+        <div class="pt-card" id="tourRoster">
           <div class="pt-card-title">${ICONS.roster} Scholar Attendance</div>
           <div id="rosterBox">
             <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th>Attendance</th></tr></thead><tbody>
@@ -1382,10 +1401,13 @@
 
   function keptInClassHtml(attRows, absent) {
     const k = keptInClass(attRows);
-    if (!k.count) return '';
+    if (!k.count) return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourKept">
+      <div class="pt-card-title">${ICONS.school} Kept in Class During Tutoring</div>
+      <p style="font-size:.85rem;color:var(--text-2)">No scholars were kept in class by a teacher during tutoring.</p>
+    </div>`;
     const share = absent ? Math.round(k.count / absent * 100) : 0;
     return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourKept">
-      <div class="pt-card-title">${ICONS.handshake} Kept in Class During Tutoring<span class="pt-card-title-note">${k.count.toLocaleString()} session${k.count !== 1 ? 's' : ''} · ${share}% of missed sessions</span></div>
+      <div class="pt-card-title">${ICONS.school} Kept in Class During Tutoring<span class="pt-card-title-note">${k.count.toLocaleString()} session${k.count !== 1 ? 's' : ''} · ${share}% of missed sessions</span></div>
       <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">A classroom teacher kept these scholars in class during their tutoring time. Each one counts as a missed tutoring session, so scholars receive less of the tutoring they're scheduled for. A quick word with the teachers about the tutoring schedule usually helps.</p>
       <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th style="text-align:right">Times kept in class</th></tr></thead><tbody>
         ${k.scholars.slice(0, 10).map(x => `<tr><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(x.uid || '—')}</td><td>${esc(x.name)}</td><td style="text-align:right;font-weight:700">${x.n}</td></tr>`).join('')}
