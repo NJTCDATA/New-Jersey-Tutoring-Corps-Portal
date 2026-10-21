@@ -273,6 +273,7 @@
         wrongCategory: (t.issues.wrongTutorAbs || 0) + (t.issues.wrongScholar || 0),
         wholeGroupReview: t.issues.wholeGroupCT || 0,
         tutorAttendance: pct(t.tutAtt, t.tutAtt + t.tutAbs),
+        tutorSessions: t.tutAtt + t.tutAbs, tutorAbsences: t.tutAbs,
         totalFixes: sumFix(t.issues) + missingT,
       };
     }).filter(t => t.totalFixes > 0 || t.wholeGroupReview > 0 || (t.tutorAttendance !== null && t.tutorAttendance < TARGET.tutorAtt))
@@ -473,13 +474,51 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // UI — modal in Pearl Ops (Programming + Data)
+  // TUTORS TO CHECK IN WITH — the tutor-side twin of "Scholars to check in
+  // with" on the partner report: a real pattern, not a single slip.
+  //   • tutor attendance under 90% across 3+ recorded sessions, or
+  //   • 3+ open Pearl items the tutor fixes (incomplete sessions, missing
+  //     tutor surveys, blank missed reasons, attendance not recorded, status
+  //     mismatches, wrong missed reason).
+  // Lowest tutor attendance first, then most open items.
   // ─────────────────────────────────────────────────────────────────────────
+  const TUTOR_CHECKIN = { minSessions: 3, minFixes: 3 };
+  const TUTOR_RULE = 'Tutors with a real pattern, year to date: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
+    '(incomplete sessions, missing tutor surveys, blank missed reasons, attendance not recorded or mismatched). A quick check-in from the Site Leader or PM usually clears this up.';
+  function tutorsToCheckIn(R) {
+    const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    return R.tutors.map(t => {
+      const lowAtt = t.tutorAttendance !== null && t.tutorSessions >= TUTOR_CHECKIN.minSessions && t.tutorAttendance < TARGET.tutorAtt;
+      const fixes = t.totalFixes;
+      if (!lowAtt && fixes < TUTOR_CHECKIN.minFixes) return null;
+      const why = [];
+      if (lowAtt) why.push('Attendance ' + t.tutorAttendance + '% (' + plural(t.tutorAbsences, 'absence') + ' in ' + t.tutorSessions + ')');
+      if (t.missingTutorSurveys) why.push(plural(t.missingTutorSurveys, 'missing tutor survey'));
+      if (t.incomplete) why.push(plural(t.incomplete, 'incomplete session'));
+      if (t.blankReasons) why.push(plural(t.blankReasons, 'blank missed reason'));
+      const other = t.notRecorded + t.statusMismatch + t.wrongCategory;
+      if (other) why.push(plural(other, 'attendance fix'));
+      return Object.assign({}, t, { lowAtt, why: why.join('; ') });
+    }).filter(Boolean).sort((a, b) => (b.lowAtt - a.lowAtt) || ((a.lowAtt ? a.tutorAttendance - b.tutorAttendance : 0)) || b.totalFixes - a.totalFixes || a.tutor.localeCompare(b.tutor));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UI — modal in Pearl Ops (Programming + Data)
+  //   PDF   → Region Weekly Report: the Partner Weekly Report layout
+  //           (partner/partner-report.js) for a region, with "Tutors to check
+  //           in with" and a per-school tutor view for the Central Team.
+  //   Excel → the Support Report detail tabs, year to date through the week.
+  // ─────────────────────────────────────────────────────────────────────────
+  const REGION_NAME = { NE: 'North-East', SW: 'South-West' };
   let _region = 'ALL';
-  function open(region) {
+  let _bundle = null; // full current-SY Pearl bundle (all districts)
+  const escA = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+  let _wantWeek = '';
+  function open(region, opts) {
+    _wantWeek = (opts && opts.weekOf) || '';
     if (region === 'NE' || region === 'SW' || region === 'ALL') _region = region;
     if (!window.po || typeof window.po.getFieldSupportInput !== 'function') { alert('Pearl Ops data not ready yet - try again in a moment.'); return; }
-    const schools = window.po.getFieldSupportInput('ALL').schoolNames || [];
     let m = document.getElementById('fsModal');
     if (!m) {
       m = document.createElement('div'); m.id = 'fsModal';
@@ -490,76 +529,145 @@
     const lbl = 'font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.35rem';
     const inp = 'width:100%;padding:.5rem .65rem;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:.85rem;background:var(--bg);color:var(--text);box-sizing:border-box';
     m.innerHTML = `
-      <div style="background:var(--surface);border-radius:16px;width:520px;max-width:96vw;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.3)">
-        <div style="background:linear-gradient(135deg,#7c2d12,#c2410c);padding:1.1rem 1.4rem;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
-          <div><div style="color:#fff;font-weight:700">${_region === 'ALL' ? 'Support Report' : _region + ' Region Support Report'}</div>
-          <div style="color:rgba(255,255,255,.8);font-size:.78rem;margin-top:.15rem">Who needs support and what to fix - campus and tutor</div></div>
-          <button onclick="document.getElementById('fsModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer">✕</button>
+      <div role="dialog" aria-modal="true" aria-labelledby="fsTitle" style="background:var(--surface);border-radius:16px;width:520px;max-width:96vw;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.3)">
+        <div style="background:#0a1628;border-bottom:3px solid #f0a500;padding:1.1rem 1.4rem;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
+          <div><div id="fsTitle" style="color:#fff;font-weight:700">Region Weekly Report</div>
+          <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.15rem">The Partner Weekly Report layout for a region, with tutors to check in with</div></div>
+          <button type="button" aria-label="Close" onclick="document.getElementById('fsModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer">✕</button>
         </div>
         <div style="padding:1.25rem 1.4rem">
-          <div style="margin-bottom:.85rem"><div style="${lbl}">Region</div><div style="display:flex;gap:.4rem">
-            ${['ALL', 'NE', 'SW'].map(r => `<button data-fs-region="${r}" style="padding:.35rem .85rem;font-size:.8rem;font-weight:600;border-radius:8px;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--text)">${r === 'ALL' ? 'All Regions' : r + ' Region'}</button>`).join('')}
+          <div style="margin-bottom:.85rem"><div style="${lbl}">Region</div><div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            ${['ALL', 'NE', 'SW'].map(r => `<button type="button" data-fs-region="${r}" style="padding:.35rem .85rem;font-size:.8rem;font-weight:600;border-radius:8px;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--text)">${r === 'ALL' ? 'All Regions' : r + ' Region'}</button>`).join('')}
           </div></div>
-          <div style="margin-bottom:.85rem"><div style="${lbl}">School (optional)</div>
-            <select id="fsSchool" style="${inp}"><option value="">All Schools</option>${schools.map(s => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('')}</select></div>
-          <div style="display:flex;gap:.6rem;margin-bottom:1.1rem">
-            <div style="flex:1"><div style="${lbl}">From (optional)</div><input id="fsFrom" type="date" style="${inp}"></div>
-            <div style="flex:1"><div style="${lbl}">To (optional)</div><input id="fsTo" type="date" style="${inp}"></div>
-          </div>
+          <div style="margin-bottom:.85rem"><label for="fsSchool" style="${lbl};display:block">School (optional)</label>
+            <select id="fsSchool" style="${inp}"><option value="">All schools in the region</option></select></div>
+          <div style="margin-bottom:1.1rem"><label for="fsWeek" style="${lbl};display:block">Week</label>
+            <select id="fsWeek" style="${inp}" disabled><option value="">Loading Pearl weeks…</option></select></div>
           <div style="display:flex;gap:.6rem">
-            <button onclick="njtcFieldSupport.download('pdf')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:#1e3a5f;color:#fff;font-weight:700;cursor:pointer">Download PDF</button>
-            <button onclick="njtcFieldSupport.download('xlsx')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:#166534;color:#fff;font-weight:700;cursor:pointer">Download Excel</button>
+            <button type="button" id="fsPdfBtn" onclick="njtcFieldSupport.download('pdf')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;font-weight:700;cursor:pointer">⬇ Weekly Report (PDF)</button>
+            <button type="button" onclick="njtcFieldSupport.download('xlsx')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:#166534;color:#fff;font-weight:700;cursor:pointer">⬇ Support Detail (Excel)</button>
           </div>
-          <div id="fsStatus" style="font-size:.78rem;color:var(--muted);margin-top:.7rem;min-height:1em"></div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.55rem">Internal - for the Central Team, not for partners. Partners get their own version from the Partner PDF button.</div>
+          <div id="fsStatus" role="status" aria-live="polite" style="font-size:.78rem;color:var(--muted);margin-top:.5rem;min-height:1em"></div>
         </div>
       </div>`;
     const paint = () => m.querySelectorAll('[data-fs-region]').forEach(b => {
       const on = b.dataset.fsRegion === _region;
       b.style.background = on ? 'var(--blue-mid)' : 'var(--surface)'; b.style.color = on ? '#fff' : 'var(--text)';
       b.style.borderColor = on ? 'var(--blue-mid)' : 'var(--border)';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    m.querySelectorAll('[data-fs-region]').forEach(b => b.addEventListener('click', () => { _region = b.dataset.fsRegion; paint(); }));
+    m.querySelectorAll('[data-fs-region]').forEach(b => b.addEventListener('click', () => { _region = b.dataset.fsRegion; paint(); fillSchools(); fillWeeks(); }));
+    document.getElementById('fsSchool').addEventListener('change', fillWeeks);
     paint();
+    fillSchools();
     m.style.display = 'flex';
+    loadBundle().then(fillWeeks).catch(e => { console.error('[Region Report]', e); status('Could not load Pearl data - the Excel still works; try the PDF again in a moment.', true); });
   }
 
+  function status(msg, isErr) { const st = document.getElementById('fsStatus'); if (st) { st.textContent = msg || ''; st.style.color = isErr ? '#b91c1c' : ''; } }
+
+  function fillSchools() {
+    const sel = document.getElementById('fsSchool'); if (!sel) return;
+    const input = window.po.getFieldSupportInput(_region);
+    const names = (input.schoolNames || []).filter(n => _region === 'ALL' || Object.values(input.sessions || {}).some(s => s.school === n && input.regionOf(s.school, s.district) === _region));
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">All schools' + (_region === 'ALL' ? '' : ' in the region') + '</option>' + names.map(n => `<option value="${escA(n)}">${escA(n)}</option>`).join('');
+    if (names.includes(prev)) sel.value = prev;
+  }
+
+  async function loadBundle() {
+    const PR = window.NJTCPartnerReport;
+    if (!PR) throw new Error('Report module not loaded - refresh the page.');
+    if (_bundle) return _bundle;
+    status('Loading Pearl data (first load can take ~20 seconds)…');
+    const pearl = await PR.loadPearl();
+    _bundle = PR.bundleForEntry(pearl, { name: 'NJTC Central Team', level: 'Admin', scopeType: 'all' });
+    status('');
+    return _bundle;
+  }
+
+  // The bundle for the chosen region (and school) — same scope rules as a
+  // Regional partner account, so the numbers match that partner view.
+  function regionBundle() {
+    const PR = window.NJTCPartnerReport;
+    const reg = REGION_NAME[_region];
+    const entry = reg ? { scopeType: 'region', region: reg } : { scopeType: 'all' };
+    const keep = (rows, dIdx, sIdx) => rows.filter(r => !PR.isArchivedName(r[sIdx]) && !PR.isArchivedName(r[dIdx]) && PR.scopeMatches(entry, (r[dIdx] || '').trim(), (r[sIdx] || '').trim()));
+    return {
+      generatedAt: _bundle.generatedAt, season: _bundle.season,
+      identity: { name: 'NJTC Central Team', level: reg ? 'Regional' : 'Admin', region: reg || 'ALL', district: 'ALL', schools: ['ALL'] },
+      attendance: keep(_bundle.attendance, PR.ATT.DISTRICT, PR.ATT.SCHOOL),
+      tutorSurveys: keep(_bundle.tutorSurveys, PR.INST.DISTRICT, PR.INST.SCHOOL),
+      scholarSurveys: keep(_bundle.scholarSurveys, PR.STU.DISTRICT, PR.STU.SCHOOL),
+      sessions: keep(_bundle.sessions, PR.SESS.DISTRICT, PR.SESS.SCHOOL),
+    };
+  }
+
+  function fillWeeks() {
+    const sel = document.getElementById('fsWeek'); if (!sel || !_bundle) return;
+    const PR = window.NJTCPartnerReport;
+    const school = (document.getElementById('fsSchool') || {}).value || '';
+    let b = regionBundle();
+    if (school) b = Object.assign({}, b, { attendance: PR.scoped(b.attendance, PR.ATT.DISTRICT, PR.ATT.SCHOOL, null, { school }) });
+    const prev = sel.value;
+    const weeks = PR.allWeeks(b).reverse();
+    sel.innerHTML = weeks.map(w => `<option value="${w.key}">Week of ${escA(PR.weekRangeLabel(w.key))}</option>`).join('') + '<option value="ALL">Full school year to date</option>';
+    const want = _wantWeek && PR.weekBucket(_wantWeek.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3/$1'));
+    if (want && weeks.some(w => w.key === want.key)) { sel.value = want.key; _wantWeek = ''; }
+    else sel.value = weeks.some(w => w.key === prev) || prev === 'ALL' ? prev : (weeks.length ? weeks[0].key : 'ALL');
+    sel.disabled = false;
+  }
+
+  function weekEnd(key) {
+    if (!key || key === 'ALL') return '';
+    const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + 6);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // Support Report numbers, year to date through the chosen week
   function currentReport() {
     const input = window.po.getFieldSupportInput(_region);
     input.region = _region;
     input.school = (document.getElementById('fsSchool') || {}).value || '';
-    input.from = (document.getElementById('fsFrom') || {}).value || '';
-    input.to = (document.getElementById('fsTo') || {}).value || '';
+    input.from = '';
+    input.to = weekEnd((document.getElementById('fsWeek') || {}).value || 'ALL');
     return computeFieldSupport(input);
   }
   function scopeText(R) {
-    return [R.school || (R.region === 'ALL' ? 'All Regions' : R.region + ' Region')].join('');
+    return R.school || (R.region === 'ALL' ? 'All Regions' : R.region + ' Region');
   }
   function fileStem(R) {
     const s = (R.school || (R.region === 'ALL' ? 'All' : R.region + '-Region')).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    return 'NJTC-Support-Report-' + s + '-' + new Date().toISOString().slice(0, 10);
+    return 'NJTC-Support-Report-' + s + '-' + (R.to || new Date().toISOString().slice(0, 10));
   }
 
   async function download(kind) {
-    const st = document.getElementById('fsStatus');
     try {
-      if (st) st.textContent = 'Building…';
+      status('Building…');
       const R = currentReport();
       if (kind === 'xlsx') {
         if (!window.XLSX) throw new Error('Excel library not loaded - check your connection and refresh.');
         window.XLSX.writeFile(buildWorkbook(window.XLSX, R), fileStem(R) + '.xlsx');
-      } else {
-        if (window.njtcPDFExport && window.njtcPDFExport.loadLibs) await window.njtcPDFExport.loadLibs();
-        const doc = buildPDF(window.jspdf.jsPDF, R, scopeText(R));
-        doc.save(fileStem(R) + '.pdf');
+        status('Downloaded ' + fileStem(R) + '.xlsx');
+        return;
       }
-      if (st) st.textContent = 'Downloaded.';
+      await loadBundle();
+      const school = (document.getElementById('fsSchool') || {}).value || '';
+      const week = (document.getElementById('fsWeek') || {}).value || 'ALL';
+      const schoolExtra = {};
+      R.schools.forEach(c => { schoolExtra[c.school] = { tutorAttendance: c.tutorAttendance, support: c.support }; });
+      const out = await window.NJTCPartnerReport.generatePDF(regionBundle(), { district: 'ALL', school: school || 'ALL', week }, {
+        internal: { preparedFor: 'NJTC Central Team (internal)', tutors: tutorsToCheckIn(R), tutorRule: TUTOR_RULE, schoolExtra },
+      });
+      status('Downloaded ' + out.name);
     } catch (e) {
-      console.error('[Support Report]', e);
-      if (st) st.textContent = 'Could not build the report: ' + e.message;
+      console.error('[Region Report]', e);
+      status('Could not build the report: ' + e.message, true);
     }
   }
 
-  const api = { open, download, computeFieldSupport, buildWorkbook, buildPDF, sheetSpecs };
+  const api = { open, download, computeFieldSupport, buildWorkbook, buildPDF, sheetSpecs, tutorsToCheckIn, TUTOR_RULE };
   if (typeof window !== 'undefined') window.njtcFieldSupport = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
