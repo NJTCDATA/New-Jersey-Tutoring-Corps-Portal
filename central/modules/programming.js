@@ -656,9 +656,10 @@
 
     // ── STATS ─────────────────────────────────────────────────────────────
     // Tutors tile — Onsite Tracker roster for the cycle (has a role, offer not
-    // declined, not terminated). Tutor + Certified Tutor are counted; Dual Role
-    // and Sub-Tutors are shown underneath (not added in). Program-wide, like
-    // the Total Staff tile.
+    // declined, not terminated). Tutor + Certified Tutor are counted; Site
+    // Leaders (Site Leader, Dual Role, Site Coordinator — Dual Role is being
+    // renamed Site Leader) and Sub-Tutors are shown underneath, not added in.
+    // Tutors + Site Leaders + Sub-Tutors = the Total Staff roster.
     function _setTutorTile(inCycle) {
       if (!_trackerReady || !_trackerRows.length) { setText('syStatTutors', '—'); setText('syStatTutorsSub', 'Onsite Tracker loading…'); return; }
       const nk = n => (n||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
@@ -667,9 +668,9 @@
       const role = r => (r.role || '').toLowerCase();
       const tutors = roster.filter(r => /tutor/.test(role(r)) && !/sub/.test(role(r))).length;
       const subs   = roster.filter(r => /sub/.test(role(r)) && /tutor/.test(role(r))).length;
-      const dual   = roster.filter(r => /dual/.test(role(r))).length;
+      const leaders = roster.filter(r => /dual|site leader|site coord/.test(role(r))).length;
       setText('syStatTutors', roster.length ? tutors.toLocaleString() : '—');
-      setText('syStatTutorsSub', roster.length ? `+ ${dual} dual role · ${subs} sub-tutors` : 'No roster rows for this period');
+      setText('syStatTutorsSub', roster.length ? `+ ${leaders} site leader${leaders === 1 ? '' : 's'} · ${subs} sub-tutor${subs === 1 ? '' : 's'}` : 'No roster rows for this period');
     }
 
     function updateStats() {
@@ -882,7 +883,7 @@
         ? `<div class="sy-detail-row"><span class="sy-detail-label">${lbl}</span><span class="sy-detail-val">${val}</span></div>` : '';
       const sec = lbl => `<div class="sy-detail-section">${lbl}</div>`;
       const stfStr = s.totalStaff ? (s.totalStaff%1===0?s.totalStaff:s.totalStaff.toFixed(1)) : '—';
-      const staffPairs = [['Tutors',s.tutorFill,s.tutorPos],['Site Coord',s.scFill,s.scPos],['Instr. Coach',s.icFill,s.icPos],['Dual Role',s.drFill,s.drPos]].filter(([,f,p])=>f||p);
+      const staffPairs = [['Tutors',s.tutorFill,s.tutorPos],['Site Coord',s.scFill,s.scPos],['Instr. Coach',s.icFill,s.icPos],['Site Leader',s.drFill,s.drPos]].filter(([,f,p])=>f||p);
       const staffGrid = staffPairs.length ? `<div class="sy-staff-grid">
         ${staffPairs.map(([lbl,f,p])=>`<div><div class="sy-staff-cell-label">${lbl}</div><div class="sy-staff-cell-val">${f||0}/${p||0}</div></div>`).join('')}
         ${s.apprentice?`<div><div class="sy-staff-cell-label">Apprentice</div><div class="sy-staff-cell-val">${s.apprentice}</div></div>`:''}
