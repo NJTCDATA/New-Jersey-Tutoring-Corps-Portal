@@ -114,6 +114,7 @@
   }
   const SCHOLAR_MISS_REASONS = new Set([
     'Absent',
+    'Absent (from school)',
     'Scholar declined attending tutoring session',
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support',

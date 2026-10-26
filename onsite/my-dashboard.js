@@ -114,6 +114,7 @@
   function friendlyScholarReason(reason) {
     const map = {
       'Absent': 'Student not in school',
+      'Absent (from school)': 'Student not in school',
       'Scholar declined attending tutoring session': 'Student opted out',
       'Classroom Teacher Requested to Keep Scholar in Class': 'Teacher kept student in class',
       'Scholar Left Early': 'Student left session early',

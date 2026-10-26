@@ -1811,6 +1811,7 @@
     // on, so it counts as an absence here like everywhere else.
     const SCHOLAR_MISS_REASONS = new Set([
       'Absent',                                     // scholar absent from school
+      'Absent (from school)',                       // same reason, Pearl's newer wording (Oct 2026)
       'Scholar declined attending tutoring session', // scholar's own choice
       'Scholar Left Early',                         // scholar left session early — counts as scholar-caused
       'Classroom Teacher Requested to Keep Scholar in Class',
@@ -1829,7 +1830,7 @@
 
     // Legacy alias — kept for any remaining references in flag/SI logic
     const ABSENT_REASONS = new Set([
-      'Absent','Scholar declined attending tutoring session','',
+      'Absent','Absent (from school)','Scholar declined attending tutoring session','',
       // Legacy set used by flag logic. Attendance rates now use
       // SCHOLAR_MISS_REASONS / TUTOR_MISS_REASONS for precision.
     ]);

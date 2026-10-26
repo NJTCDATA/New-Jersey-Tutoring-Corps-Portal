@@ -1133,6 +1133,7 @@
   ]);
   const LT_SCHOLAR_MISS = new Set([
     'Absent',
+    'Absent (from school)',
     'Scholar declined attending tutoring session',
     'Scholar Left Early',
     'Classroom Teacher Requested to Keep Scholar in Class',
