@@ -8606,6 +8606,7 @@
   // r[7] = MISS_REASON (free-text reason string)
   var _SCHOL_MISS_REASONS = [
     'Absent',
+    'Absent (from school)',
     'Scholar declined attending tutoring session',
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support',
