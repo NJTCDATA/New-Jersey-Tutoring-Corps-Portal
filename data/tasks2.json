@@ -1,25 +1,37 @@
 {
-  "generated": "2026-10-30T13:18:06.038Z",
+  "generated": "2026-10-30T18:43:20.692Z",
   "project": "1213346212277384",
   "count": 2,
   "tasks": [
     {
-      "gid": "1218285303277817",
+      "gid": "1219242249066317",
       "assignee": {
         "gid": "1213635692801884",
         "resource_type": "user"
       },
       "completed": false,
-      "due_on": "2026-10-29",
+      "due_on": "2026-10-30",
       "followers": [
+        {
+          "gid": "1202953622354860",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1202967483652746",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1205799963499266",
+          "resource_type": "user"
+        },
         {
           "gid": "1213635692801884",
           "resource_type": "user"
         }
       ],
-      "name": "Networking Event with NJAEL - Oct. 2026",
-      "notes": "10/29/26\n\n",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1218285303277817"
+      "name": "2027 Community Collaboration Challenge",
+      "notes": "The 2027 CCC provides $3,000 to $8,000 awards to help schools, districts, nonprofits, higher education institutions, government agencies, and community partners cross-design, plan, or pilot solutions across five key support areas: high-impact tutoring, mentoring, student success coaching, postsecondary transition coaching, and wraparound/integrated student supports.\n\n",
+      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1219242249066317"
     },
     {
       "gid": "1213346212293206",
