@@ -371,10 +371,10 @@ def fetch_pearl_att(appr_lookup):
         'half day', 'holiday - scheduled',
     }
     SCHOLAR_MISS_REASONS = {
-        'absent', 'scholar declined attending tutoring session',
+        'absent', 'absent (from school)', 'scholar declined attending tutoring session',
         'classroom teacher requested to keep scholar in class',
         'haddon twp only -- teacher requested whole group support',
-        'scholar left early',
+        'scholar left early', 'scholar unavailable; out of the classroom',
     }
 
     appr_data = {}
@@ -577,10 +577,10 @@ def build_scholar_att_from_pearl(appr_data, session_scholars, pearl_att_text):
         'half day', 'holiday - scheduled',
     }
     SCHOLAR_MISS = {
-        'absent', 'scholar declined attending tutoring session',
+        'absent', 'absent (from school)', 'scholar declined attending tutoring session',
         'classroom teacher requested to keep scholar in class',
         'haddon twp only -- teacher requested whole group support',
-        'scholar left early',
+        'scholar left early', 'scholar unavailable; out of the classroom',
     }
 
     # Build session → apprentice mapping from appr_data

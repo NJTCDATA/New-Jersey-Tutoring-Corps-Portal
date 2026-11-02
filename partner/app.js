@@ -1438,6 +1438,9 @@
     if (/Classroom Teacher Requested|whole group support/i.test(reason)) {
       return `<p style="font-size:.78rem;color:var(--text-2);margin-top:.9rem;padding-top:.75rem;border-top:1px solid var(--border-2)">The leading reason here comes from classroom teachers keeping scholars in class. A quick check-in with those teachers about tutoring block scheduling is often all it takes.</p>`;
     }
+    if (/Out of the Classroom/i.test(reason)) {
+      return `<p style="font-size:.78rem;color:var(--text-2);margin-top:.9rem;padding-top:.75rem;border-top:1px solid var(--border-2)">The leading reason here is scholars being out of the classroom when tutoring starts (another pull-out, the nurse, an appointment). A quick look at what else is scheduled during the tutoring block usually helps.</p>`;
+    }
     if (/declined/i.test(reason)) {
       return `<p style="font-size:.78rem;color:var(--text-2);margin-top:.9rem;padding-top:.75rem;border-top:1px solid var(--border-2)">The leading reason here is scholars declining the session. Worth a conversation with those scholars about what's getting in the way.</p>`;
     }

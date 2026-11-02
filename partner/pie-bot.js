@@ -184,6 +184,10 @@
         nd.byReason.map(([r, n]) => `${r} (${n.toLocaleString()})`).join(', ') +
         `. These are counted once per session and never count against your attendance rate. The breakdown is on the Summary tab under "This Year at a Glance."`;
     }
+    if (/out of (the )?class|unavailable|what counts|counts? (as|against)|which (missed )?reasons?|missed reasons?|why .*miss/.test(q)) {
+      return `Only scholar-side reasons count as a missed session in your attendance rate: the scholar was <b>absent from school</b>, <b>declined the session</b>, <b>left early</b>, was <b>unavailable / out of the classroom</b> when tutoring started, or was <b>kept in class by a classroom teacher</b> (a missed session with no reason entered also counts). ` +
+        `Excused time — school events, testing days, holidays, weather, NJTC staffing gaps — is never counted against you. The reasons behind your missed sessions are on the Attendance Tracking tab.`;
+    }
     if (/attendance rate|how am i doing|missed|absent|check.?in/.test(q)) {
       return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays, NJTC staffing gaps — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? '' : 's'} could use a check-in — see the "Scholars to Check In With" list on the Attendance Tracking tab.` : `No scholars are currently flagged for a check-in — nice.`}`;
     }
