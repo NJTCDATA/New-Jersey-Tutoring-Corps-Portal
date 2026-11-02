@@ -18,7 +18,7 @@
   'use strict';
 
   // Apps Script web app /exec URL from apps-scripts/comment-followup.gs setup step 4.
-  const FOLLOWUP_URL = '';
+  const FOLLOWUP_URL = 'https://script.google.com/macros/s/AKfycbzDPNNW46xYIe29Ymnp7quy5CADYzI4_FFChzEE7PvL8NgLZm0ILb7pL2uq2ad2cS3E/exec';
 
   const STATUSES = ['Open', 'In progress', 'Resolved', 'No action needed'];
   const CLOSED = new Set(['Resolved', 'No action needed']);
