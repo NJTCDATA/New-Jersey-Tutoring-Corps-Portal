@@ -56,3 +56,13 @@ assert.strictEqual(CF.commentId('s1', 'Tutor A', 'Hello  there'), CF.commentId('
 assert.notStrictEqual(CF.commentId('s1', 'Tutor A', 'x'), CF.commentId('s2', 'Tutor A', 'x'));
 
 console.log('comment flags: all checks passed');
+
+// ── Apps Script copy stays identical to the shared rules ────────────────────
+{
+  const fs = require('fs');
+  const { embedded, SHARED, GS } = require('./sync-comment-flags-gs.js');
+  const shared = fs.readFileSync(SHARED, 'utf8');
+  assert.strictEqual(embedded(fs.readFileSync(GS, 'utf8')), shared.endsWith('\n') ? shared : shared + '\n',
+    'apps-scripts/comment-followup.gs is out of date — run: node scripts/sync-comment-flags-gs.js');
+  console.log('comment flags: Apps Script copy in sync');
+}
