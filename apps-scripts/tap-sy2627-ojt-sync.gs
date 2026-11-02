@@ -21,6 +21,8 @@
  * ║   6. Writes a per-person snapshot to "SY 26-27 Workbook Progress":         ║
  * ║      the % straight from each workbook + the Master Roster totals.        ║
  * ║                                                                            ║
+ * ║  v11 (11/2026): Sheets-API link reading (file chips), 80/80 matcher,      ║
+ * ║  date validation, no payroll email when history is first loaded.          ║
  * ║  SAFE TO RE-RUN DAILY — idempotent (never writes the same activity twice) ║
  * ║  and self-continuing (if it nears Apps Script's 6-minute limit it saves   ║
  * ║  its place and resumes 1 minute later).                                   ║
@@ -73,7 +75,7 @@ var SY2627_PROGRESS_HEADERS = [
   'Beg Y (of 33)', 'Mid Y (of 38)', 'End Y (of 9)', 'Total Y in Workbook',
   'N/A in Workbook', 'Possible', 'Workbook %', 'Latest Observation',
   'New Activities Imported (this run)', 'Master Roster OJT Hours', 'Master Roster OJT %',
-  'Issues', 'Last Synced'
+  'Issues', 'Last Synced', 'Y With No Date (counted, no month)', 'Y With Invalid Date (counted, no month)'
 ];
 var SY2627_REVIEW_HEADERS = ['Directory Name', 'Role', 'Issue', 'Action Needed', 'Logged'];
 
@@ -252,7 +254,8 @@ function _sy2627ProcessPerson(ctx, person) {
     person: person, rosterName: '', rowIndex: 0, created: false, track: '',
     workbookId: person.ojtSpreadsheetId, tabName: '',
     begY: 0, midY: 0, endY: 0, totalY: 0, na: 0, possible: MAX_ACTIVITIES, pct: 0,
-    lastObs: null, newRows: 0, unmatched: 0, mrHours: '', mrPct: '', issues: []
+    lastObs: null, newRows: 0, unmatched: 0, mrHours: '', mrPct: '', issues: [],
+    undated: 0, badDates: []
   };
   function flag(issue, action) {
     out.issues.push(issue);
@@ -325,21 +328,27 @@ function _sy2627ProcessPerson(ctx, person) {
     var data = pick.sheet.getDataRange().getValues();
     var normRoster = _normName(rr.name);
     var currentDomain = '';
+    var currentPhase = '';
     var rowsToWrite = [];
     var timestamp = new Date();
+    var minDate = new Date(2025, 2, 1), maxDate = new Date(Date.now() + 31 * 86400000);
 
-    for (var i = 10; i < data.length; i++) {
+    for (var i = 0; i < data.length; i++) {
       var row = data[i];
       var domainCell = String(row[1] || '').trim();
       var activityCell = String(row[2] || '').trim();
       var markCell = String(row[4] || '').trim();
+      if (/beginning of (the )?program/i.test(domainCell)) currentPhase = 'Beginning';
+      else if (/middle of (the )?program/i.test(domainCell)) currentPhase = 'Middle';
+      else if (/end of (the )?program/i.test(domainCell)) currentPhase = 'End';
+      if (i < 10) continue; // title/directions block — activity rows start at row 11
       if (domainCell && !activityCell) { currentDomain = domainCell; continue; }
       if (!activityCell) continue;
       if (/^n\s*\/?\s*a$/i.test(markCell)) { out.na++; continue; }
       if (!/^y/i.test(markCell)) continue;
 
       out.totalY++;
-      var m = _matchActivityByText(ctx.schemaIndex, null, currentDomain, activityCell);
+      var m = _matchActivityByText(ctx.schemaIndex, currentPhase, currentDomain, activityCell);
       if (!m) {
         out.unmatched++;
         flag('Could not confidently match activity: "' + activityCell.substring(0, 80) + '"',
@@ -349,6 +358,13 @@ function _sy2627ProcessPerson(ctx, person) {
       if (m.phase === 'Beginning') out.begY++; else if (m.phase === 'Middle') out.midY++; else if (m.phase === 'End') out.endY++;
 
       var obsDate = _sy2627ParseDate(row[5]);
+      if (!obsDate) {
+        if (String(row[5] || '').trim() && !/^n\/?a$/i.test(String(row[5]).trim())) out.badDates.push(m.phase + ' ' + m.domain + ' ' + m.code + ': "' + String(row[5]).trim() + '"');
+        else out.undated++;
+      } else if (obsDate < minDate || obsDate > maxDate) {
+        out.badDates.push(m.phase + ' ' + m.domain + ' ' + m.code + ': ' + Utilities.formatDate(obsDate, Session.getScriptTimeZone(), 'M/d/yyyy'));
+        obsDate = null; // counted toward totals, but never placed in a month
+      }
       if (obsDate && (!out.lastObs || obsDate > out.lastObs)) out.lastObs = obsDate;
 
       var key = normRoster + '|' + m.phase.toLowerCase() + '|' + m.domain.toLowerCase() + '|' + String(m.code).toUpperCase();
@@ -372,6 +388,10 @@ function _sy2627ProcessPerson(ctx, person) {
       rowsToWrite.push(r);
     }
 
+    if (out.badDates.length) {
+      flag(out.badDates.length + ' Y mark(s) with an impossible date: ' + out.badDates.slice(0, 6).join('; ') + (out.badDates.length > 6 ? '; …' : ''),
+           'Fix the date in their workbook (counted toward totals now; month columns/wage report pick it up once fixed).');
+    }
     out.possible = Math.max(MAX_ACTIVITIES - out.na, 0);
     out.pct = out.possible > 0 ? Math.min(out.totalY / out.possible, 1) : 0;
 
@@ -382,8 +402,11 @@ function _sy2627ProcessPerson(ctx, person) {
 
     // ── 4. Recalculate Master Roster totals (only when something changed) ─
     var mrHoursNow = ctx.rSheet.getRange(rr.rowIndex, MR_OJT_HOURS_TOTAL + 1).getValue();
-    if (out.newRows > 0 || out.created || mrHoursNow === '' || mrHoursNow === null) {
+    var firstLoad = out.created || mrHoursNow === '' || mrHoursNow === null;
+    if (out.newRows > 0 || firstLoad) {
+      if (firstLoad) _WAGE_BASELINE_NAMES[_normName(rr.name)] = true; // no payroll email for loading history
       recalculateTotals(rr.name);
+      delete _WAGE_BASELINE_NAMES[_normName(rr.name)];
     }
     _sy2627ReadRosterTotals(ctx, out);
     return out;
@@ -518,15 +541,20 @@ function _sy2627ReadDirectory(onsiteDb) {
   if (lastRow < firstData) return [];
   var range = sheet.getRange(firstData, 1, lastRow - firstData + 1, lastCol);
   var values = range.getValues(), rich = range.getRichTextValues(), formulas = range.getFormulas();
+  // v11: Apps Script's RichTextValue cannot see links stored as Google Drive
+  // file chips, which is why 41 of 78 workbooks were read as "no link" on
+  // 11/2/26. The Sheets API returns hyperlinks, link runs AND chip links.
+  var apiLinks = cLink >= 0 ? _sy2627ApiLinks(onsiteDb.getId(), SY2627.DIRECTORY_TAB, cLink + 1, firstData, lastRow) : [];
   var out = [];
   for (var i = 0; i < values.length; i++) {
     var name = String(values[i][0] || '').trim();
     var role = cRole >= 0 ? String(values[i][cRole] || '').trim() : '';
     if (/site leader/i.test(name) || /observation/i.test(role)) break; // Site Leader section starts here
     if (!name) continue;
-    var ex = cLink >= 0
-      ? _extractSpreadsheetIdFromCell(sheet, firstData + i, cLink + 1, rich[i][cLink], values[i][cLink], formulas[i][cLink])
-      : { id: '' };
+    var ex = { id: _sy2627IdFromUrl(apiLinks[i]) };
+    if (!ex.id && cLink >= 0) {
+      ex = _extractSpreadsheetIdFromCell(sheet, firstData + i, cLink + 1, rich[i][cLink], values[i][cLink], formulas[i][cLink]);
+    }
     out.push({
       name: name, role: role,
       ojtLinkText: cLink >= 0 ? String(values[i][cLink] || '').trim() : '',
@@ -668,7 +696,7 @@ function _sy2627WriteProgressRow(ctx, out) {
     out.begY, out.midY, out.endY, out.totalY, out.na, out.possible, out.pct,
     out.lastObs || '', out.newRows, out.mrHours, out.mrPct,
     out.issues.join(' | ') + (p.notes ? (out.issues.length ? ' | ' : '') + 'Directory note: ' + p.notes : ''),
-    new Date()
+    new Date(), out.undated, out.badDates.length
   ];
   var r = ctx.progress.getLastRow() + 1;
   ctx.progress.getRange(r, 1, 1, row.length).setValues([row]);
@@ -724,6 +752,127 @@ function _sy2627ParseDate(v) {
   if (my) return my;
   var d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
+}
+
+/** Spreadsheet ID from a Google Sheets URL (or '' if none). */
+function _sy2627IdFromUrl(url) {
+  var m = String(url || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+
+/**
+ * Reads one column of link cells through the Sheets API and returns one URL
+ * (or '') per row from firstRow..lastRow. Covers whole-cell hyperlinks,
+ * links on part of the text, and Google Drive file chips. Never throws.
+ */
+function _sy2627ApiLinks(spreadsheetId, tabName, col1, firstRow, lastRow) {
+  var out = [];
+  for (var k = firstRow; k <= lastRow; k++) out.push('');
+  var colA = _colLetter(col1);
+  var range = "'" + String(tabName).replace(/'/g, "''") + "'!" + colA + firstRow + ':' + colA + lastRow;
+  var fieldSets = [
+    'sheets(data(rowData(values(hyperlink,textFormatRuns(format(link(uri))),chipRuns(chip(richLinkProperties(uri)))))))',
+    'sheets(data(rowData(values(hyperlink,textFormatRuns(format(link(uri)))))))'
+  ];
+  for (var f = 0; f < fieldSets.length; f++) {
+    try {
+      var url = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId +
+        '?includeGridData=true&ranges=' + encodeURIComponent(range) + '&fields=' + encodeURIComponent(fieldSets[f]);
+      var resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+      if (resp.getResponseCode() !== 200) { Logger.log('_sy2627ApiLinks HTTP ' + resp.getResponseCode() + ': ' + resp.getContentText().slice(0, 300)); continue; }
+      var json = JSON.parse(resp.getContentText());
+      var rows = (((json.sheets || [])[0] || {}).data || [])[0];
+      rows = (rows && rows.rowData) || [];
+      for (var r = 0; r < rows.length && r < out.length; r++) {
+        var v = ((rows[r] || {}).values || [])[0] || {};
+        var link = v.hyperlink || '';
+        if (!link && v.chipRuns) v.chipRuns.forEach(function(cr) {
+          var u = cr && cr.chip && cr.chip.richLinkProperties && cr.chip.richLinkProperties.uri;
+          if (!link && u) link = u;
+        });
+        if (!link && v.textFormatRuns) v.textFormatRuns.forEach(function(tr) {
+          var u = tr && tr.format && tr.format.link && tr.format.link.uri;
+          if (!link && u) link = u;
+        });
+        out[r] = link;
+      }
+      return out;
+    } catch (e) {
+      Logger.log('_sy2627ApiLinks: ' + e);
+    }
+  }
+  return out;
+}
+
+/**
+ * ONE-TIME (safe to re-run): re-reads every SUMMER 2026 workbook on the
+ * "Summer 26 OJT" tab and adds only the activities the old matcher missed
+ * (Beginning/Professionalism/H and Middle/Instruction/AB) or anything else
+ * not yet in the OTJ log. Does NOT change any Master Roster details — only
+ * adds missing activities for people already on the roster, then recalculates.
+ */
+function topUpSummerWorkbooks() {
+  var t0 = Date.now();
+  var onsiteDb = SpreadsheetApp.openById(ONSITE_DB_SHEET_ID);
+  var ss = _getSpreadsheet();
+  var rSheet = _getSheetByGID(ss, GID_MASTER_ROSTER);
+  var ojtSheet = _getSheetByGID(ss, GID_OJT_LOG);
+  var summerTab = onsiteDb.getSheetByName(SUMMER_OJT_TAB_NAME);
+  var directory = _readSummerOJTDirectory(onsiteDb);
+  if (summerTab) {
+    var api = _sy2627ApiLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
+    var nonBlank = [];
+    summerTab.getRange(4, 1, Math.max(summerTab.getLastRow() - 3, 1), 1).getValues().forEach(function(r, i) {
+      if (String(r[0] || '').trim()) nonBlank.push(api[i] || '');
+    });
+    directory.forEach(function(p, i) { if (!p.ojtSpreadsheetId) p.ojtSpreadsheetId = _sy2627IdFromUrl(nonBlank[i]); });
+  }
+  var roster = _sy2627ReadRosterIndex(rSheet);
+  var keys = _sy2627ExistingOJTKeys(ojtSheet);
+  var schemaIndex = _buildSchemaTextIndex();
+  var added = 0, people = 0, skipped = [];
+  for (var d = 0; d < directory.length; d++) {
+    if (Date.now() - t0 > SY2627.TIME_BUDGET_MS) { skipped.push('…stopped for time — run again to finish (safe)'); break; }
+    var person = directory[d];
+    var rr = _demoFuzzyMatch(_sy2627StripAccents(person.name), roster);
+    if (!rr || !person.ojtSpreadsheetId) { skipped.push(person.name + (rr ? ' (no link)' : ' (not on roster)')); continue; }
+    var wb;
+    try { wb = SpreadsheetApp.openById(person.ojtSpreadsheetId); } catch (e) { skipped.push(person.name + ' (cannot open)'); continue; }
+    var tab = wb.getSheetByName('On The Job Training Checklist') || wb.getSheetByName(' On The Job Training Checklist');
+    if (!tab) { skipped.push(person.name + ' (no summer checklist tab)'); continue; }
+    var data = tab.getDataRange().getValues();
+    var dom = '', phase = '', rows = [], ts = new Date();
+    for (var i = 0; i < data.length; i++) {
+      var b = String(data[i][1] || '').trim(), c = String(data[i][2] || '').trim(), e = String(data[i][4] || '').trim();
+      if (/beginning of (the )?program/i.test(b)) phase = 'Beginning';
+      else if (/middle of (the )?program/i.test(b)) phase = 'Middle';
+      else if (/end of (the )?program/i.test(b)) phase = 'End';
+      if (i < 10) continue;
+      if (b && !c) { dom = b; continue; }
+      if (!c || !/^y/i.test(e)) continue;
+      var m = _matchActivityByText(schemaIndex, phase, dom, c);
+      if (!m) continue;
+      var key = _normName(rr.name) + '|' + m.phase.toLowerCase() + '|' + m.domain.toLowerCase() + '|' + String(m.code).toUpperCase();
+      if (keys[key]) continue;
+      keys[key] = true;
+      var r = new Array(16).fill('');
+      r[OJT_TIMESTAMP] = ts; r[OJT_LOG_TYPE] = 'OJT Activity completion (Summer Import)';
+      r[OJT_OBS_DATE] = _parseSummerMonthYear(data[i][5]) || ''; r[OJT_OBSERVER] = person.siteLeader || '';
+      r[OJT_APPRENTICE] = rr.name; r[OJT_PHASE] = m.phase; r[OJT_DOMAIN] = m.domain; r[OJT_ACTIVITY] = m.code;
+      r[OJT_STATUS] = 'Y — Observed and completed (Summer Import)';
+      r[OJT_NOTES] = 'Summer top-up (v11 matcher fix) from tab "' + tab.getName() + '"';
+      rows.push(r);
+    }
+    if (rows.length) {
+      _sy2627AppendOJTRows(ojtSheet, rows);
+      added += rows.length;
+      recalculateTotals(rr.name);
+    }
+    people++;
+  }
+  _logNotification('SUMMER_TOPUP', '', people + ' summer workbooks re-read, ' + added + ' missed activities added', '', 'topUpSummerWorkbooks');
+  _safeAlert('Summer top-up complete.\n\nWorkbooks re-read: ' + people + '\nMissed activities added: ' + added +
+    (skipped.length ? '\n\nSkipped:\n  ' + skipped.join('\n  ') : ''));
 }
 
 function _sy2627DeleteTriggers(handler) {

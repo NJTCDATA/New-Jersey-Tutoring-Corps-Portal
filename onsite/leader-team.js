@@ -2224,7 +2224,7 @@
       const wage       = tap['Current Wage Rate ($)'] || tap['Current Wage'] || tap['BG'] || '\u2014';
       const milestone  = tap['Wage Milestone'] || tap['Milestone'] || tap['BH'] || '\u2014';
       const ojtHours   = parseFloat(tap['OJT Hours (Total)'] || tap['OJT Hours'] || 0);
-      const lmsHours   = parseFloat(tap['LMS Hours'] || tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
+      const lmsHours   = parseFloat(tap['RTI Hours - LMS (Total)'] || tap['LMS Hours'] || tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
       const yCount     = parseFloat(tap['OJT Activities Marked Y'] || tap['BB'] || 0);
       const possible   = parseFloat(tap['OJT Possible (excl N/A)'] || tap['BC'] || 78);
       const begPct     = Math.round(parseFloat(tap['Beginning % Complete'] || tap['BD'] || 0) * 100);
@@ -2258,16 +2258,17 @@
       }
 
       // Pre-compute monthly OJT activity count table (no nested backticks)
-      const MONTH_KEYS_OJT = [
-        'Mar-25 OJT','Apr-25 OJT','May-25 OJT','Jun-25 OJT','Jul-25 OJT',
-        'Aug-25 OJT','Sep-25 OJT','Oct-25 OJT','Nov-25 OJT','Dec-25 OJT',
-        'Jan-26 OJT','Feb-26 OJT','Mar-26 OJT','Apr-26 OJT','May-26 OJT',
-        'Jun-26 OJT','Jul-26 OJT'
-      ];
-      const MONTH_DISP_OJT = [
-        'Mar-25','Apr-25','May-25','Jun-25','Jul-25','Aug-25','Sep-25','Oct-25',
-        'Nov-25','Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'
-      ];
+      // Month columns are discovered from the Master Roster headers
+      // ("Mar-25 OJT" … "Aug-26\nOJT", then "Sep-26 OJT" onward, which the TAP
+      // script appends after "Role Type" every school year), so new months
+      // show up here automatically instead of stopping at a hard-coded list.
+      const _MON_IDX = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+      const _ojtMonthCols = Object.keys(tap).map(function (k) {
+        const m = String(k).match(/^([A-Z][a-z]{2})-(\d{2})\s*OJT$/);
+        return (m && _MON_IDX[m[1]] !== undefined) ? { key: k, label: m[1] + '-' + m[2], ord: Number(m[2]) * 12 + _MON_IDX[m[1]] } : null;
+      }).filter(Boolean).sort(function (a, b) { return a.ord - b.ord; });
+      const MONTH_KEYS_OJT = _ojtMonthCols.map(function (c) { return c.key; });
+      const MONTH_DISP_OJT = _ojtMonthCols.map(function (c) { return c.label; });
       let cumActs = 0;
       let monthBodyHtml = '';
       let hasMonthData = false;

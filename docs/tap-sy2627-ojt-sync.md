@@ -64,3 +64,15 @@ This limit is fixed by `apps-scripts/tap-automation.gs`, together with six small
   - full resync every Sunday and on the 1st of each month
   - last month's wage report generated and emailed as a PDF on the 1st
   - weekly status digest emailed every Monday
+
+### Accuracy fixes (v11, after the first live run on 11/2/26)
+
+1. **Workbook links.** Apps Script's `RichTextValue` can't see links stored as Google Drive file chips. Because of that, 41 of 78 workbooks were read as "no link." The sync now reads that column through the Sheets API, which returns plain hyperlinks, links on part of a cell's text, and chips.
+2. **Activity matching (80/80).** Two activities were never imported correctly:
+   - Beginning/Professionalism/H: the workbook text adds "…complete all literacy training," so it scored below the match threshold.
+   - Middle/Instruction/AB: it has the same wording as R, so it was counted as R and dropped.
+
+   Ties are now broken by domain, then by the checklist section's phase, then by the letter prefix. The matcher was tested on 240 cases with none wrong. The summer workbooks are re-read once with **Summer 2026: Top-up Missed Activities**.
+3. **Dates.** Y marks with no date, or an impossible date (before Mar-25 or more than 31 days in the future), still count toward total hours and %. They are not placed in any month, so they no longer inflate the import month's wage report. They are counted on the progress sheet and listed on Needs Review.
+4. **Wage emails.** When a person's history is loaded for the first time (a new roster row, or no hours yet), crossing a wage tier now logs `WAGE_BASELINE` instead of emailing payroll. Only tiers crossed by new observations send the raise email.
+5. **Portal.** Leader Team's monthly OJT table now reads the month columns from the sheet headers, so Aug-26 and every month from Sep-26 on show up. The LMS/RTI hours card now reads the actual header, `RTI Hours - LMS (Total)`, so it no longer shows 0.
