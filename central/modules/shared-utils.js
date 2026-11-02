@@ -8610,7 +8610,8 @@
     'Scholar declined attending tutoring session',
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support',
-    'Scholar Left Early'
+    'Scholar Left Early',
+    'Scholar Unavailable; Out of the Classroom'
   ];
   var _TUTOR_MISS_REASONS = [
     'Absent; Not Covered (Tutor not available)',
@@ -8633,7 +8634,7 @@
     + '• **Undelivered Sessions** — tutor absent (not covered by a sub), tutor vacancy, or tutor left early with no sub. A talking point for partner conversations, not a to-do. A tutor absence covered by a sub is a delivered session.\n'
     + '• **Session Cancellations** — school or NJTC-driven (school event/assembly, school-administered testing, schedule change, closure/delay, weather, NJTC internal issue). Site Leaders now cancel these in Pearl with a Canceled Reason; logged as a missed reason they are flagged for follow-up.\n'
     + '• **Internal Tracking** — NJTC diagnostic testing, archived scholars.\n\n'
-    + 'None of these count against Scholar Attendance %. Only Absent, Scholar Left Early, Scholar Declined, Classroom Teacher Kept Scholar in Class (incl. Haddon whole-group support) and a blank reason do.';
+    + 'None of these count against Scholar Attendance %. Only Absent, Scholar Left Early, Scholar Declined, Scholar Unavailable; Out of the Classroom, Classroom Teacher Kept Scholar in Class (incl. Haddon whole-group support) and a blank reason do.';
   function _missCatOf(reason) {
     var C = window.NJTC_PEARL_CATEGORIES;
     if (!C) return 'other';
@@ -15447,7 +15448,7 @@
       what: 'Monitor live tutoring session delivery, scholar attendance, and operational performance across all active sites.',
       terms: [
         ['Scholar Attendance %', 'Formula: (Attended + Late) ÷ (Attended + Late + Scholar Absences) × 100, pooled across all scholar session records. Undelivered Sessions, Session Cancellations and Internal Tracking are left out of both sides.'],
-        ['Scholar Absences', 'The only misses that count toward Scholar Attendance %: Absent, Scholar declined attending tutoring session, Scholar Left Early, Classroom Teacher Requested to Keep Scholar in Class (incl. Haddon whole-group support), or a blank reason.'],
+        ['Scholar Absences', 'The only misses that count toward Scholar Attendance %: Absent, Scholar declined attending tutoring session, Scholar Left Early, Scholar Unavailable; Out of the Classroom, Classroom Teacher Requested to Keep Scholar in Class (incl. Haddon whole-group support), or a blank reason.'],
         ['Tutor Attendance %', 'Formula: (Attended + Late) ÷ (Attended + Late + tutor absences) × 100 on the tutor\'s own Pearl rows. Tutor absences = Absent; Not Covered, any Absent; Covered by … reason, and Tutor Left Early (no sub). A covered absence still counts against the tutor; the session itself counts as delivered. Reflects tutor reliability, not scholar show-up rate.'],
         ['Scholar Tiers', 'On Track = ≥80% attendance · Building Momentum = 70–79% · Needs Support = <70%. Tier assigned per individual scholar based on their cumulative attendance rate.'],
         ['Session Fidelity', 'Rated 1–5 per session via site observation or tutor self-report. Score ≥4.0 = on track. Avg across all rated sessions at the site. Not available for all sites.'],

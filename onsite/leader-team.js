@@ -1136,6 +1136,7 @@
     'Absent (from school)',
     'Scholar declined attending tutoring session',
     'Scholar Left Early',
+    'Scholar Unavailable; Out of the Classroom',
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support'
   ]);

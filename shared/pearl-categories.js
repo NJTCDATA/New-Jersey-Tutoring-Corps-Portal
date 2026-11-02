@@ -70,8 +70,10 @@
   ];
   var ABSENCE = [
     'Absent',
+    'Absent (from school)',                     // Pearl's newer wording (Oct 2026)
     'Scholar declined attending tutoring session',
     'Scholar Left Early',
+    'Scholar Unavailable; Out of the Classroom',  // added Nov 2026 — counts against attendance
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support'
   ];
