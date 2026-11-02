@@ -385,7 +385,7 @@
           ${survAvg != null ? `<div class="ecd-survey-row">Scholar Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${tutorSurvAvg != null ? ` &nbsp;&middot;&nbsp; Tutor Survey Avg <strong>${tutorSurvAvg.toFixed(1)}/5.0</strong>` : ''}${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
         </div>
         <div class="ecd-card">
-          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined). Missed sessions not counted against attendance (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 80%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>
+          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined, Left Early, Out of the Classroom, Kept in Class by a Teacher). Missed sessions not counted against attendance (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 80%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>
           <div class="ecd-tier">
             <div class="ecd-tier-dot" style="background:#059669"></div>
             <div class="ecd-tier-lbl">On Track (&ge;80%)</div>

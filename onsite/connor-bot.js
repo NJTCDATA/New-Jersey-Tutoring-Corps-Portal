@@ -156,6 +156,7 @@
   // ── Definitions library ─────────────────────────────────────────────────────
   var DEFINITIONS = {
     'attendance_rate': { term:'Attendance Rate', category:'Attendance', short:'The % of sessions you (or your scholars) actually showed up to.', full:'Calculated as: Attended ÷ (Attended + Absent). **Missed sessions that are not absences — undelivered sessions (tutor absent and not covered / vacancy), cancellations (school events, testing days, closures, schedule changes) and internal tracking — are NOT counted against your scholars.** Your own absences (Absent; Not Covered, Absent; Covered by …, Tutor Left Early) do count toward your tutor attendance rate; when a sub covers you, the session itself still counts as delivered. Goals: scholars 80% or higher, tutors 90% or higher.' },
+    'scholar_absence': { term:'Scholar Absence', category:'Attendance', short:'A missed session that counts against scholar attendance.', full:'Only these missed reasons count against your scholars\' attendance rate:\n• **Absent** (from school)\n• **Scholar declined attending tutoring session**\n• **Scholar Left Early**\n• **Scholar Unavailable; Out of the Classroom**\n• **Classroom Teacher Requested to Keep Scholar in Class** (incl. Haddon whole-group support)\n• A **blank** reason (no reason entered)\n\nPick the reason that matches what happened — if the scholar was in school but not in the room when tutoring started, use "Scholar Unavailable; Out of the Classroom".' },
     'service_interruption': { term:'Not Counted Against Attendance (formerly "Service Interruption")', category:'Attendance', short:'A missed session that is not a scholar absence — it never counts against attendance.', full:'NJTC now groups these as:\n• **Undelivered Sessions** — tutor absent (not covered) or tutor vacancy\n• **Session Cancellations** — school events, school-administered testing, schedule changes, closures, weather or an NJTC issue. Site Leaders cancel these in Pearl with a Canceled Reason.\n• **Internal Tracking** — NJTC diagnostic testing, archived scholars\n\nNone of these count against your scholars\' attendance (your own absences are counted in your tutor attendance), and there is nothing you need to do about them. You\'ll see them tracked separately on your dashboard.' },
     'not_recorded': { term:'Not Recorded', category:'Pearl', short:'A session where attendance was never entered in Pearl.', full:'When a session shows "Not recorded," no one logged attendance for that day. This is an action item — go into Pearl and mark attendance as soon as possible. Sessions that stay unrecorded affect program data quality.' },
     'unique_scholars': { term:'Unique Scholars', category:'Pearl', short:'The number of individual students you\'ve worked with this year.', full:'This counts each student only once, regardless of how many sessions they attended. It comes from Pearl operations data for the current school year only — not historical iReady data.' },
@@ -1006,11 +1007,18 @@
     },
 
     // ══ GENERIC "WHAT IS X" ═══════════════════════════════════════════════════
+    // Which missed reasons count against scholar attendance (incl. the Nov 2026
+    // "Scholar Unavailable; Out of the Classroom" reason).
+    { match: /out of the classroom|scholar unavailable|what counts? (as an? )?(absence|missed)|which (missed )?reasons? count|counts? against (scholar )?attendance/i,
+      respond: function() { return connorDef('scholar_absence'); }
+    },
+
     { match: /^(what is|what('s| is) a|define|explain|tell me about|what do(es)? .* mean)\b/i,
       respond: function(q) {
         var n = q.toLowerCase();
         if (/attendance rate|att rate/.test(n))       return connorDef('attendance_rate');
         if (/service interruption|si\b|undeliver|not counted/.test(n)) return connorDef('service_interruption');
+        if (/scholar absence|out of the classroom|unavailable|counts? against/.test(n)) return connorDef('scholar_absence');
         if (/not recorded|unrecorded/.test(n))        return connorDef('not_recorded');
         if (/placement level|grade level/.test(n))    return connorDef('placement_level');
         if (/iready|i-ready|i ready/.test(n))         return connorDef('iready');
@@ -1038,7 +1046,7 @@
     // ══ GLOSSARY ══════════════════════════════════════════════════════════════
     { match: /glossary|all definitions|list.*definition|show.*terms/i,
       respond: function() {
-        return '📖 **NJTC Glossary** — ask me "What is [term]?" for any of these:\n\n**Attendance:** Attendance Rate · Not Counted Against Attendance (Undelivered · Cancellations · Internal) · Not Recorded\n**Scholars:** Unique Scholars · Consecutive Concern · Shared Scholar\n**iReady:** Placement Level · Moved Up · Grade Level · BOY · EOY · MOY · Typical Growth\n**Pearl:** Pearl · Pearl ID · Session\n**Surveys:** Instructor Survey · Student Survey · Survey Rate\n**Program:** LEA · Site Leader / Dual Role';
+        return '📖 **NJTC Glossary** — ask me "What is [term]?" for any of these:\n\n**Attendance:** Attendance Rate · Scholar Absence · Not Counted Against Attendance (Undelivered · Cancellations · Internal) · Not Recorded\n**Scholars:** Unique Scholars · Consecutive Concern · Shared Scholar\n**iReady:** Placement Level · Moved Up · Grade Level · BOY · EOY · MOY · Typical Growth\n**Pearl:** Pearl · Pearl ID · Session\n**Surveys:** Instructor Survey · Student Survey · Survey Rate\n**Program:** LEA · Site Leader / Dual Role';
       }
     },
 

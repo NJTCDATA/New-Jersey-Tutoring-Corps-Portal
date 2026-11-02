@@ -10392,7 +10392,7 @@
     { match: /attendance rate|how is.*(attendance|it) calculated|scholar attendance|tutor attendance|what is.*(scholar|tutor) attendance/i,
       respond: function() {
         var p = _pearl();
-        var base = '**Attendance rate** = Attended ÷ (Attended + Absent) × 100. Excludes undelivered sessions, cancellations and internal tracking — those aren\'t scholar absences.\n\nScholar benchmark: ≥80%. Tutor benchmark: ≥90%. Official tutor attendance is the recorded rate; Pearl Ops also shows it including covered absences (sessions a substitute covered).';
+        var base = '**Attendance rate** = Attended ÷ (Attended + Absent) × 100. Excludes undelivered sessions, cancellations and internal tracking — those aren\'t scholar absences.\n\nScholar absences (the only misses that count): Absent, Scholar declined attending tutoring session, Scholar Left Early, Scholar Unavailable; Out of the Classroom, Classroom Teacher Requested to Keep Scholar in Class (incl. Haddon whole-group support), or a blank reason.\n\nScholar benchmark: ≥80%. Tutor benchmark: ≥90%. Official tutor attendance is the recorded rate; Pearl Ops also shows it including covered absences (sessions a substitute covered).';
         if (p && p.scholAttPct != null) {
           return base + '\n\nLive rates — Scholar: **' + _pct(p.scholAttPct) + '**, Tutor: **' + _pct(p.instAttPct) + '**'
             + (p.instAttPctInclCovered != null && p.coverage && p.coverage.pearlCovered ? ' (incl. covered absences: **' + _pct(p.instAttPctInclCovered) + '**)' : '') + '.';
