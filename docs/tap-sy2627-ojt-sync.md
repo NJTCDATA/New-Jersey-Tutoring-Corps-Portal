@@ -17,7 +17,7 @@ The Summer Import menu items in the TAP Tracker 26-27 Apps Script connected each
 | | Summer | SY 26-27 |
 |---|---|---|
 | Directory tab | `Summer 26 OJT` (header row 3) | `SY 26-27 OJT` (header row 2, plus a Notes column, then a **Site Leaders** section underneath) |
-| Staffing tab | `Onsite Tracker` (fixed column positions) | `Staffing SY 2026-2027`, which has different columns (Phone is M, not N). The new sync falls back to `Summer 2026`. |
+| Staffing tab | `Onsite Tracker` (summer staff list, fixed column positions) | `Onsite Tracker` again, but it now holds the **SY 26-27** staff list (IMPORTRANGE of `Staffing SY 2026-2027`) with different columns (Phone is M, not N). Read by header name. |
 | Roles | Apprentice / Pre-apprentice / Non GAINS/PACE Tutor | Adds **Completed Program**. These people have a **duplicated** checklist tab for the new year. |
 | People | Summer people were new | Many are already on the Master Roster from summer, so they must **not** be duplicated or renamed. |
 
@@ -26,7 +26,7 @@ The Summer Import menu items in the TAP Tracker 26-27 Apps Script connected each
 Add this as a new file in the same Apps Script project as the TAP Tracker script. It runs one pass that does Summer Steps 1 and 2 together, and it is safe to run every night:
 
 1. Reads `SY 26-27 OJT` and finds the header row by its contents. It stops reading at the Site Leaders section.
-2. Matches each person to `Staffing SY 2026-2027` (then `Summer 2026`) by header name, not column position.
+2. Matches each person to the `Onsite Tracker` tab of the Automated Onsite 26-27 Tracker (`1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU`) by header name, not column position.
 3. Finds their Master Roster row by email first, then by a strict name match. A summer person keeps their existing roster name, because renaming them would detach their summer OTJ rows. A new row is created only when the person isn't found and has an email.
 4. Updates SY, SY site, Program Track and the prior-year USDOL ID. A summer person's Track becomes, for example, `Apprentice — Summer 2026 Start, SY 26-27`. If someone's track class changes (for example Pre-apprentice → Apprentice), that is logged for review.
 5. Opens their workbook and picks the checklist tab. If there is more than one, it takes the tab named "26-27", then a copy ("Copy of…", "(2)"), then the right-most tab.

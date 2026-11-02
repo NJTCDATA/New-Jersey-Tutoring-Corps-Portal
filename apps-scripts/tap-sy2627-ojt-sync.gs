@@ -6,8 +6,8 @@
  * ║  WHAT IT DOES (the school-year version of the Summer Import):              ║
  * ║   1. Reads the "SY 26-27 OJT" directory tab in the Onsite Database        ║
  * ║      (Name / Role / OJT Link / Site Leader / Supervisor / Notes).          ║
- * ║   2. Matches each person to "Staffing SY 2026-2027" (falls back to        ║
- * ║      "Summer 2026") for email / phone / site / county.                    ║
+ * ║   2. Matches each person to the "Onsite Tracker" tab (SY 26-27 staff,     ║
+ * ║      IMPORTRANGE'd from Staffing SY 2026-2027) for email/phone/site.      ║
  * ║   3. Finds or creates their Master Roster row. Existing rows are found    ║
  * ║      by email first, then by a strict name match, so summer people are    ║
  * ║      NOT duplicated and their existing name is kept (renaming would       ║
@@ -47,7 +47,12 @@
 
 var SY2627 = {
   DIRECTORY_TAB:    'SY 26-27 OJT',
-  STAFFING_TABS:    ['Staffing SY 2026-2027', 'Summer 2026'], // first tab wins when a person is in both
+  // Source workbook = "Automated: Onsite 26-27 Tracker" (ONSITE_DB_SHEET_ID,
+  // 1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU). Its "Onsite Tracker" tab
+  // IMPORTRANGEs "Staffing SY 2026-2027" from the HR staffing workbook, so it
+  // holds the SY 26-27 staff list. The other two names are fallbacks only —
+  // any tab that doesn't exist is skipped. First tab wins on duplicates.
+  STAFFING_TABS:    ['Onsite Tracker', 'Staffing SY 2026-2027', 'Summer 2026'],
   LOG_TYPE:         'OJT Activity completion (SY 26-27 Import)',
   STATUS_TEXT:      'Y — Observed and completed (SY 26-27 Import)',
   PROGRESS_SHEET:   'SY 26-27 Workbook Progress',
