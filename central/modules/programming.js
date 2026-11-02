@@ -1432,6 +1432,7 @@
   //                              Missed Reason = "Scholar Left Early" — counts in att
   //                              Missed Reason = "Classroom Teacher Requested..." — counts in att
   //    ❌ ABSENT (student):      Missed Reason starts with "Absent" or = "Tutor Absent"
+  //                              "Scholar Unavailable; Out of the Classroom" — counts as ABSENT (Nov 2026)
   //                              "Scholar declined attending tutoring session" — counts as ABSENT (impacts attendance)
   //                              AND triggers a Program Team flag for engagement/re-enrollment review.
   //                              NOT a service interruption — it is a scholar attendance event.
@@ -1814,6 +1815,7 @@
       'Absent (from school)',                       // same reason, Pearl's newer wording (Oct 2026)
       'Scholar declined attending tutoring session', // scholar's own choice
       'Scholar Left Early',                         // scholar left session early — counts as scholar-caused
+      'Scholar Unavailable; Out of the Classroom',  // scholar out of the room (Nov 2026) — counts against attendance
       'Classroom Teacher Requested to Keep Scholar in Class',
       'HADDON TWP ONLY -- Teacher requested whole group support',
     ]);

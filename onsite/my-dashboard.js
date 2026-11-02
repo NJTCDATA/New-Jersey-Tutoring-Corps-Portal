@@ -118,6 +118,7 @@
       'Scholar declined attending tutoring session': 'Student opted out',
       'Classroom Teacher Requested to Keep Scholar in Class': 'Teacher kept student in class',
       'Scholar Left Early': 'Student left session early',
+      'Scholar Unavailable; Out of the Classroom': 'Student out of the classroom',
       'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group session'
     };
     return map[reason] || reason || 'No reason entered';

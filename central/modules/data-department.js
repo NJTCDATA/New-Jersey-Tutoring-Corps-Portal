@@ -4182,6 +4182,7 @@
         'Classroom Teacher Requested to Keep Scholar in Class',
         'HADDON TWP ONLY -- Teacher requested whole group support',
         'Scholar Left Early',
+        'Scholar Unavailable; Out of the Classroom',
       ]);
       // Classroom Teacher pull-out reasons (subset of SCHOLAR_MISS_REASONS — tracked separately)
       const CT_PULL_REASONS = new Set([
@@ -6679,7 +6680,7 @@
                 </tbody>
               </table></div>
               <div style="font-size:.75rem;color:var(--muted);margin-top:.625rem;line-height:1.5">
-                Same rules as Pearl Operations: Absent = Scholar Absences (Absent / Declined / Left Early / CT pull / blank) ·
+                Same rules as Pearl Operations: Absent = Scholar Absences (Absent / Declined / Left Early / Out of the Classroom / CT pull / blank) ·
                 Not Counted = "Missed" with any other reason — Undelivered (tutor absent / vacancy), School cancellations (events, testing, closures) and Internal / NJTC / other.
                 CT Pulls = "Classroom Teacher Requested to Keep Scholar in Class" (counted as scholar absence, tracked separately).
                 Faded rows = no Pearl attendance data found for that school name.

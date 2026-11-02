@@ -204,7 +204,8 @@
   const SCHOLAR_MISS_REASONS = new Set([
     'Absent', 'Absent (from school)', 'Scholar declined attending tutoring session',
     'Classroom Teacher Requested to Keep Scholar in Class',
-    'HADDON TWP ONLY -- Teacher requested whole group support', 'Scholar Left Early'
+    'HADDON TWP ONLY -- Teacher requested whole group support', 'Scholar Left Early',
+    'Scholar Unavailable; Out of the Classroom'
   ]);
   const TUTOR_MISS_REASONS = new Set([
     'Absent; Not Covered (Tutor not available)', 'Absent; Covered by Sub Tutor',

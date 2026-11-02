@@ -57,7 +57,9 @@ var TAXONOMY = {
   'SM-4': { label:'Scholar Declined Attending', group:'scholar', sub:null,
     raw:['scholar declined attending tutoring session','scholar declined attending'] },
   'SM-5': { label:'Scholar Left Early', group:'scholar', sub:null,
-    raw:['scholar left early'] }
+    raw:['scholar left early'] },
+  'SM-6': { label:'Scholar Unavailable; Out of the Classroom', group:'scholar', sub:null,
+    raw:['scholar unavailable; out of the classroom'] }
 };
 
 // Build reverse lookup: lowercase raw string -> canonical ID
