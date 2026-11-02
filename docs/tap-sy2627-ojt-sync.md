@@ -52,6 +52,15 @@ If a run gets close to the 6-minute Apps Script limit, it saves its place and co
 4. Run **SY 26-27: Sync OJT Workbooks Now**.
 5. Run **SY 26-27: Install Daily Auto-Sync**. Run it again whenever **Install Triggers** is used, because that menu item deletes every trigger.
 
-### Known limit: monthly columns
+### Monthly columns and automation
 
-`MONTH_LABELS` and the Master Roster monthly columns stop at **Aug-26**. Observations from Sep-26 onward still count toward total OJT hours and %, but they don't appear in a monthly OJT column, and **Generate This Month's Wage Report** will refuse to run for those months. Extending this means inserting Sep-26 → Aug-27 columns into the Master Roster and updating `MONTH_LABELS`, `MR_RTI_MONTHLY_START` and `MR_PROGRAM_TRACK`. That is a separate change.
+This limit is fixed by `apps-scripts/tap-automation.gs`, together with six small edits to the main script (listed in that file's install notes).
+
+- **Months:** `MONTH_LABELS` is now generated from Mar-25 through August of the current school year, and it rolls forward every September.
+- **Where new months go:** each month after Aug-26 is added at the end of the Master Roster, after Role Type (column CV). Each month gets two columns, `Sep-26 OJT` and `Sep-26 RTI`, and they are created automatically.
+- **Existing columns don't move**, so the portal's header-name lookups keep working.
+- **Schedule:**
+  - nightly workbook sync
+  - full resync every Sunday and on the 1st of each month
+  - last month's wage report generated and emailed as a PDF on the 1st
+  - weekly status digest emailed every Monday

@@ -197,6 +197,7 @@ function _sy2627Run(cursor) {
     props.deleteProperty(SY2627.STATS_PROP);
     SpreadsheetApp.flush();
     _logNotification('SY2627_OJT_SYNC', '', _sy2627SummaryText(stats).replace(/\n+/g, ' | '), '', 'syncSY2627OJT');
+    PropertiesService.getScriptProperties().setProperty('AUTO_LAST_RUN_syncSY2627', new Date().toISOString());
     return { done: true, stats: stats };
   } catch (err) {
     _handleError('_sy2627Run', err);
