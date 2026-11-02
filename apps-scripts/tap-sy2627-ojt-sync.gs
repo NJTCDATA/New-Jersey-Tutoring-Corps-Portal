@@ -707,7 +707,7 @@ function _sy2627Col(headers, exacts, contains) {
 }
 
 function _sy2627StripAccents(s) {
-  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function _sy2627Norm(s) {
