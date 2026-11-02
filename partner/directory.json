@@ -583,6 +583,19 @@
       "pearlStatus": "ready"
     },
     {
+      "id": "partner-global-leadership-academy-charter-schools-lakeisha-dean",
+      "name": "Lakeisha Dean",
+      "title": "Programs and Partnership Coordinator",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Global Leadership Academy Charter Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
       "id": "partner-berlin-community-school-julie-crossan",
       "name": "Julie Crossan",
       "title": "Director of Curriculum & Instruction",
