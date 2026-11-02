@@ -1209,8 +1209,16 @@
 
   // Pearl's district name ↔ the partner directory's name, where they differ.
   // Compared case-insensitively. Add a line here when Pearl renames a district.
+  // Without a line here, a partner whose directory name differs from Pearl's
+  // gets an empty "No Pearl data yet" dashboard (and Regional totals omit
+  // that district). scripts/build-partner-data.js warns on any Pearl
+  // district no partner login matches.
   const DISTRICT_ALIASES = {
     'pemberton township': 'Pemberton Twp Schools',
+    'lyndhurst public school': 'Lyndhurst School District',
+    'lawrence township': 'Lawrence Township Schools',
+    'leap academy university charter school-camden': 'LEAP Academy Charter School',
+    'berlin borough school district': 'Berlin Community School',
   };
   function canonDistrict(name) {
     const k = String(name || '').trim().toLowerCase();

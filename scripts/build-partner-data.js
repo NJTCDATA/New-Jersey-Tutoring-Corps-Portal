@@ -142,6 +142,18 @@ async function main() {
     }
   }
 
+  // Every live-season Pearl district must reach at least one partner login
+  // (beyond Admin). A miss means Pearl spells the district differently from
+  // partner/directory.json — add it to DISTRICT_ALIASES in partner-report.js.
+  const live = pearl[CURRENT_SEASON];
+  const pearlDistricts = new Set();
+  [[live.att, ATT.DISTRICT], [live.inst, INST.DISTRICT], [live.stu, STU.DISTRICT], [live.sess, SESS.DISTRICT]]
+    .forEach(([rows, i]) => rows.forEach(r => (r[i] || '').split(',').map(s => s.trim()).filter(Boolean).forEach(d => pearlDistricts.add(d))));
+  const scoped = directory.filter(e => e.scopeType === 'district' || e.scopeType === 'school');
+  const unmatched = [...pearlDistricts].filter(d => !scoped.some(e => R.canonDistrict(e.district) === R.canonDistrict(d))).sort();
+  unmatched.forEach(d => console.log(`::warning::Pearl district "${d}" matches no partner login — those partners see no data. Add an alias in DISTRICT_ALIASES (partner/partner-report.js) or a directory entry.`));
+  console.log(`  Pearl districts (${CURRENT_SEASON}): ${pearlDistricts.size}, matched to a partner login: ${pearlDistricts.size - unmatched.length}`);
+
   fs.mkdirSync(DATA_OUT_DIR, { recursive: true });
   // Remove stale bundles; keep archive files for seasons that failed to load.
   for (const f of fs.readdirSync(DATA_OUT_DIR)) {
