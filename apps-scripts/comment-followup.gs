@@ -27,6 +27,9 @@
  *      (or send it to the Data team).
  *   Test: run sendDailyEscalations() once by hand; with DRY_RUN = true it only
  *   logs who would be emailed.
+ *   Keep the spreadsheet private: no "Publish to the web". The portal only
+ *   needs the web-app /exec URL from step 4. In portal notes, describe what
+ *   was done without scholar names (e.g. "SL told counselor 11/3").
  */
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -54,9 +57,11 @@ const UPDATE_COLS = ['timestamp', 'comment_id', 'status', 'owner', 'note', 'upda
 const SENT_COLS   = ['comment_id', 'sent_at', 'region', 'date', 'school', 'tutor', 'category', 'comment'];
 
 // ── Web app ─────────────────────────────────────────────────────────────────
+// Serves only the Updates tab (comment ids, statuses, owners, notes). The
+// "Escalations Sent" tab holds comment text and is never served — keep this
+// spreadsheet private (do NOT use File → Share → Publish to the web).
 function doGet(e) {
-  const tab = (e && e.parameter && e.parameter.tab) || 'updates';
-  const sheet = tab === 'sent' ? sheetFor_('Escalations Sent', SENT_COLS) : sheetFor_('Updates', UPDATE_COLS);
+  const sheet = sheetFor_('Updates', UPDATE_COLS);
   const tz = Session.getScriptTimeZone();
   const csv = sheet.getDataRange().getValues().map(row => row.map(cell => {
     const s = cell instanceof Date ? Utilities.formatDate(cell, tz, "yyyy-MM-dd'T'HH:mm:ss") : String(cell);
