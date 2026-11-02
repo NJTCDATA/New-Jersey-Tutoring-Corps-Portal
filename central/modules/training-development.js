@@ -2846,7 +2846,7 @@
   }
 
   /* ── apprSubmitOJT: POST directly to Apps Script doPost() ────────────── */
-  const _APPR_TAP_WEB_URL = 'https://script.google.com/macros/s/AKfycbyFNwhXOBJ4fbmHxRyiMykx-oZyQd2BPuTHf7GLA9nhFhgBo7EBODEYOmcvbz7FErod/exec';
+  const _APPR_TAP_WEB_URL = 'https://script.google.com/macros/s/AKfycbwyTmg8rYcOLb56YJuxMqSwjPmd6TiPLDzDvxty_kr-S1RZ12XXRaVgyL7PblFCQ2tU/exec';
 
   window.apprSubmitOJT = async function(apprenticeName) {
     const nk   = (apprenticeName||'').toLowerCase().replace(/[^a-z0-9]/g,'_');
