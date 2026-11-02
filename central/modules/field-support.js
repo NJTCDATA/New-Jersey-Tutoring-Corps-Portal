@@ -34,6 +34,9 @@
     'HADDON TWP ONLY -- Teacher requested whole group support',
   ]);
   const ARCHIVED_REASON = 'Scholar Archived - Removed from Sessions';
+  // Comment follow-up rules (shared/comment-flags.js) — browser global or Node require
+  const FLAGS = (typeof window !== 'undefined' && window.NJTC_COMMENT_FLAGS) ||
+    (typeof require === 'function' ? (function () { try { return require('../../shared/comment-flags.js'); } catch (e) { return null; } })() : null);
   const TARGET = { scholAtt: 80, tutorAtt: 90, capture: 80 };
 
   // Issue labels — short, plain, used verbatim in both PDF and XLSX
@@ -315,6 +318,14 @@
     });
     const scholarPullouts = Object.values(ctByScholar).sort((a, b) => b.pullouts - a.pullouts);
 
+    // Tutor and scholar comments that need someone to follow up (escalate first)
+    const sessById = {};
+    (input.sessions || []).forEach(s => { if (s && s.id) sessById[s.id] = s; });
+    const flaggedComments = FLAGS ? FLAGS.collect({
+      instRows: input.instRows, stuRows: input.stuRows, INST_S, STU_S, sessById, toYMD,
+      inScope, inDates,
+    }).map(c => Object.assign(c, { region: input.regionOf(c.school, c.district) || '' })) : [];
+
     const totals = {
       schools: schoolList.length, tutors: tutorList.length,
       incomplete: incompletes.length, missingTutorSurveys: missingTutor.length, missingScholarSurveys: missingScholar.length,
@@ -327,9 +338,11 @@
       archived: issues.filter(i => i.issueKey === 'archived').length,
       cancelFixes: issues.filter(i => SITE_LEADER_FIX.has(i.issueKey)).length,
       teacherPullouts: pullouts.length, scholarsPulled3: scholarPullouts.filter(x => x.pullouts >= 3).length,
+      commentsEscalate: flaggedComments.filter(c => c.tier === 'escalate').length,
+      commentsFollowUp: flaggedComments.filter(c => c.tier === 'followup').length,
     };
     return { region, school: schoolF, from, to, generatedAt: now.toISOString(), totals,
-      schools: schoolList, tutors: tutorList, issues, incompletes, missingTutor, missingScholar, pullouts, scholarPullouts };
+      schools: schoolList, tutors: tutorList, issues, incompletes, missingTutor, missingScholar, pullouts, scholarPullouts, flaggedComments };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -363,6 +376,12 @@
         R.pullouts.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.scholar, i.scholarId, i.wholeGroup])],
       ['Pull-outs by Scholar', ['School', 'Scholar', 'Scholar ID', 'Teacher Pull-outs', 'Most Recent'],
         R.scholarPullouts.map(x => [x.school, x.scholar, x.scholarId, x.pullouts, x.lastDate])],
+      // Status / Owner / Follow-up Notes are left blank for the team to fill in.
+      ['Flagged Comments', ['Priority', 'Category', 'Date', 'School', 'Tutor', 'Session', 'Session ID', 'From', 'Scholar', 'Overall Rating',
+        'Comment', 'Suggested Follow-up', 'Status', 'Owner', 'Follow-up Notes', 'Comment ID'],
+        (R.flaggedComments || []).map(c => [c.tierLabel, c.categories.join('; '), c.date, c.school, c.tutor, c.session, c.sessionId,
+          c.from === 'tutor' ? 'Tutor (' + c.field.toLowerCase() + ')' : 'Scholar survey', c.from === 'scholar' ? c.scholar : '', c.rating,
+          c.text, c.step, '', '', '', c.id])],
     ];
   }
 

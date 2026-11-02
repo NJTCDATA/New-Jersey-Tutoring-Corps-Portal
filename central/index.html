@@ -5771,6 +5771,7 @@
           <button class="po-prog-data-only" data-tour="po-support-ne" onclick="njtcFieldSupport.open('NE')" title="NE Region Weekly Report: the Partner Weekly Report layout with tutors to check in with (PDF), plus the Support Report detail (Excel)" style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#7c2d12,#c2410c);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">📄 NE Weekly Report</button>
           <button class="po-prog-data-only" data-tour="po-support-sw" onclick="njtcFieldSupport.open('SW')" title="SW Region Weekly Report: the Partner Weekly Report layout with tutors to check in with (PDF), plus the Support Report detail (Excel)" style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#7c2d12,#c2410c);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">📄 SW Weekly Report</button>
           <button class="po-pdf-data-only" onclick="po.showFieldReportModal()" title="Download a filtered report for onsite staff: survey follow-up, low ratings, and comments" style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#065f46,#059669);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">📋 Onsite Staff Report</button>
+          <button class="po-followup-btn" onclick="njtcCommentFollowUp.open()" title="Comment Follow-Up — every tutor and scholar comment that needs someone to act, with status and owner. Escalations are emailed to the Regional Directors each morning." style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#9a3412,#c2410c);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">🚩 Comment Follow-Up</button>
           <button class="po-partner-pdf-btn" onclick="njtcPartnerPDF.open()" title="Download the Weekly Operations Report PDF exactly as a partner sees it on their Partner Dashboard" style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#b45309,#f0a500);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">🤝 Partner PDF</button>
           <button onclick="po.showExportModal()" style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">⬇ Export</button>
           <button id="btnSurveyReportPDF" class="po-pdf-data-only" onclick="njtcSurveyPDF.generate()" title="Generate a 2-page Survey Report PDF: Scholar and Tutor Likert charts matching the Data Studio dashboard layout. Respects current school/district filter — or aggregates all data when no filter is set." style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#4a1080,#7b2d8b);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">📊 Survey Report</button>
@@ -6978,7 +6979,7 @@
 </script>
 <script src="modules/shared-utils.js?v=46"></script>
 <script src="modules/shared-charts.js?v=22"></script>
-<script src="modules/shared-filters.js?v=7"></script>
+<script src="modules/shared-filters.js?v=8"></script>
 <script src="modules/home-shortcuts.js?v=5"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
@@ -6988,10 +6989,12 @@
 <script src="modules/hr-department.js?v=3"></script>
 <script src="modules/dol-report.js?v=11"></script>
 <script src="../shared/pearl-categories.js?v=1"></script>
+<script src="../shared/comment-flags.js?v=1"></script>
 <script src="modules/pearl-coverage.js?v=2"></script>
-<script src="modules/programming.js?v=29"></script>
+<script src="modules/programming.js?v=30"></script>
 <script src="modules/pdf-export.js?v=9"></script>
-<script src="modules/field-support.js?v=7"></script>
+<script src="modules/field-support.js?v=8"></script>
+<script src="modules/comment-followup.js?v=2"></script>
 <script src="modules/portal-tour.js?v=7"></script>
 <script src="../partner/partner-report.js?v=9"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
