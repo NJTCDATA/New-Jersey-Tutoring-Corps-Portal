@@ -363,12 +363,17 @@ function _sy2627ProcessPerson(ctx, person) {
       }
       if (m.phase === 'Beginning') out.begY++; else if (m.phase === 'Middle') out.midY++; else if (m.phase === 'End') out.endY++;
 
+      // v13.5: name the item the way the WORKBOOK shows it (its own letter and
+      // wording, plus the cell text), not only the 80-activity schema code —
+      // the SY 26-27 checklists use different letters (e.g. workbook "N. Attend
+      // training sessions…" = schema Beginning/Professionalism/S).
+      var wbItem = m.phase + ' ' + currentDomain + ' "' + activityCell.substring(0, 45) + (activityCell.length > 45 ? '…' : '') + '" (schema ' + m.code + ')';
       var obsDate = _sy2627ParseDate(row[5]);
       if (!obsDate) {
-        if (String(row[5] || '').trim() && !/^n\/?a$/i.test(String(row[5]).trim())) out.badDates.push(m.phase + ' ' + m.domain + ' ' + m.code + ': "' + String(row[5]).trim() + '"');
+        if (String(row[5] || '').trim() && !/^n\/?a$/i.test(String(row[5]).trim())) out.badDates.push(wbItem + ': cell says "' + String(row[5]).trim() + '"');
         else out.undated++;
       } else if (obsDate < minDate || obsDate > maxDate) {
-        out.badDates.push(m.phase + ' ' + m.domain + ' ' + m.code + ': ' + Utilities.formatDate(obsDate, Session.getScriptTimeZone(), 'M/d/yyyy'));
+        out.badDates.push(wbItem + ': cell says "' + String(row[5] instanceof Date ? Utilities.formatDate(row[5], Session.getScriptTimeZone(), 'M/d/yyyy') : row[5]).trim() + '" (read as ' + Utilities.formatDate(obsDate, Session.getScriptTimeZone(), 'M/d/yyyy') + ')');
         obsDate = null; // counted toward totals, but never placed in a month
       }
       if (obsDate && (!out.lastObs || obsDate > out.lastObs)) out.lastObs = obsDate;

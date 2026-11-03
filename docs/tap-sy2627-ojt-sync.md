@@ -77,6 +77,46 @@ This limit is fixed by `apps-scripts/tap-automation.gs`, together with six small
 4. **Wage emails (v12).** Milestone emails are fully automatic. The main script keeps a ledger (Script Property `MILESTONE_SENT`, seeded from the Notifications Log) of the highest milestone already emailed for each person. Whenever someone is at a milestone that hasn't been emailed yet, the email goes out on the next recalculation, whether the hours came from the portal, the nightly sync or a resync. No milestone is emailed twice.
 5. **Portal.** Leader Team's monthly OJT table now reads the month columns from the sheet headers, so Aug-26 and every month from Sep-26 on show up. The LMS/RTI hours card now reads the actual header, `RTI Hours - LMS (Total)`, so it no longer shows 0.
 
+## OJT Audit: OTJ log vs. the workbooks (`apps-scripts/tap-ojt-audit.gs`, Nov 2026)
+
+**Why it's needed.** The original Summer 2026 import ran before the v11 matcher fix, and for some people their summer link was missing or ambiguous. It wrote activities that aren't checked anywhere in the person's workbook.
+
+Example from TAP Tracker export #60, for Tohrn Taylor:
+
+| Source | Activities | Hours |
+|---|---|---|
+| OTJ log | 20 | 1,000 |
+| His workbook (Summer 2026 tab + SY 26-27 tab) | 13 | 650 |
+
+The 7 extra activities (Beg-Prof C, N, Q · Instr B, O · Env G · Plan A) are all Summer Import rows. 11 people have more activities in the log than on their SY 26-27 tab. Some of those are legitimate summer-only activities, which the audit separates out.
+
+**How the years work.** A person who was here from summer into fall has two checklist tabs in one workbook: "Summer 2026 On The Job Training Checklist" and "SY 26-27 On The Job Training Checklist".
+- The SY sync reads only the tab named for 26-27.
+- The summer import read the summer checklist.
+- Hours are cumulative across both. Each activity counts once and keeps its first date.
+- The SY 26-27 checklist uses different letters from the 80-activity schema, so items are matched by their wording. For example, workbook "N. Attend training sessions…" is schema Beginning/Professionalism/S.
+
+**Steps** (menu: *OJT Audit*):
+
+1. **Check log vs workbooks.** This is read-only.
+   - It reads every checklist tab of every linked workbook (SY 26-27 OJT and Summer 26 OJT links).
+   - It writes the "OJT Audit" tab with one row per person: hours now, hours after the fix, what would be removed and what would be added.
+   - It runs in chunks if needed.
+2. **Review.** Untick "Apply?" for anyone who shouldn't change. People with no link, a workbook that can't be opened, or an unmatched item are never ticked.
+3. **Apply ticked fixes.**
+   - **Removes** only imported rows (Summer / SY 26-27 / Audit Import) whose activity isn't checked on *any* of the person's checklist tabs.
+   - Copies every removed row to "OJT Audit — Removed Rows" first.
+   - **Adds** activities checked on a tab named for SY 26-27 or Summer 2026 that are missing from the log. It never adds for Completed Program people, whose workbooks also hold earlier years.
+   - Never touches portal-logged rows or RTI rows.
+   - Recalculates each changed person.
+   - Refuses to run on an audit more than 24 hours old.
+
+**Related fixes (v13.5):**
+- `recalculateTotals` keeps imported rows with an impossible date out of the monthly columns for *every* import type. Before, this only applied to SY 26-27 Import rows, so Tohrn's summer "June 27" landed in the Jun-27 column.
+- Needs Review messages now quote the workbook's own item text and the raw cell, plus the schema code. Before, they showed only the schema letter, which confused reviewers ("there is no S").
+
+**Tested offline:** the real script files run in Node against Tohrn's workbook and the export #60 OTJ log. Result: 20 → 13 activities, 7 Summer Import rows removed and backed up, no one else touched, and the Completed Program and no-link safeguards hold.
+
 ## RTI / training hours from Knowtion (`apps-scripts/tap-rti-knowtion.gs`)
 
 - **Source:** the Knowtion workbook `1a4FTtODGfvO1FsQUp_MpQbePAjTF3Ire6uAHhL-EXFI`. The script reads three tabs by GID: tutors 267261099, site leaders 172053344, and site leader preparation 713859468. It opens the workbook directly, so no published link is needed.
