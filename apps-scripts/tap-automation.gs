@@ -35,7 +35,7 @@ var AUTO = {
   BASE_MONTHS:        18,      // Mar-25 … Aug-26 live in the original column blocks
   EXT_START_IDX:      100,     // 0-based index of column 101 (CW) — first column after "Role Type"
   HEADER_ROW:         3,       // Master Roster header row (1-based)
-  TIME_BUDGET_MS:     270000,
+  TIME_BUDGET_MS:     240000,
   RESYNC_CURSOR_PROP: 'AUTO_RESYNC_CURSOR',
   RESYNC_NEXT_PROP:   'AUTO_RESYNC_THEN',   // job to run after a resync finishes
   LAST_RUN_PREFIX:    'AUTO_LAST_RUN_',
@@ -148,6 +148,7 @@ function continueAutomationResync() {
 function _autoResyncRun(cursor) {
   var t0 = Date.now();
   var p = PropertiesService.getScriptProperties();
+  _DEFER_COMPLETION_SUMMARY = true; // Completion Summary rebuilt once at the end
   try {
     var ss = _getSpreadsheet();
     var rSheet = _getSheetByGID(ss, GID_MASTER_ROSTER);
@@ -169,6 +170,7 @@ function _autoResyncRun(cursor) {
       recalculateTotals(names[k]);
     }
     p.deleteProperty(AUTO.RESYNC_CURSOR_PROP);
+    _DEFER_COMPLETION_SUMMARY = false;
     rebuildCompletionSummary();
     _autoMarkRun('resync');
     _logNotification('AUTO_RESYNC_DONE', '', names.length + ' apprentices recalculated; months through ' + MONTH_LABELS[MONTH_LABELS.length - 1], '', 'autoResync');
@@ -178,6 +180,7 @@ function _autoResyncRun(cursor) {
     if (next === 'wageReport') _autoRunWageReport();
     return true;
   } catch (err) {
+    _DEFER_COMPLETION_SUMMARY = false;
     _handleError('_autoResyncRun', err);
     return false;
   }

@@ -61,7 +61,7 @@ var SY2627 = {
   REVIEW_SHEET:     'SY 26-27 Import — Needs Review',
   SY_VALUE:         '2026-2027',
   TRACK_TAG:        'SY 26-27',
-  TIME_BUDGET_MS:   270000,               // stop at ~4.5 min, resume via trigger
+  TIME_BUDGET_MS:   240000,               // stop at ~4 min (leaves room for one more person + summary), resume via trigger
   CURSOR_PROP:      'SY2627_SYNC_CURSOR',
   STATS_PROP:       'SY2627_SYNC_STATS',
   CONTINUE_HANDLER: 'continueSY2627Sync',
@@ -167,6 +167,7 @@ function debugSY2627OnePerson() {
 function _sy2627Run(cursor) {
   var t0 = Date.now();
   var props = PropertiesService.getScriptProperties();
+  _DEFER_COMPLETION_SUMMARY = true; // rebuilt once below, not per person
   try {
     if (!ONSITE_DB_SHEET_ID) throw new Error('ONSITE_DB_SHEET_ID is not set in the main script.');
     var fresh = cursor === 0;
@@ -178,6 +179,8 @@ function _sy2627Run(cursor) {
     for (var i = cursor; i < ctx.directory.length; i++) {
       if (Date.now() - t0 > SY2627.TIME_BUDGET_MS) {
         _sy2627FlushReview(ctx);
+        _DEFER_COMPLETION_SUMMARY = false;
+        try { rebuildCompletionSummary(); } catch (e) {}
         props.setProperty(SY2627.CURSOR_PROP, String(i));
         props.setProperty(SY2627.STATS_PROP, JSON.stringify(stats));
         ScriptApp.newTrigger(SY2627.CONTINUE_HANDLER).timeBased().after(60 * 1000).create();
@@ -195,6 +198,8 @@ function _sy2627Run(cursor) {
     }
 
     _sy2627FlushReview(ctx);
+    _DEFER_COMPLETION_SUMMARY = false;
+    try { rebuildCompletionSummary(); } catch (e) {}
     props.deleteProperty(SY2627.CURSOR_PROP);
     props.deleteProperty(SY2627.STATS_PROP);
     SpreadsheetApp.flush();
@@ -202,6 +207,7 @@ function _sy2627Run(cursor) {
     PropertiesService.getScriptProperties().setProperty('AUTO_LAST_RUN_syncSY2627', new Date().toISOString());
     return { done: true, stats: stats };
   } catch (err) {
+    _DEFER_COMPLETION_SUMMARY = false;
     _handleError('_sy2627Run', err);
     return null;
   }
@@ -551,9 +557,12 @@ function _sy2627ReadDirectory(onsiteDb) {
     var role = cRole >= 0 ? String(values[i][cRole] || '').trim() : '';
     if (/site leader/i.test(name) || /observation/i.test(role)) break; // Site Leader section starts here
     if (!name) continue;
+    // v13.2: NO Google Drive title searches here — they ran before the time
+    // check and could use up the whole 6-minute limit on their own. The
+    // Sheets API covers chips/links; the quick in-cell checks cover the rest.
     var ex = { id: _sy2627IdFromUrl(apiLinks[i]) };
     if (!ex.id && cLink >= 0) {
-      ex = _extractSpreadsheetIdFromCell(sheet, firstData + i, cLink + 1, rich[i][cLink], values[i][cLink], formulas[i][cLink]);
+      ex = { id: _sy2627QuickCellLink(rich[i][cLink], values[i][cLink], formulas[i][cLink]) };
     }
     out.push({
       name: name, role: role,
@@ -754,6 +763,18 @@ function _sy2627ParseDate(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/** Fast in-cell link check (rich-text link, =HYPERLINK, or a pasted URL). No Drive search. */
+function _sy2627QuickCellLink(rich, plain, formula) {
+  var url = '';
+  try {
+    url = (rich && rich.getLinkUrl && rich.getLinkUrl()) || '';
+    if (!url && rich && rich.getRuns) rich.getRuns().forEach(function(run) { if (!url && run.getLinkUrl()) url = run.getLinkUrl(); });
+  } catch (e) {}
+  if (!url && formula) { var m = String(formula).match(/HYPERLINK\(\s*"([^"]+)"/i); if (m) url = m[1]; }
+  if (!url && plain) { var b = String(plain).match(/https?:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+/); if (b) url = b[0]; }
+  return _sy2627IdFromUrl(url);
+}
+
 /** Spreadsheet ID from a Google Sheets URL (or '' if none). */
 function _sy2627IdFromUrl(url) {
   var m = String(url || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -813,6 +834,7 @@ function _sy2627ApiLinks(spreadsheetId, tabName, col1, firstRow, lastRow) {
  */
 function topUpSummerWorkbooks() {
   var t0 = Date.now();
+  _DEFER_COMPLETION_SUMMARY = true;
   var onsiteDb = SpreadsheetApp.openById(ONSITE_DB_SHEET_ID);
   var ss = _getSpreadsheet();
   var rSheet = _getSheetByGID(ss, GID_MASTER_ROSTER);
@@ -870,6 +892,8 @@ function topUpSummerWorkbooks() {
     }
     people++;
   }
+  _DEFER_COMPLETION_SUMMARY = false;
+  try { rebuildCompletionSummary(); } catch (e) {}
   _logNotification('SUMMER_TOPUP', '', people + ' summer workbooks re-read, ' + added + ' missed activities added', '', 'topUpSummerWorkbooks');
   _safeAlert('Summer top-up complete.\n\nWorkbooks re-read: ' + people + '\nMissed activities added: ' + added +
     (skipped.length ? '\n\nSkipped:\n  ' + skipped.join('\n  ') : ''));
