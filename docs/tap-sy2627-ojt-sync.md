@@ -90,3 +90,37 @@ This limit is fixed by `apps-scripts/tap-automation.gs`, together with six small
   - Leader Team shows a compact version on each tutor's card and tutor profile.
   - Fixed header names that were reading as 0 or blank: RTI Hours - LMS (Total), Current Wage Rate ($), Wage Milestone and OJT Hours (Total).
 - **Verified offline:** 106 learners, 2,163 items, 0 differences from an independent recalculation. Program and month columns add up to each person's totals.
+
+## Portal: Training & Development Hub + TAP tag (`central/modules/tap-insights.js`)
+
+- **New Central page "T&D Hub · SY 26-27".** It's labeled "Apprentice Progress" for Programming and HR.
+  - **Who sees it:** Training, Programming, Data, HR, Leadership and KB.
+  - **Training & Development view** (default for Training, Data, Leadership and KB), with six tabs:
+    - Overview
+    - Apprentices: a full table with CSV export
+    - Follow-Up: grouped by action, with site leader and supervisor contacts, and a CSV
+    - Training (Knowtion)
+    - Site Leaders: who each site leader observes, and their own training
+    - About the data: where each number comes from and the flag rules
+  - **Program Team view** (default for Programming and HR), in plain language:
+    - At a glance
+    - Our apprentices: cards grouped by site leader or site
+    - By site leader
+    - Online training: Active, Slowed down or Not started
+    - How to read this
+  - The Program Team view only shows flags the Program team can act on. Payroll and data-matching items stay in the T&D view.
+  - Data, Leadership, KB, Training and Programming can switch between the two views.
+- **TAP tag everywhere.** On any Central page, a staff member's full name (in Pearl tables, rosters or profiles) gets a TAP · Apprentice, TAP · Pre-App or TAP · TAP Completed tag.
+  - A red or amber dot means there's a follow-up flag.
+  - Clicking the tag opens the person's card.
+  - Matching is exact or first-and-last name. A name that's ambiguous is never tagged, and Tutors (non-TAP) are never tagged.
+- **Flag rules:**
+  - Workbook can't be read.
+  - Not observed in 30+ days.
+  - On the SY 26-27 OJT list but not on the Master Roster.
+  - No OJT logged in the month. During the first 10 days of a month, this checks the previous full month.
+  - Date fixes needed.
+  - Knowtion: nothing on record, or no training in 21+ days.
+  - Within 100 hours of the next wage milestone (T&D view only).
+- **Sources:** the TAP web app feeds `sy2627_progress`, `sy2627_review`, `rti_knowtion` and `rti_needs_match`, with the sheet's gviz export as a backup. The Master Roster comes from the gviz export using fixed column positions.
+- **Fixes:** Central's role categories now include "Completed Program", which was being counted as Tutor. The TAP Dashboard header now says SY 2026–2027.

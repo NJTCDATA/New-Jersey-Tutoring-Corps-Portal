@@ -348,6 +348,12 @@ function _rtiEnsureMapTab(ss) {
   return t;
 }
 
+/** CSV of the RTI — Needs Name Match tab for the portal (doGet?tab=rti_needs_match). */
+function _rtiNeedsMatchCSV() {
+  var sh = _getSpreadsheet().getSheetByName(RTI_KN.REVIEW_TAB);
+  return sh ? _sheetToCSV(sh) : '';
+}
+
 /** CSV of the RTI — Knowtion tab for the portal (doGet?tab=rti_knowtion). */
 function _rtiKnowtionCSV() {
   var sh = _getSpreadsheet().getSheetByName(RTI_KN.OUT_TAB);

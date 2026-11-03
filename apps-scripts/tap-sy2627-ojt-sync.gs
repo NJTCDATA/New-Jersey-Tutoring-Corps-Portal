@@ -768,6 +768,35 @@ function _sy2627ParseDate(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Portal feed (doGet?tab=sy2627_progress): the Workbook Progress tab as CSV,
+ * plus a "Workbook URL" column taken from the Open-workbook formula (the
+ * plain cell value only says "Open workbook").
+ */
+function _sy2627ProgressCSV() {
+  var sh = _getSpreadsheet().getSheetByName(SY2627.PROGRESS_SHEET);
+  if (!sh || sh.getLastRow() < 1) return '';
+  var rng = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn());
+  var vals = rng.getValues(), forms = rng.getFormulas();
+  var linkCol = vals[0].map(String).indexOf('OJT Workbook');
+  var tz = Session.getScriptTimeZone();
+  return vals.map(function(row, i) {
+    var url = '';
+    if (i === 0) url = 'Workbook URL';
+    else if (linkCol >= 0) { var m = String(forms[i][linkCol] || '').match(/HYPERLINK\("([^"]+)"/i); url = m ? m[1] : ''; }
+    return row.concat([url]).map(function(c) {
+      var s = c instanceof Date ? Utilities.formatDate(c, tz, 'M/d/yyyy') : String(c === null || c === undefined ? '' : c);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\n');
+}
+
+/** Portal feed (doGet?tab=sy2627_review): the Needs Review tab as CSV. */
+function _sy2627ReviewCSV() {
+  var sh = _getSpreadsheet().getSheetByName(SY2627.REVIEW_SHEET);
+  return sh ? _sheetToCSV(sh) : '';
+}
+
 /** Fast in-cell link check (rich-text link, =HYPERLINK, or a pasted URL). No Drive search. */
 function _sy2627QuickCellLink(rich, plain, formula) {
   var url = '';

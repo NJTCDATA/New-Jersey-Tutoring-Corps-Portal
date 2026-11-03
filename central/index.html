@@ -5537,6 +5537,10 @@
         <span class="sl-icon">🎓</span> <span class="dept-nav-td-data-label">T&amp;D Analytics</span>
       </button>
 
+      <!-- SY 26-27 Training & Development Hub — T&D, Programming, Data, HR, Leadership, KB (initDeptNav) -->
+      <button class="sidebar-link dept-nav-td-hub" data-panel="td-hub" onclick="showPanel('td-hub',this)" style="display:none" title="SY 26-27 apprentice progress, follow-ups and Knowtion training hours">
+        <span class="sl-icon">🌟</span> <span class="dept-nav-td-hub-label">T&amp;D Hub · SY 26-27</span>
+      </button>
       <!-- TAP Apprenticeship standalone panel — visible for all TAP-relevant depts -->
       <button class="sidebar-link dept-nav-tap-standalone" data-panel="tap-standalone" onclick="showPanel('tap-standalone',this)" style="display:none" title="NJTC Tutor Apprenticeship Program — active roster, OJT progress, wage milestones, and compliance">
         <span class="sl-icon">📋</span> <span class="dept-nav-tap-standalone-label">TAP Dashboard</span>
@@ -6370,11 +6374,28 @@
       <div id="trainingAnalyticsContent" style="display:none"></div>
     </div>
 
+    <!-- ══ TRAINING & DEVELOPMENT HUB · SY 26-27 (modules/tap-insights.js) ══ -->
+    <div class="panel" id="panel-td-hub">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">SY 2026–2027 · Tutor Apprenticeship Program</div>
+          <h2 class="ph-title" id="tdHubTitle">Training &amp; Development Hub</h2>
+          <p class="ph-subtitle" id="tdHubSubtitle">Apprentice OJT progress, Knowtion training hours and follow-ups — straight from the TAP Tracker.</p>
+        </div>
+        <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap">
+          <span class="live-badge" style="font-size:.7rem">LIVE DATA</span>
+          <span id="tdHubStamp" style="font-size:.7rem;color:var(--muted)"></span>
+          <button class="btn btn-secondary btn-sm" onclick="NJTC_TAP.refresh()" title="Reload from the TAP Tracker">↺ Refresh</button>
+        </div>
+      </div>
+      <div id="tdHubRoot"></div>
+    </div>
+
     <!-- ══ TAP APPRENTICESHIP STANDALONE PANEL ══════════════════ -->
     <div class="panel" id="panel-tap-standalone">
       <div class="page-header">
         <div class="ph-text">
-          <div class="ph-eyebrow">SY 2025–2026 · Tutor Apprenticeship Program</div>
+          <div class="ph-eyebrow">SY 2026–2027 · Tutor Apprenticeship Program</div>
           <h2 class="ph-title">🎓 TAP Apprenticeship Dashboard</h2>
           <p class="ph-subtitle">Live roster, OJT progress, wage milestones, and DOL compliance tracking for all enrolled NJTC apprentices.</p>
         </div>
@@ -6978,12 +6999,13 @@
 </script>
 <script src="modules/shared-utils.js?v=46"></script>
 <script src="modules/shared-charts.js?v=22"></script>
-<script src="modules/shared-filters.js?v=7"></script>
+<script src="modules/shared-filters.js?v=8"></script>
 <script src="modules/home-shortcuts.js?v=5"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
 <script src="modules/leadership.js?v=11"></script>
-<script src="modules/training-development.js?v=9"></script>
+<script src="modules/training-development.js?v=10"></script>
+<script src="modules/tap-insights.js?v=1"></script>
 <script src="modules/data-department.js?v=12"></script>
 <script src="modules/hr-department.js?v=3"></script>
 <script src="modules/dol-report.js?v=11"></script>
@@ -7368,6 +7390,9 @@
     const t = String(a.programTrack || '').trim();
     if (!t || /^apprentice/i.test(t)) return 'Apprentice';
     if (/^pre-apprentice/i.test(t))   return 'Pre-apprentice';
+    // SY 26-27: people who already finished TAP get "Completed Program — …"
+    // from the workbook sync. They are not Tutors; they never get wage emails.
+    if (/^completed/i.test(t))        return 'Completed Program';
     return 'Tutor';
   }
 
@@ -7453,6 +7478,7 @@
     const apprentices     = activeApps.filter(a => _roleCategory(a) === 'Apprentice');
     const preApprentices  = activeApps.filter(a => _roleCategory(a) === 'Pre-apprentice');
     const tutors          = activeApps.filter(a => _roleCategory(a) === 'Tutor');
+    const completedProg   = activeApps.filter(a => _roleCategory(a) === 'Completed Program');
     const totalOJT = apps.reduce((s,a) => s + (a.ojtHours||0), 0);
     const totalRTI = apps.reduce((s,a) => s + (a.rtiHours||0), 0);
     // Program Complete / wage milestones are Apprentice-only concepts —
@@ -7467,6 +7493,7 @@
         ${[
           ['🎓','Apprentices',apprentices.length,'#059669'],
           ['🌱','Pre-apprentices',preApprentices.length,'#0891b2'],
+          ['🏁','Completed Program',completedProg.length,'#7c3aed'],
           ['👤','Tutors (no TAP)',tutors.length,'#6b7280'],
           ['⏱️','Total OJT Hours',totalOJT.toLocaleString(),'#1B3A6B'],
           ['📚','Total RTI Hours',totalRTI.toLocaleString(),'#457b9d'],

@@ -2418,11 +2418,12 @@
       const counts = {
         Apprentice: all.filter(a => window._roleCategory(a) === 'Apprentice').length,
         'Pre-apprentice': all.filter(a => window._roleCategory(a) === 'Pre-apprentice').length,
+        'Completed Program': all.filter(a => window._roleCategory(a) === 'Completed Program').length,
         Tutor: all.filter(a => window._roleCategory(a) === 'Tutor').length,
       };
       function roleBadge(a) {
         const r = window._roleCategory(a);
-        const clr = r === 'Apprentice' ? '#059669' : r === 'Pre-apprentice' ? '#0891b2' : '#6b7280';
+        const clr = r === 'Apprentice' ? '#059669' : r === 'Pre-apprentice' ? '#0891b2' : r === 'Completed Program' ? '#7c3aed' : '#6b7280';
         return `<span style="background:${clr}1a;color:${clr};font-size:.63rem;font-weight:700;padding:.15rem .45rem;border-radius:4px">${r}</span>`;
       }
       el.innerHTML = `
@@ -2433,6 +2434,7 @@
             <option value="">All Roles (${all.length})</option>
             <option value="Apprentice" ${roleVal==='Apprentice'?'selected':''}>Apprentice (${counts.Apprentice})</option>
             <option value="Pre-apprentice" ${roleVal==='Pre-apprentice'?'selected':''}>Pre-apprentice (${counts['Pre-apprentice']})</option>
+            <option value="Completed Program" ${roleVal==='Completed Program'?'selected':''}>Completed Program (${counts['Completed Program']})</option>
             <option value="Tutor" ${roleVal==='Tutor'?'selected':''}>Tutor (${counts.Tutor})</option>
           </select>
         </div>

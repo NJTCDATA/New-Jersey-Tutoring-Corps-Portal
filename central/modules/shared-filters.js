@@ -76,6 +76,15 @@
       b.textContent = '🎓 T&D Analytics';
       b.title = 'Training and Development program performance and staff outcome data';
     });
+    // SY 26-27 Training & Development Hub (modules/tap-insights.js). The hub
+    // picks its own view per department: full detail for Training/Data/
+    // Leadership/KB, plain-language Program Team view for Programming/HR.
+    const TD_HUB_DEPTS = ['training', 'programming', 'data', 'leadership', 'kb', 'hr'];
+    document.querySelectorAll('.dept-nav-td-hub').forEach(b => {
+      b.style.display = TD_HUB_DEPTS.includes(dept) ? '' : 'none';
+      const lbl = b.querySelector('.dept-nav-td-hub-label');
+      if (lbl) lbl.textContent = ['programming', 'hr'].includes(dept) ? 'Apprentice Progress' : 'T&D Hub · SY 26-27';
+    });
     // TAP Standalone Dashboard — visible to all departments that interact with the apprenticeship program
     const TAP_STANDALONE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
     document.querySelectorAll('.dept-nav-tap-standalone').forEach(b => {
