@@ -228,6 +228,8 @@ function _autoRunWageReport(label) {
     var rows = sheet ? Math.max(0, sheet.getLastRow() - 7) : 0;
 
     var to = _autoRecipients(props.WAGE_REPORT_TO, [props.ADMIN_EMAIL || 'amir@njtutoringcorps.org', props.FINANCE_EMAIL_1]);
+    // Milestone test mode (main script) also keeps the wage report away from finance.
+    if (typeof _isMilestoneTestMode === 'function' && _isMilestoneTestMode()) to = _milestoneTestAddress();
     var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + (props.SHEET_ID || _HARDCODED_SHEET_ID) + '/edit#gid=' + sheet.getSheetId();
     var attachments = [];
     try {
@@ -401,6 +403,9 @@ function automationStatus() {
   });
   lines.push('');
   lines.push('Tracked months: ' + MONTH_LABELS[0] + ' – ' + MONTH_LABELS[MONTH_LABELS.length - 1]);
+  if (typeof _isMilestoneTestMode === 'function') {
+    lines.push('Milestone emails: ' + (_isMilestoneTestMode() ? 'TEST MODE — only ' + _milestoneTestAddress() : 'LIVE — finance'));
+  }
   _safeAlert(lines.join('\n'));
 }
 
