@@ -624,7 +624,10 @@
     const d = parseDate((p.progress || {})['Latest Observation']);
     if (!d) return { txt: 'Not yet this school year', days: null };
     const n = daysAgo(d);
-    return { txt: n <= 0 ? 'Today' : n === 1 ? 'Yesterday' : n + ' days ago', days: n, date: d };
+    // Workbooks that only give a month ("November 26") are stored as the 15th,
+    // which can be later than today — say "This month" instead of a future date.
+    if (n < 0) return { txt: 'This month', days: 0, date: d };
+    return { txt: n === 0 ? 'Today' : n === 1 ? 'Yesterday' : n + ' days ago', days: n, date: d };
   }
   function pFlags(p) { return p.flags.filter(f => PROGRAM_FLAGS.includes(f.code)); }
   function pStatus(p) {
@@ -673,7 +676,7 @@
         ${row('Checklist progress (all program stages)', pctTxt(p.ojtPct))}
         ${row('Beginning · Middle · End stages', pctTxt(p.beg) + ' · ' + pctTxt(p.mid) + ' · ' + pctTxt(p.end))}
         ${row('Activities checked off in ' + esc(_model.focus.long), ACTS(p))}
-        ${row('Last observed', seen.date ? fmtDate(seen.date) + ' (' + seen.txt + ')' : seen.txt)}
+        ${row('Last observed', seen.date ? (seen.txt === 'This month' ? MON_LONG[seen.date.getMonth()] + ' ' + seen.date.getFullYear() : fmtDate(seen.date) + ' (' + seen.txt + ')') : seen.txt)}
         ${row('Online training (Knowtion) — planned hours', r ? hrs(r['Estimated Hours']) : '—')}
         ${row('Online training — hours on Knowtion', r ? hrs(r['Time Spent Hours']) : '—')}
         ${row('Last online training', r ? fmtDate(parseDate(r['Last Completed'])) : '—')}
