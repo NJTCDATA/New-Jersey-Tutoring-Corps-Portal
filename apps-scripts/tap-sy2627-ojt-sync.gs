@@ -22,7 +22,7 @@
  * ║      the % straight from each workbook + the Master Roster totals.        ║
  * ║                                                                            ║
  * ║  v11 (11/2026): Sheets-API link reading (file chips), 80/80 matcher,      ║
- * ║  date validation, no payroll email when history is first loaded.          ║
+ * ║  date validation. Milestone emails: automatic, once each (main ledger).   ║
  * ║  SAFE TO RE-RUN DAILY — idempotent (never writes the same activity twice) ║
  * ║  and self-continuing (if it nears Apps Script's 6-minute limit it saves   ║
  * ║  its place and resumes 1 minute later).                                   ║
@@ -404,9 +404,9 @@ function _sy2627ProcessPerson(ctx, person) {
     var mrHoursNow = ctx.rSheet.getRange(rr.rowIndex, MR_OJT_HOURS_TOTAL + 1).getValue();
     var firstLoad = out.created || mrHoursNow === '' || mrHoursNow === null;
     if (out.newRows > 0 || firstLoad) {
-      if (firstLoad) _WAGE_BASELINE_NAMES[_normName(rr.name)] = true; // no payroll email for loading history
+      // Milestone emails go out automatically from recalculateTotals(); the
+      // main script's milestone ledger guarantees each milestone is emailed once.
       recalculateTotals(rr.name);
-      delete _WAGE_BASELINE_NAMES[_normName(rr.name)];
     }
     _sy2627ReadRosterTotals(ctx, out);
     return out;
