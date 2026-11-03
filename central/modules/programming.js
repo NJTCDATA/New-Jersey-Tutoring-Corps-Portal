@@ -7717,6 +7717,11 @@
       // Deduplication: identical (sessId + normalized text) pairs shown only once.
       function _gatherComments(category) {
         const pool = [];
+        // Follow-up flags use the shared rules (shared/comment-flags.js): every
+        // flagged comment for the week, escalations first, not a keyword top 5.
+        const CF = category === 'concern' ? window.NJTC_COMMENT_FLAGS : null;
+        const _match = (text, from, rating) => CF ? CF.triage({ text, from, rating })
+          : (categorizeComment(text) === category ? {} : null);
         const _seen = new Set(); // deduplicate by sessId+text
         const _dedup = (sessId, text) => {
           const key = (sessId || '') + '||' + text.toLowerCase().replace(/\s+/g,' ').trim().slice(0,60);
@@ -7725,7 +7730,8 @@
         };
         for (const r of (_stuRows || [])) {
           const text = (r[STU_S.COMMENT] || '').trim();
-          if (!text || categorizeComment(text) !== category) continue;
+          const flag = text ? _match(text, 'scholar', r[STU_S.OVERALL]) : null;
+          if (!flag) continue;
           const school   = (r[STU_S.SCHOOL]   || '').trim();
           const district = (r[STU_S.DISTRICT] || '').trim();
           const sessId   = r[STU_S.SESS_ID] || '';
@@ -7735,7 +7741,7 @@
           if (category === 'concern' && _frIsTermHR(tutor)) continue;
           if (!_dedup(sessId, text)) continue;
           const week = _effWeekStu(r);
-          pool.push({ source: 'Scholar', text, tutor, school, district, sessId, week });
+          pool.push({ source: 'Scholar', text, tutor, school, district, sessId, week, flag });
         }
         for (const r of (_instRows || [])) {
           const tutor    = (r[INST_S.FILLED_BY] || '').trim();
@@ -7748,9 +7754,10 @@
           const week = _effWeekInst(r);
           for (const raw of [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]]) {
             const text = (raw||'').trim();
-            if (!text || categorizeComment(text) !== category) continue;
+            const flag = text ? _match(text, 'tutor', r[INST_S.OVERALL]) : null;
+            if (!flag) continue;
             if (!_dedup(sessId, text)) continue;
-            pool.push({ source: 'Tutor', text, tutor, school, district, sessId, week });
+            pool.push({ source: 'Tutor', text, tutor, school, district, sessId, week, flag });
           }
         }
         // Sort pool by week descending; filter to most recent week
@@ -7758,6 +7765,7 @@
         const topWeek = pool.length ? pool[0].week : '';
         const weekPool = pool.filter(c => c.week === topWeek);
 
+        if (CF) return weekPool.sort((a, b) => (a.flag.tier === 'escalate' ? 0 : 1) - (b.flag.tier === 'escalate' ? 0 : 1));
         if (category !== 'positive') return weekPool.slice(0, 5);
 
         // ── Spotlight quality filter + tutor diversity ─────────────────────
@@ -7807,7 +7815,7 @@
           <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${c.tutor || '—'}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${c.school}</td>
           <td style="padding:6px 10px;font-family:monospace;font-size:.75em;color:#7c3aed">${c.sessId || '—'}</td>
-          <td style="padding:6px 10px;font-size:.75em;color:#6b7280">${c.source} · ${c.week}</td>
+          <td style="padding:6px 10px;font-size:.75em;color:#6b7280">${c.flag && c.flag.tierLabel ? `<b style="color:${c.flag.tier === 'escalate' ? '#b91c1c' : '#c2410c'}">${c.flag.tierLabel}</b><br>${c.flag.category}<br>` : ''}${c.source} · ${c.week}</td>
           <td style="padding:6px 10px;font-size:.85em;color:#991b1b">${c.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
         </tr>`).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No concern-flagged comments found for this filter</td></tr>`;
 
@@ -7865,7 +7873,7 @@
           <div class="def-item"><span class="def-text">
             <strong>Survey capture</strong> = % of delivered sessions with a tutor survey submitted (target ≥80%).
             <strong>Scholar rating</strong> = avg of Confidence, Enjoyment, Learning, Overall (1–5); follow up below 3.5.
-            <strong>Follow-up / spotlight comments</strong> are auto-tagged by keyword — a signal to check in, not an HR action.
+            <strong>Follow-up comments</strong> are flagged by shared rules (wellbeing and safety are escalated first); <strong>spotlights</strong> are auto-tagged by keyword. Both are a signal to check in, not an HR action.
           </span></div>
         </div>
 
@@ -7953,7 +7961,7 @@
         <!-- Section 4: Flagged Comments -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#fff7ed;border-bottom:1px solid #fed7aa;">
-            <span style="color:#9a3412;">🚩 Section 3 — Comments Requiring Follow-Up${_flagWeekLabel ? ' · ' + _flagWeekLabel : ''} (Top 5 · Concern Keywords)</span>
+            <span style="color:#9a3412;">🚩 Section 3 — Comments Requiring Follow-Up${_flagWeekLabel ? ' · ' + _flagWeekLabel : ''} (All flagged · escalations first)</span>
             <span style="color:#c2410c;font-weight:800;font-size:1rem;">${flaggedComments.length} comment${flaggedComments.length!==1?'s':''}</span>
           </div>
           <table>
@@ -7961,7 +7969,7 @@
               <th style="${thStyle}text-align:left;">Tutor</th>
               <th style="${thStyle}text-align:left;">School</th>
               <th style="${thStyle}text-align:left;">Session ID</th>
-              <th style="${thStyle}text-align:left;">Source · Week</th>
+              <th style="${thStyle}text-align:left;">Priority · Source · Week</th>
               <th style="${thStyle}text-align:left;">Comment</th>
             </tr></thead>
             <tbody>${flaggedCommentRows}</tbody>
