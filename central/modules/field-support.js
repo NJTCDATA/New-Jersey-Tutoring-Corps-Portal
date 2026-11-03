@@ -61,11 +61,6 @@
   // cancelled, so there is nothing to fix. Listed so Site Leaders know to
   // choose a reason next time; never counted as a fix.
   const FYI_ONLY = new Set(['cancelNoReason']);
-  // Missed reasons that are legitimately logged on individual scholar rows and
-  // are never a session cancellation (Programming, Nov 2026): school testing
-  // pulls some scholars, and part of a session cannot be cancelled.
-  const MISSED_NOT_CANCEL = new Set(['school-administered testing', 'school administered testing']);
-  const normR = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
   // Surveys can be added/edited in Pearl for 7 days after the session date.
   const SURVEY_EDIT_DAYS = 7;
   // Which issues are counted as tutor data-entry fixes (the rest are review/site items)
@@ -223,7 +218,7 @@
         if (st !== 'Missed') return;
         if (!reason) addIssue(s, 'blankScholar', who);
         if (reason === ARCHIVED_REASON) addIssue(s, 'archived', who);
-        if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation' && !MISSED_NOT_CANCEL.has(normR(reason))) cancelTypeReasons.add(reason);
+        if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation') cancelTypeReasons.add(reason);
         if (reason === 'Tutor Absent' && tutorAttended && !tutorMissedRows.length) addIssue(s, 'wrongTutorAbs', who);
         if (tutorTrulyAbsent && reason && reason !== 'Tutor Absent' && classify(r) === 'absent') addIssue(s, 'wrongScholar', who);
         if (CT_REASONS.has(reason)) {

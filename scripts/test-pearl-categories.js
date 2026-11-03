@@ -38,11 +38,14 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, 'partner', 'partner-report.js'),
 const R = sb.window.NJTCPartnerReport;
 const partnerReasons = [].concat(...Object.values(R.SCHOOL_DRIVEN_LABELS));
 sameSet(CAT.LISTS.SCHOOL_DRIVEN, partnerReasons, 'partner SCHOOL_DRIVEN_LABELS differs from shared SCHOOL_DRIVEN');
-CAT.LISTS.SCHOOL_DRIVEN.forEach(r => assert.strictEqual(CAT.categoryOf(r), 'cancellation', r + ' should be a cancellation reason'));
+CAT.LISTS.SCHOOL_DRIVEN.forEach(r => assert(['cancellation', 'school_missed'].includes(CAT.categoryOf(r)), r + ' should be a cancellation or school-testing reason'));
+// School testing is a missed reason (not counted, not a cancellation) — Programming, Nov 2026
+assert.strictEqual(CAT.categoryOf('School-administered Testing'), 'school_missed');
+assert.strictEqual(CAT.categoryOf('school administered testing'), 'school_missed');
 
 // Every list maps to its own category; nothing is in two lists.
 const seen = {};
-[['UNDELIVERED', 'undelivered'], ['INTERNAL', 'internal'], ['ABSENCE', 'absence'], ['CANCELLATION', 'cancellation']].forEach(([k, c]) => {
+[['UNDELIVERED', 'undelivered'], ['INTERNAL', 'internal'], ['ABSENCE', 'absence'], ['CANCELLATION', 'cancellation'], ['SCHOOL_MISSED', 'school_missed']].forEach(([k, c]) => {
   CAT.LISTS[k].forEach(r => {
     assert(!seen[norm(r)], `${r} is in ${seen[norm(r)]} and ${k}`); seen[norm(r)] = k;
     assert.strictEqual(CAT.categoryOf(r), c, r);

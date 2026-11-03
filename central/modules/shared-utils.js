@@ -8632,7 +8632,8 @@
   // keep matching; answers use the new terms.
   var _MISS_TERMS = '**"Service Interruption" is now "Not Counted Against Attendance."** Missed sessions that are not scholar absences are grouped as:\n\n'
     + '• **Undelivered Sessions** — tutor absent (not covered by a sub), tutor vacancy, or tutor left early with no sub. A talking point for partner conversations, not a to-do. A tutor absence covered by a sub is a delivered session.\n'
-    + '• **Session Cancellations** — school or NJTC-driven (school event/assembly, school-administered testing, schedule change, closure/delay, weather, NJTC internal issue). Site Leaders now cancel these in Pearl with a Canceled Reason; logged as a missed reason they are flagged for follow-up.\n'
+    + '• **Session Cancellations** — school or NJTC-driven (school event/assembly, schedule change, closure/delay, weather, NJTC internal issue). Site Leaders now cancel these in Pearl with a Canceled Reason; logged as a missed reason for a whole group they are flagged for follow-up.\n'
+    + '• **School Testing** — school-administered testing for individual scholars. A missed reason, not a cancellation; no action needed.\n'
     + '• **Internal Tracking** — NJTC diagnostic testing, archived scholars.\n\n'
     + 'None of these count against Scholar Attendance %. Only Absent, Scholar Left Early, Scholar Declined, Scholar Unavailable; Out of the Classroom, Classroom Teacher Kept Scholar in Class (incl. Haddon whole-group support) and a blank reason do.';
   function _missCatOf(reason) {
@@ -8643,11 +8644,12 @@
   }
   // "380 undelivered · 330 cancellation-type · 174 internal" for not-counted scholar rows
   function _missCatLine(rows) {
-    var n = { undelivered:0, cancellation:0, internal:0, other:0 };
+    var n = { undelivered:0, cancellation:0, school_missed:0, internal:0, other:0 };
     (rows||[]).forEach(function(r){ if (r[1]==='Student' && _isScholSI(r)) n[_missCatOf(r[7])]++; });
     var parts = [];
     if (n.undelivered)  parts.push(_n(n.undelivered) + ' undelivered (tutor absent, not covered / vacancy)');
     if (n.cancellation) parts.push(_n(n.cancellation) + ' cancellation-type');
+    if (n.school_missed) parts.push(_n(n.school_missed) + ' school testing');
     if (n.internal)     parts.push(_n(n.internal) + ' internal tracking');
     if (n.other)        parts.push(_n(n.other) + ' unmapped reason');
     return parts.join(' · ');
@@ -8658,6 +8660,7 @@
     var m = p.missed, parts = [];
     parts.push(_n(m.undelivered) + ' undelivered');
     parts.push(_n(m.cancellationType) + ' cancellation-type');
+    if (m.schoolTesting) parts.push(_n(m.schoolTesting) + ' school testing');
     parts.push(_n(m.internal) + ' internal tracking');
     if (m.unmapped) parts.push(_n(m.unmapped) + ' unmapped');
     return parts.join(' · ');

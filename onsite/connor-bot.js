@@ -856,6 +856,7 @@
         var groups = [
           { key:'undelivered',  label:'Undelivered Sessions (tutor absent / vacancy)', color:'#f59e0b' },
           { key:'cancellation', label:'Cancellation-type (school / NJTC-driven)',      color:'#60a5fa' },
+          { key:'school_missed', label:'School Testing (school-administered)',      color:'#22d3ee' },
           { key:'internal',     label:'Internal Tracking',                            color:'#94a3b8' },
           { key:'other',        label:'Other',                                        color:'#94a3b8' }
         ];
