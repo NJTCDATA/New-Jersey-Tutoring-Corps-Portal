@@ -52,11 +52,22 @@
     wrongScholar:   'Tutor absent but scholar given a scholar reason',
     wholeGroupCT:   'Review: whole-group teacher pull-out logged as tutor Missed',
     archived:       'Archived scholar still on session roster',
-    cancelNoReason: 'Session cancelled with no Canceled Reason',
-    shouldCancel:   'Cancellation reason logged as a missed reason (cancel the session in Pearl instead)',
+    cancelNoReason: 'FYI only: session cancelled with no Canceled Reason (cannot be changed after cancelling; pick a reason next time)',
+    shouldCancel:   'Whole group missed with a cancellation reason (cancel the session in Pearl instead)',
   };
   // Cancellations are done by Site Leaders (tutors cannot cancel in Pearl)
-  const SITE_LEADER_FIX = new Set(['cancelNoReason', 'shouldCancel']);
+  const SITE_LEADER_FIX = new Set(['shouldCancel']);
+  // Informational only: Pearl locks the Canceled Reason once a session is
+  // cancelled, so there is nothing to fix. Listed so Site Leaders know to
+  // choose a reason next time; never counted as a fix.
+  const FYI_ONLY = new Set(['cancelNoReason']);
+  // Missed reasons that are legitimately logged on individual scholar rows and
+  // are never a session cancellation (Programming, Nov 2026): school testing
+  // pulls some scholars, and part of a session cannot be cancelled.
+  const MISSED_NOT_CANCEL = new Set(['school-administered testing', 'school administered testing']);
+  const normR = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
+  // Surveys can be added/edited in Pearl for 7 days after the session date.
+  const SURVEY_EDIT_DAYS = 7;
   // Which issues are counted as tutor data-entry fixes (the rest are review/site items)
   const TUTOR_FIX = new Set(['incomplete', 'blankScholar', 'blankTutor', 'notRecorded', 'attWithMissed',
     'partialAllAtt', 'mbsWithAtt', 'mbsTutorNotAtt', 'tutorMissedAtt', 'tutorRowMissed', 'wrongTutorAbs', 'wrongScholar']);
@@ -130,20 +141,28 @@
       const k = (s.instId || s.instructor || 'Unassigned') + '|' + (s.school || '');
       if (!tutors[k]) tutors[k] = { tutor: s.instructor || 'Unassigned', tutorId: s.instId || '', school: s.school || '', district: s.district || '',
         region: input.regionOf(s.school, s.district) || '', delivered: 0, tutorSurvElig: 0, tutorSurvDone: 0,
-        scholSurvElig: 0, scholSurvDone: 0, tutAtt: 0, tutAbs: 0, issues: {} };
+        scholSurvElig: 0, scholSurvDone: 0, tutorSurvOpen: 0, scholSurvOpen: 0, tutAtt: 0, tutAbs: 0, issues: {} };
       return tutors[k];
     };
     const schoolRec = (s) => {
       const k = s.school || '';
       if (!schools[k]) schools[k] = { school: k, district: s.district || '', region: input.regionOf(s.school, s.district) || '',
         delivered: 0, stuAtt: 0, stuAbs: 0, tutAtt: 0, tutAbs: 0, tutorSurvElig: 0, tutorSurvDone: 0,
-        scholSurvElig: 0, scholSurvDone: 0, ctPulls: 0, ctDenom: 0, issues: {} };
+        scholSurvElig: 0, scholSurvDone: 0, tutorSurvOpen: 0, scholSurvOpen: 0, ctPulls: 0, ctDenom: 0, issues: {} };
       return schools[k];
     };
     const sessBase = s => ({ date: toYMD(s.start), school: s.school || '', tutor: s.instructor || '', session: s.title || '', sessionId: s.id || '',
       status: s.status || '', sessionAttendance: s.attendance || '' });
+    // Survey edit window: open through session date + 7 days (local dates)
+    const todayYMD = toYMD(now);
+    const addDays = (ymd, n) => { const d = new Date(ymd + 'T12:00:00'); d.setDate(d.getDate() + n); return toYMD(d); };
+    const surveyWindow = ymd => {
+      if (!ymd) return { editableUntil: '', surveyStatus: '', expired: false };
+      const until = addDays(ymd, SURVEY_EDIT_DAYS), expired = todayYMD > until;
+      return { editableUntil: until, expired, surveyStatus: expired ? 'Expired - can no longer be submitted' : 'Open - submit by ' + until };
+    };
     const addIssue = (s, key, extra) => {
-      issues.push(Object.assign(sessBase(s), { issue: ISSUE[key], issueKey: key, owner: TUTOR_FIX.has(key) ? 'Tutor' : SITE_LEADER_FIX.has(key) ? 'Site Leader' : (key === 'archived' ? 'Site / Data' : 'Review') }, extra || {}));
+      issues.push(Object.assign(sessBase(s), { issue: ISSUE[key], issueKey: key, owner: TUTOR_FIX.has(key) ? 'Tutor' : SITE_LEADER_FIX.has(key) ? 'Site Leader' : FYI_ONLY.has(key) ? 'FYI - no action' : (key === 'archived' ? 'Site / Data' : 'Review') }, extra || {}));
       const t = tutorRec(s), c = schoolRec(s);
       t.issues[key] = (t.issues[key] || 0) + 1;
       c.issues[key] = (c.issues[key] || 0) + 1;
@@ -204,7 +223,7 @@
         if (st !== 'Missed') return;
         if (!reason) addIssue(s, 'blankScholar', who);
         if (reason === ARCHIVED_REASON) addIssue(s, 'archived', who);
-        if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation') cancelTypeReasons.add(reason);
+        if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation' && !MISSED_NOT_CANCEL.has(normR(reason))) cancelTypeReasons.add(reason);
         if (reason === 'Tutor Absent' && tutorAttended && !tutorMissedRows.length) addIssue(s, 'wrongTutorAbs', who);
         if (tutorTrulyAbsent && reason && reason !== 'Tutor Absent' && classify(r) === 'absent') addIssue(s, 'wrongScholar', who);
         if (CT_REASONS.has(reason)) {
@@ -214,7 +233,9 @@
         }
         if (classify(r) === 'absent' && reason) c.ctDenom++;
       });
-      if (cancelTypeReasons.size) addIssue(s, 'shouldCancel', { reasonEntered: [...cancelTypeReasons].join('; ') }); // once per session
+      // Only when nobody attended: part of a session cannot be cancelled, so a
+      // cancellation-type reason on some scholars of a delivered session is fine.
+      if (cancelTypeReasons.size && nStuAtt === 0) addIssue(s, 'shouldCancel', { reasonEntered: [...cancelTypeReasons].join('; ') }); // once per session
       tutRows.forEach(r => {
         if ((r[ATT.ATT_STATUS] || '') === 'Not recorded') addIssue(s, 'notRecorded', { scholar: '(tutor)', reasonEntered: '' });
         if ((r[ATT.ATT_STATUS] || '') === 'Missed' && !(r[ATT.MISS_REASON] || '')) addIssue(s, 'blankTutor', { reasonEntered: '' });
@@ -240,8 +261,9 @@
       if (!delivered) return;
       t.delivered++; c.delivered++;
       t.tutorSurvElig++; c.tutorSurvElig++;
+      const win = surveyWindow(ymd);
       if (s.instId && tutorSurv.has(s.instId + '|' + s.id)) { t.tutorSurvDone++; c.tutorSurvDone++; }
-      else missingTutor.push(sessBase(s));
+      else { missingTutor.push(Object.assign(sessBase(s), win)); if (!win.expired) { t.tutorSurvOpen++; c.tutorSurvOpen++; } }
       // Scholar survey: only scholars who attended can take it. If no
       // attendance rows matched, fall back to the full roster.
       const attendedIds = stuRows.length
@@ -251,7 +273,7 @@
       attendedIds.forEach(uid => {
         t.scholSurvElig++; c.scholSurvElig++;
         if (scholSurv.has(uid + '|' + s.id)) { t.scholSurvDone++; c.scholSurvDone++; }
-        else missingScholar.push(Object.assign(sessBase(s), { scholar: nameOf[uid] || '', scholarId: uid }));
+        else { missingScholar.push(Object.assign(sessBase(s), { scholar: nameOf[uid] || '', scholarId: uid }, win)); if (!win.expired) { t.scholSurvOpen++; c.scholSurvOpen++; } }
       });
     });
 
@@ -263,9 +285,9 @@
         tutor: t.tutor, tutorId: t.tutorId, school: t.school, district: t.district, region: t.region,
         delivered: t.delivered,
         incomplete: t.issues.incomplete || 0,
-        missingTutorSurveys: missingT,
+        missingTutorSurveys: missingT, missingTutorSurveysOpen: t.tutorSurvOpen,
         tutorSurveyCapture: pct(t.tutorSurvDone, t.tutorSurvElig),
-        missingScholarSurveys: missingS,
+        missingScholarSurveys: missingS, missingScholarSurveysOpen: t.scholSurvOpen,
         scholarSurveyCapture: pct(t.scholSurvDone, t.scholSurvElig),
         blankReasons: (t.issues.blankScholar || 0) + (t.issues.blankTutor || 0),
         notRecorded: t.issues.notRecorded || 0,
@@ -274,9 +296,9 @@
         wholeGroupReview: t.issues.wholeGroupCT || 0,
         tutorAttendance: pct(t.tutAtt, t.tutAtt + t.tutAbs),
         tutorSessions: t.tutAtt + t.tutAbs, tutorAbsences: t.tutAbs,
-        totalFixes: sumFix(t.issues) + missingT,
+        totalFixes: sumFix(t.issues) + t.tutorSurvOpen, // expired surveys can no longer be fixed
       };
-    }).filter(t => t.totalFixes > 0 || t.wholeGroupReview > 0 || (t.tutorAttendance !== null && t.tutorAttendance < TARGET.tutorAtt))
+    }).filter(t => t.totalFixes > 0 || t.missingTutorSurveys > 0 || t.wholeGroupReview > 0 || (t.tutorAttendance !== null && t.tutorAttendance < TARGET.tutorAtt))
       .sort((a, b) => b.totalFixes - a.totalFixes || a.tutor.localeCompare(b.tutor));
 
     const schoolList = Object.values(schools).filter(c => c.delivered > 0 || Object.keys(c.issues).length).map(c => {
@@ -293,8 +315,8 @@
         delivered: c.delivered, scholarAttendance: scholAtt, tutorAttendance: tutAtt,
         tutorSurveyCapture: tCap, scholarSurveyCapture: sCap,
         incomplete: c.issues.incomplete || 0,
-        missingTutorSurveys: c.tutorSurvElig - c.tutorSurvDone,
-        missingScholarSurveys: c.scholSurvElig - c.scholSurvDone,
+        missingTutorSurveys: c.tutorSurvElig - c.tutorSurvDone, missingTutorSurveysOpen: c.tutorSurvOpen,
+        missingScholarSurveys: c.scholSurvElig - c.scholSurvDone, missingScholarSurveysOpen: c.scholSurvOpen,
         blankReasons: (c.issues.blankScholar || 0) + (c.issues.blankTutor || 0),
         dataFixes, teacherPullouts: c.ctPulls, teacherPulloutShare: ctShare,
         wholeGroupReview: c.issues.wholeGroupCT || 0,
@@ -303,7 +325,8 @@
     }).sort((a, b) => ({ High: 0, Medium: 1, Low: 2 })[a.support] - ({ High: 0, Medium: 1, Low: 2 })[b.support] || b.dataFixes - a.dataFixes);
 
     const byDate = (a, b) => (b.date || '').localeCompare(a.date || '') || a.school.localeCompare(b.school);
-    issues.sort(byDate); missingTutor.sort(byDate); missingScholar.sort(byDate); pullouts.sort(byDate); incompletes.sort(byDate);
+    const openFirst = (a, b) => (a.expired - b.expired) || byDate(a, b); // still-fixable surveys on top
+    issues.sort(byDate); missingTutor.sort(openFirst); missingScholar.sort(openFirst); pullouts.sort(byDate); incompletes.sort(byDate);
 
     // Scholars pulled out 3+ times (dosage watch)
     const ctByScholar = {};
@@ -318,6 +341,8 @@
     const totals = {
       schools: schoolList.length, tutors: tutorList.length,
       incomplete: incompletes.length, missingTutorSurveys: missingTutor.length, missingScholarSurveys: missingScholar.length,
+      missingTutorSurveysOpen: missingTutor.filter(x => !x.expired).length, missingScholarSurveysOpen: missingScholar.filter(x => !x.expired).length,
+      cancelNoReasonFYI: issues.filter(i => i.issueKey === 'cancelNoReason').length,
       dataFixes: issues.filter(i => i.owner === 'Tutor' && i.issueKey !== 'incomplete').length,
       blankReasons: issues.filter(i => i.issueKey === 'blankScholar' || i.issueKey === 'blankTutor').length,
       statusMismatch: issues.filter(i => ['attWithMissed', 'partialAllAtt', 'mbsWithAtt', 'mbsTutorNotAtt', 'tutorMissedAtt', 'tutorRowMissed'].includes(i.issueKey)).length,
@@ -339,26 +364,26 @@
   function sheetSpecs(R) {
     return [
       ['Campus Summary', ['Region', 'District', 'School', 'Support Level', 'Sessions Delivered', 'Scholar Attendance %', 'Tutor Attendance %',
-        'Tutor Survey Capture %', 'Scholar Survey Capture %', 'Incomplete Sessions', 'Missing Tutor Surveys', 'Missing Scholar Surveys',
-        'Missed Reason Blank', 'Attendance Fixes', 'Teacher Pull-outs', 'Teacher Pull-outs % of Scholar Absences', 'Whole-Group Pull-outs to Review', 'Archived Scholars on Roster'],
+        'Tutor Survey Capture %', 'Scholar Survey Capture %', 'Incomplete Sessions', 'Missing Tutor Surveys', 'Missing Tutor Surveys - Still Open',
+        'Missing Scholar Surveys', 'Missing Scholar Surveys - Still Open', 'Missed Reason Blank', 'Attendance Fixes', 'Teacher Pull-outs', 'Teacher Pull-outs % of Scholar Absences', 'Whole-Group Pull-outs to Review', 'Archived Scholars on Roster'],
         R.schools.map(c => [c.region, c.district, c.school, c.support, c.delivered, fmtPct(c.scholarAttendance), fmtPct(c.tutorAttendance),
-          fmtPct(c.tutorSurveyCapture), fmtPct(c.scholarSurveyCapture), c.incomplete, c.missingTutorSurveys, c.missingScholarSurveys,
-          c.blankReasons, c.dataFixes, c.teacherPullouts, c.teacherPulloutShare, c.wholeGroupReview, c.archivedOnRoster])],
+          fmtPct(c.tutorSurveyCapture), fmtPct(c.scholarSurveyCapture), c.incomplete, c.missingTutorSurveys, c.missingTutorSurveysOpen,
+          c.missingScholarSurveys, c.missingScholarSurveysOpen, c.blankReasons, c.dataFixes, c.teacherPullouts, c.teacherPulloutShare, c.wholeGroupReview, c.archivedOnRoster])],
       ['Tutor Actions', ['Region', 'School', 'Tutor', 'Pearl Tutor ID', 'Sessions Delivered', 'Incomplete Sessions', 'Missing Tutor Surveys',
-        'Tutor Survey Capture %', 'Missing Scholar Surveys', 'Scholar Survey Capture %', 'Missed Reason Blank', 'Attendance Not Recorded',
+        'Missing Tutor Surveys - Still Open', 'Tutor Survey Capture %', 'Missing Scholar Surveys', 'Missing Scholar Surveys - Still Open', 'Scholar Survey Capture %', 'Missed Reason Blank', 'Attendance Not Recorded',
         'Session Status Mismatch', 'Wrong Missed Reason', 'Whole-Group Pull-outs to Review', 'Tutor Attendance %', 'Total Fixes'],
-        R.tutors.map(t => [t.region, t.school, t.tutor, t.tutorId, t.delivered, t.incomplete, t.missingTutorSurveys, fmtPct(t.tutorSurveyCapture),
-          t.missingScholarSurveys, fmtPct(t.scholarSurveyCapture), t.blankReasons, t.notRecorded, t.statusMismatch, t.wrongCategory,
+        R.tutors.map(t => [t.region, t.school, t.tutor, t.tutorId, t.delivered, t.incomplete, t.missingTutorSurveys, t.missingTutorSurveysOpen, fmtPct(t.tutorSurveyCapture),
+          t.missingScholarSurveys, t.missingScholarSurveysOpen, fmtPct(t.scholarSurveyCapture), t.blankReasons, t.notRecorded, t.statusMismatch, t.wrongCategory,
           t.wholeGroupReview, fmtPct(t.tutorAttendance), t.totalFixes])],
       ['Attendance Fixes', ['Date', 'School', 'Tutor', 'Session', 'Session ID', 'Session Status', 'Session Attendance', 'Scholar', 'Scholar ID', 'Reason Entered', 'Issue', 'Owner'],
         R.issues.filter(i => i.issueKey !== 'incomplete').map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.status, i.sessionAttendance,
           i.scholar || '', i.scholarId || '', i.reasonEntered || '', i.issue, i.owner])],
       ['Incomplete Sessions', ['Date', 'School', 'Tutor', 'Session', 'Session ID'],
         R.incompletes.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId])],
-      ['Missing Tutor Surveys', ['Date', 'School', 'Tutor', 'Session', 'Session ID'],
-        R.missingTutor.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId])],
-      ['Missing Scholar Surveys', ['Date', 'School', 'Tutor', 'Session', 'Session ID', 'Scholar', 'Scholar ID'],
-        R.missingScholar.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.scholar, i.scholarId])],
+      ['Missing Tutor Surveys', ['Date', 'School', 'Tutor', 'Session', 'Session ID', 'Survey Window (7 days)', 'Editable Until'],
+        R.missingTutor.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.surveyStatus, i.editableUntil])],
+      ['Missing Scholar Surveys', ['Date', 'School', 'Tutor', 'Session', 'Session ID', 'Scholar', 'Scholar ID', 'Survey Window (7 days)', 'Editable Until'],
+        R.missingScholar.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.scholar, i.scholarId, i.surveyStatus, i.editableUntil])],
       ['Teacher Pull-outs', ['Date', 'School', 'Tutor', 'Session', 'Session ID', 'Scholar', 'Scholar ID', 'Whole Group'],
         R.pullouts.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.scholar, i.scholarId, i.wholeGroup])],
       ['Pull-outs by Scholar', ['School', 'Scholar', 'Scholar ID', 'Teacher Pull-outs', 'Most Recent'],
@@ -484,7 +509,7 @@
   // ─────────────────────────────────────────────────────────────────────────
   const TUTOR_CHECKIN = { minSessions: 3, minFixes: 3 };
   const TUTOR_RULE = 'Tutors with a real pattern, year to date: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
-    '(incomplete sessions, missing tutor surveys, blank missed reasons, attendance not recorded or mismatched). A quick check-in from the Site Leader or PM usually clears this up.';
+    '(incomplete sessions, tutor surveys still inside the 7-day window, blank missed reasons, attendance not recorded or mismatched). A quick check-in from the Site Leader or PM usually clears this up.';
   function tutorsToCheckIn(R) {
     const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
     return R.tutors.map(t => {
@@ -493,7 +518,7 @@
       if (!lowAtt && fixes < TUTOR_CHECKIN.minFixes) return null;
       const why = [];
       if (lowAtt) why.push('Attendance ' + t.tutorAttendance + '% (' + plural(t.tutorAbsences, 'absence') + ' in ' + t.tutorSessions + ')');
-      if (t.missingTutorSurveys) why.push(plural(t.missingTutorSurveys, 'missing tutor survey'));
+      if (t.missingTutorSurveys) why.push(plural(t.missingTutorSurveys, 'missing tutor survey') + ' (' + t.missingTutorSurveysOpen + ' still open)');
       if (t.incomplete) why.push(plural(t.incomplete, 'incomplete session'));
       if (t.blankReasons) why.push(plural(t.blankReasons, 'blank missed reason'));
       const other = t.notRecorded + t.statusMismatch + t.wrongCategory;
