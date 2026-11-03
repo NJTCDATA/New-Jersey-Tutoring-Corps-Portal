@@ -550,7 +550,12 @@ function _sy2627ReadDirectory(onsiteDb) {
   // v11: Apps Script's RichTextValue cannot see links stored as Google Drive
   // file chips, which is why 41 of 78 workbooks were read as "no link" on
   // 11/2/26. The Sheets API returns hyperlinks, link runs AND chip links.
-  var apiLinks = cLink >= 0 ? _sy2627ApiLinks(onsiteDb.getId(), SY2627.DIRECTORY_TAB, cLink + 1, firstData, lastRow) : [];
+  // v13.3: primary source = the workbook's own Excel export, which contains a
+  // hyperlink for EVERY row (including Drive file chips). Sheets API is the
+  // backup; the quick in-cell check is the last resort.
+  var xlsxLinks = cLink >= 0 ? _sy2627ExportLinks(onsiteDb.getId(), sheet.getName(), cLink + 1, firstData, lastRow) : [];
+  var apiLinks = [];
+  if (cLink >= 0 && xlsxLinks.filter(Boolean).length === 0) apiLinks = _sy2627ApiLinks(onsiteDb.getId(), SY2627.DIRECTORY_TAB, cLink + 1, firstData, lastRow);
   var out = [];
   for (var i = 0; i < values.length; i++) {
     var name = String(values[i][0] || '').trim();
@@ -560,7 +565,7 @@ function _sy2627ReadDirectory(onsiteDb) {
     // v13.2: NO Google Drive title searches here — they ran before the time
     // check and could use up the whole 6-minute limit on their own. The
     // Sheets API covers chips/links; the quick in-cell checks cover the rest.
-    var ex = { id: _sy2627IdFromUrl(apiLinks[i]) };
+    var ex = { id: _sy2627IdFromUrl(xlsxLinks[i]) || _sy2627IdFromUrl(apiLinks[i]) };
     if (!ex.id && cLink >= 0) {
       ex = { id: _sy2627QuickCellLink(rich[i][cLink], values[i][cLink], formulas[i][cLink]) };
     }
@@ -775,6 +780,52 @@ function _sy2627QuickCellLink(rich, plain, formula) {
   return _sy2627IdFromUrl(url);
 }
 
+/**
+ * Reads hyperlinks for one column straight out of the spreadsheet's Excel
+ * (.xlsx) export — the export writes every link, including Drive file chips
+ * that Apps Script's RichTextValue can't see. Returns one URL (or '') per row
+ * from firstRow..lastRow. Never throws; logs the reason if it can't read.
+ */
+function _sy2627ExportLinks(spreadsheetId, tabName, col1, firstRow, lastRow) {
+  var out = [];
+  for (var k = firstRow; k <= lastRow; k++) out.push('');
+  try {
+    var resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) {
+      _logNotification('LINK_READ_WARNING', '', 'Excel export of the Onsite tracker failed (HTTP ' + resp.getResponseCode() + ')', '', '_sy2627ExportLinks');
+      return out;
+    }
+    var files = {};
+    Utilities.unzip(resp.getBlob().setContentType('application/zip')).forEach(function(b) { files[b.getName()] = b; });
+    var text = function(n) { return files[n] ? files[n].getDataAsString() : ''; };
+    var unesc = function(v) { return String(v).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'"); };
+    var attr = function(tag, name) { var m = tag.match(new RegExp('\\s' + name + '="([^"]*)"')); return m ? unesc(m[1]) : ''; };
+    // tab name -> sheet file
+    var relId = '';
+    (text('xl/workbook.xml').match(/<sheet\b[^>]*>/g) || []).forEach(function(t) { if (attr(t, 'name') === tabName) relId = attr(t, 'r:id'); });
+    if (!relId) { _logNotification('LINK_READ_WARNING', '', 'Tab "' + tabName + '" not found in the Excel export', '', '_sy2627ExportLinks'); return out; }
+    var target = '';
+    (text('xl/_rels/workbook.xml.rels').match(/<Relationship\b[^>]*>/g) || []).forEach(function(t) { if (attr(t, 'Id') === relId) target = attr(t, 'Target'); });
+    var sheetPath = target.charAt(0) === '/' ? target.slice(1) : 'xl/' + target.replace(/^\.\//, '');
+    var relsPath = sheetPath.replace(/([^\/]+)$/, '_rels/$1.rels');
+    var rels = {};
+    (text(relsPath).match(/<Relationship\b[^>]*>/g) || []).forEach(function(t) { rels[attr(t, 'Id')] = attr(t, 'Target'); });
+    var colA = _colLetter(col1);
+    (text(sheetPath).match(/<hyperlink\b[^>]*>/g) || []).forEach(function(t) {
+      var ref = attr(t, 'ref').split(':')[0];
+      var m = ref.match(/^([A-Z]+)(\d+)$/);
+      if (!m || m[1] !== colA) return;
+      var row = parseInt(m[2], 10);
+      var url = rels[attr(t, 'r:id')] || '';
+      if (row >= firstRow && row <= lastRow && url) out[row - firstRow] = url;
+    });
+  } catch (e) {
+    _logNotification('LINK_READ_WARNING', '', 'Could not read links from the Excel export: ' + e, '', '_sy2627ExportLinks');
+  }
+  return out;
+}
+
 /** Spreadsheet ID from a Google Sheets URL (or '' if none). */
 function _sy2627IdFromUrl(url) {
   var m = String(url || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -842,7 +893,8 @@ function topUpSummerWorkbooks() {
   var summerTab = onsiteDb.getSheetByName(SUMMER_OJT_TAB_NAME);
   var directory = _readSummerOJTDirectory(onsiteDb);
   if (summerTab) {
-    var api = _sy2627ApiLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
+    var api = _sy2627ExportLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
+    if (!api.filter(Boolean).length) api = _sy2627ApiLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
     var nonBlank = [];
     summerTab.getRange(4, 1, Math.max(summerTab.getLastRow() - 3, 1), 1).getValues().forEach(function(r, i) {
       if (String(r[0] || '').trim()) nonBlank.push(api[i] || '');
