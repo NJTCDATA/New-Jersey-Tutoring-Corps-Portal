@@ -4122,7 +4122,7 @@
         setText('poStatInterruptions', mc[K.UNDELIVERED].count.toLocaleString());
         const notCounted = si.toLocaleString();
         setText('poStatInterruptionsSub', 'See detail below');
-        { const _t = document.getElementById('poStatInterruptionsSub'); if (_t) _t.title = `Tutor absent (not covered) / vacancy. ${notCounted} sessions not counted against attendance in all: ${mc[K.CANCELLATION].count.toLocaleString()} cancellation-type · ${mc[K.INTERNAL].count.toLocaleString()} internal. Breakdown in the "Missed sessions by category" panel below.`; }
+        { const _t = document.getElementById('poStatInterruptionsSub'); if (_t) _t.title = `Tutor absent (not covered) / vacancy. ${notCounted} sessions not counted against attendance in all: ${mc[K.CANCELLATION].count.toLocaleString()} cancellation-type · ${mc[K.SCHOOL_MISSED].count.toLocaleString()} school testing · ${mc[K.INTERNAL].count.toLocaleString()} internal. Breakdown in the "Missed sessions by category" panel below.`; }
         const adj = tutorRateWithCovered(instAtt, instAbs, _mc);
         const cvN = _mc.coverage ? _mc.coverage.covered.length : 0;
         let sub = 'Recorded rate (official)';
@@ -4376,6 +4376,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:.75rem">
           ${card('Undelivered Sessions', n(C[K.UNDELIVERED].count), 'Tutor absent (not covered) / vacancy · not counted against scholar attendance · talking point, no action needed', '#d97706', reasonList(C[K.UNDELIVERED].reasons))}
           ${card('Cancellation Reasons Logged as Missed', n(C[K.CANCELLATION].count), 'School / NJTC-driven · not counted against attendance · under the new process these sessions are cancelled in Pearl', '#b91c1c', reasonList(C[K.CANCELLATION].reasons))}
+          ${card('School Testing', n(C[K.SCHOOL_MISSED].count), 'School-administered testing · not counted against scholar attendance · a missed reason, not a cancellation · no action needed', '#0891b2', reasonList(C[K.SCHOOL_MISSED].reasons))}
           ${card('Internal Tracking', n(C[K.INTERNAL].count), 'NJTC-internal · not counted against attendance', '#64748b', reasonList(C[K.INTERNAL].reasons))}
           ${card('Scholar Absences', n(C[K.ABSENCE].count), 'Count toward Scholar Attendance %', '#0d6e3a', reasonList(C[K.ABSENCE].reasons))}
           ${C[K.OTHER].count ? card('Unmapped Reasons', n(C[K.OTHER].count), 'Not counted against attendance · not yet in a category — tell the Data team', '#7c3aed', reasonList(C[K.OTHER].reasons)) : ''}
@@ -9512,6 +9513,7 @@
               stats.missed = {
                 undelivered: mc.cats[K.UNDELIVERED].count, undeliveredReasons: mc.cats[K.UNDELIVERED].reasons,
                 cancellationType: mc.cats[K.CANCELLATION].count, cancellationTypeReasons: mc.cats[K.CANCELLATION].reasons,
+                schoolTesting: mc.cats[K.SCHOOL_MISSED].count, schoolTestingReasons: mc.cats[K.SCHOOL_MISSED].reasons,
                 internal: mc.cats[K.INTERNAL].count, internalReasons: mc.cats[K.INTERNAL].reasons,
                 absences: mc.cats[K.ABSENCE].count, unmapped: mc.cats[K.OTHER].count,
                 shouldCancelSessions: mc.shouldCancel.length,

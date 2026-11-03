@@ -49,9 +49,9 @@
     drive:       { icon: '☁️', label: 'Drive Center',            go: () => nav('upload') },
     talent:      { icon: '📊', label: 'Talent Analytics',        go: () => nav('talent') },
     iready:      { icon: '🔬', label: 'i-Ready Lab',             go: () => nav('iready-lab') },
-    td:          { icon: '🎓', label: 'T&D Analytics',           go: () => nav('training-analytics') },
-    apAnalytics: { icon: '📋', label: 'Apprentice Analytics',    go: () => nav('tap-standalone') },
-    tapDash:     { icon: '📋', label: 'TAP Dashboard',           go: () => nav('tap-standalone') },
+    td:          { icon: '📚', label: 'Training & Development',  go: () => nav('training-analytics') },
+    apAnalytics: { icon: '🎓', label: 'TAP · Apprentices',       go: () => nav('tap-standalone') },
+    tapDash:     { icon: '🎓', label: 'TAP · Apprentices',       go: () => nav('tap-standalone') },
     trainingMat: { icon: '📚', label: 'Training Materials',      go: () => nav('policies') },
     partnerRisk: { icon: '📊', label: 'Partnership Risk',        go: () => nav('finance-analytics') },
     finPolicies: { icon: '📚', label: 'Finance Policies',        go: () => nav('policies') },
@@ -271,7 +271,7 @@
       text: plural(rows.length, 'Apprentice') + ' flagged for OTJ follow-up', rows, open: goLabel, go: goFn } };
   }
 
-  // TAP Master Roster (loaded on demand — the TAP Dashboard normally loads it)
+  // TAP Master Roster (loaded on demand — TAP · Apprentices normally loads it)
   let _tapAsked = false;
   function tapRoster() {
     const R = window._njtcTapRoster;
@@ -312,7 +312,7 @@
   // ── Training & Development ────────────────────────────────────────────────
   function trainingItems() {
     const items = [], loading = [];
-    const f = otjFlagItem('Open Apprentice Analytics', () => nav('tap-standalone'));
+    const f = otjFlagItem('Open TAP · Apprentices', () => nav('tap-standalone'));
     if (f.loading) loading.push(f.loading);
     if (f.item) items.push(f.item);
     // Eligible staff not yet enrolled — same list as the TAP card's "Eligible" tile
@@ -322,7 +322,7 @@
         .sort((a, b) => a.n.localeCompare(b.n));
       if (rows.length) items.push({ icon: '🌱', tone: 'blue', count: rows.length,
         text: 'Staff eligible for the apprenticeship who aren\'t enrolled yet' + (window.AP_SY ? ' (' + syLabel(window.AP_SY) + ')' : ''), rows,
-        open: 'Open Apprentice Analytics', go: () => nav('tap-standalone') });
+        open: 'Open TAP · Apprentices', go: () => nav('tap-standalone') });
     }
     return { items, loading };
   }
@@ -343,13 +343,13 @@
         }).filter(Boolean).sort((a, b) => a.n.localeCompare(b.n));
         if (rows.length) items.push({ icon: '💰', tone: 'red', count: rows.length,
           text: plural(rows.length, 'Apprentice') + ' whose pay rate is below the wage tier their OJT hours have reached', rows,
-          open: 'Open TAP Dashboard', go: () => nav('tap-standalone') });
+          open: 'Open TAP · Apprentices', go: () => nav('tap-standalone') });
       }
       const noId = appr.filter(a => !(a.usdol || '').trim())
         .map(a => ({ n: a.name, sub: [a.site, a.region].filter(Boolean).join(' · ') })).sort((a, b) => a.n.localeCompare(b.n));
       if (noId.length) items.push({ icon: '🪪', tone: 'amber', count: noId.length,
         text: plural(noId.length, 'Apprentice') + ' with no USDOL Apprentice ID yet', rows: noId,
-        open: 'Open TAP Dashboard', go: () => nav('tap-standalone') });
+        open: 'Open TAP · Apprentices', go: () => nav('tap-standalone') });
     }
     // High-risk districts — same calculation as the Partnership Risk page
     if (typeof window.njtcFinanceRisk === 'function') {
@@ -410,7 +410,7 @@
         text: plural(rows.length, 'Campus', 'Campuses') + ' rated High support on the Field Support Report', rows,
         open: 'Open Pearl Operations', go: () => nav('pearl-ops') });
     }
-    const f = otjFlagItem('Open TAP Dashboard', () => nav('tap-standalone'));
+    const f = otjFlagItem('Open TAP · Apprentices', () => nav('tap-standalone'));
     if (f.loading) loading.push(f.loading);
     if (f.item) items.push(f.item);
     return { items, loading };

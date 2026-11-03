@@ -915,8 +915,17 @@
         case 'apprentice':   renderApprenticeTab();   break;
         case 'survey-intel': renderSurveyIntelTab();  break;
         case 'program':      renderProgramSupportTab(); break;
+        case 'knowtion':     renderKnowtionTab();     break;
       }
     }
+  }
+  // SY 26-27 training = Knowtion, for every tutor and site leader. Drawn by
+  // modules/tap-insights.js (same data model as TAP · Apprentices).
+  function renderKnowtionTab() {
+    const el = document.getElementById('td-content-knowtion');
+    if (!el) return;
+    if (window.NJTC_TAP && typeof window.NJTC_TAP.renderTraining === 'function') window.NJTC_TAP.renderTraining(el);
+    else { el.innerHTML = loadingHTML('Loading Knowtion training…'); setTimeout(() => { _tdLoaded.knowtion = false; renderKnowtionTab(); _tdLoaded.knowtion = true; }, 500); }
   }
 
   function tdRefresh() {
@@ -926,7 +935,8 @@
     Object.keys(_tdLoaded).forEach(k => delete _tdLoaded[k]);
     Object.keys(_tdCharts).forEach(k => destroyChart(k));
     // Clear all panels
-    ['pd','intake','apprentice','survey-intel','program'].forEach(id => {
+    if (window.NJTC_TAP && typeof window.NJTC_TAP.refresh === 'function') window.NJTC_TAP.refresh();
+    ['pd','intake','apprentice','survey-intel','program','knowtion'].forEach(id => {
       const el = document.getElementById('td-content-' + id);
       if (el) el.innerHTML = '';
     });
@@ -936,7 +946,7 @@
       const tabId = activeBtn.id.replace('tdTab-', '');
       tdShowTab(tabId, activeBtn);
     } else {
-      tdShowTab('pd', document.getElementById('tdTab-pd'));
+      tdShowTab('knowtion', document.getElementById('tdTab-knowtion'));
     }
   }
 
@@ -3739,11 +3749,9 @@
     const execBtn = document.getElementById('tdExecPDFBtn');
     if (execBtn) execBtn.style.display = (getDept() === 'data') ? '' : 'none';
 
-    // Programming opens on its own lens of the T&D data
-    if (getDept() === 'programming' && !_tdLoaded.program) {
-      const pb = document.getElementById('tdTab-program');
-      if (pb) { tdShowTab('program', pb); return; }
-    }
+    // Field Intel repeats Pearl Operations — hidden for Programming, who use Pearl Ops directly.
+    document.querySelectorAll('#tdTabNav .td-full-only').forEach(b => { b.style.display = getDept() === 'programming' ? 'none' : ''; });
+    if (window.NJTC_TAP && window.NJTC_TAP.resetView) window.NJTC_TAP.resetView();
     // Load the first (active) tab
     const firstActive = document.querySelector('#tdTabNav .pst-tab.active');
     if (firstActive) {
@@ -3756,11 +3764,12 @@
           case 'apprentice':   renderApprenticeTab();   break;
           case 'survey-intel': renderSurveyIntelTab();  break;
           case 'program':      renderProgramSupportTab(); break;
-          default:             renderPDTab();
+          case 'knowtion':     renderKnowtionTab();     break;
+          default:             renderKnowtionTab();
         }
       }
     } else {
-      if (!_tdLoaded['pd']) { _tdLoaded['pd'] = true; renderPDTab(); }
+      if (!_tdLoaded['knowtion']) { _tdLoaded['knowtion'] = true; renderKnowtionTab(); }
     }
   }
 
@@ -3986,7 +3995,7 @@
         ${statRow('Avg Overall Satisfaction', pdOverallAvg!=null ? fmtN(pdOverallAvg)+'/5.0' : '—', pdOverallAvg!=null&&pdOverallAvg>=4?'✅ On track':'⚠️ Needs attention')}
         ${statRow('Recommend Rate', pdRecRate!=null ? pdRecRate+'%' : '—', pdRecRate!=null&&pdRecRate>=80?'✅ Healthy':'⚠️ Below 80% target')}
         ${statRow('S1→S2 Net Improvement', netImprove!=null ? (netImprove>=0?'+':'')+fmtN(netImprove) : (s2Rows.length?'N/A':'Awaiting S2'), netImprove!=null&&netImprove>0?'✅ Improving':'')}
-        ${statRow('Training Intake Respondents', intTotal || '—', intTotal ? `${intNew} new hire · ${intReturn} returning` : 'load T&D Analytics to populate')}
+        ${statRow('Training Intake Respondents', intTotal || '—', intTotal ? `${intNew} new hire · ${intReturn} returning` : 'open Training & Development → Training Intake to populate')}
         ${statRow('Intake: Preparedness Rating', intPrep ? fmtN(intPrep.avg)+'/5.0' : '—')}
         ${statRow('Active Apprentices (TAP)', apprCount!=null ? apprCount : '—', 'HR Master List · col K')}
         ${tdKPIs.length ? statRow('T&D-Adjacent KPI Goals Met', `${tdMet}/${tdKPIs.length}`, '') : ''}
@@ -4022,7 +4031,7 @@
         <div style="display:flex;gap:.375rem;flex-wrap:wrap">${pdRoles.map(([role,n])=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:.2rem .6rem;font-size:.75rem;color:#1d4ed8;font-weight:600">${role}: ${n}</span>`).join('')}</div>` : ''}
 
         ${activePdSeasons.length > 1 ? sectionHead('PD Ratings — Seasonal Comparison') + pdSeasonCompare() : ''}
-      ` : '<p style="color:#9ca3af;font-size:.85rem">PD session data not yet loaded. Open T&D Analytics to load data, then retry.</p>'}
+      ` : '<p style="color:#9ca3af;font-size:.85rem">PD session data not yet loaded. Open Training & Development → PD Sessions to load it, then retry.</p>'}
 
       ${sectionHead('Training Intake')}
       ${intRows.length ? `
@@ -4066,7 +4075,7 @@
           <div style="font-size:2.25rem;font-weight:900;color:#92400e;line-height:1">${apprCount!=null ? apprCount : '—'}</div>
           <div style="font-size:.7rem;color:#a16207;font-weight:700">Active Apprentices</div>
         </div>
-        <div style="font-size:.8rem;color:#78350f;line-height:1.6">TAP (Tutor Apprenticeship Program) participants flagged active in the HR Master List (col K). For full apprentice tracker data, open T&D Analytics → Apprentice Tracker tab.</div>
+        <div style="font-size:.8rem;color:#78350f;line-height:1.6">TAP (Tutor Apprenticeship Program) participants flagged active in the HR Master List (col K). For SY 26-27 apprentice progress, open TAP · Apprentices.</div>
       </div>
 
       ${sectionHead('Season-by-Season Comparison')}

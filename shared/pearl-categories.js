@@ -16,6 +16,12 @@
      4. Session Cancellations  — the session should not have run (school or
                                  NJTC-driven last-minute change). Taken out of
                                  sessions offered.
+     5. School Testing         — school-administered testing logged as a
+                                 scholar's missed reason (Nov 2026, Programming):
+                                 a service interruption, NOT counted against
+                                 scholar attendance, and NOT a cancellation —
+                                 testing pulls some scholars and part of a
+                                 session cannot be cancelled.
 
    THIS FILE DOES NOT CHANGE ATTENDANCE MATH. The attendance-rate classifiers
    (programming.js, pearl-data.js, leader-team.js, partner-report.js,
@@ -38,6 +44,7 @@
     INTERNAL:     'internal',
     ABSENCE:      'absence',
     CANCELLATION: 'cancellation',
+    SCHOOL_MISSED: 'school_missed',
     OTHER:        'other'          // a reason this file does not know yet — never silently re-filed
   };
 
@@ -46,6 +53,7 @@
     internal:     'Internal Tracking',
     absence:      'Scholar Absences',
     cancellation: 'Session Cancellations',
+    school_missed: 'School Testing',
     other:        'Other (unmapped reason)'
   };
 
@@ -54,6 +62,7 @@
     internal:     'NJTC-internal tracking (diagnostic testing, archived scholars). Not counted against attendance.',
     absence:      'Counts toward Scholar Attendance %.',
     cancellation: 'The session should not have run (school or NJTC-driven change). Removed from sessions offered.',
+    school_missed: 'School-administered testing for individual scholars. Not counted against scholar attendance and not a cancellation.',
     other:        'Reason not yet mapped to a category — tell the Data team.'
   };
 
@@ -86,13 +95,18 @@
     'School Event',
     'School Event/Assembly',
     'Weather Closure',
-    'School-administered Testing',
-    'School Administered Testing',
     'Unscheduled School Closure/Delay/Dismissal',
     'Scheduled/Unscheduled School Drill',
     'Half Day',
     'Holiday - scheduled',
     'HADDON TWP ONLY -- Program Redevelopment'
+  ];
+  // School-side missed reasons that are correct on individual scholar rows —
+  // a service interruption (not counted against attendance), never flagged as
+  // "should have been cancelled".
+  var SCHOOL_MISSED = [
+    'School-administered Testing',
+    'School Administered Testing'
   ];
   // Covered tutor absences (SY 25-26 style reasons). The tutor was out but the
   // session was delivered, so they are tutor absences, not undelivered sessions.
@@ -123,6 +137,7 @@
   add(INTERNAL, CATEGORY.INTERNAL);
   add(ABSENCE, CATEGORY.ABSENCE);
   add(CANCELLATION, CATEGORY.CANCELLATION);
+  add(SCHOOL_MISSED, CATEGORY.SCHOOL_MISSED);
   var COVERED_SET = {}; TUTOR_COVERED.forEach(function (r) { COVERED_SET[norm(r)] = true; });
   var SCHOOL_SET = {};  SCHOOL_DRIVEN.forEach(function (r) { SCHOOL_SET[norm(r)] = true; });
 
@@ -153,8 +168,8 @@
     CATEGORY: CATEGORY,
     LABELS: LABELS,
     DESCRIPTIONS: DESCRIPTIONS,
-    ORDER: [CATEGORY.UNDELIVERED, CATEGORY.CANCELLATION, CATEGORY.INTERNAL, CATEGORY.ABSENCE, CATEGORY.OTHER],
-    LISTS: { UNDELIVERED: UNDELIVERED, INTERNAL: INTERNAL, ABSENCE: ABSENCE, CANCELLATION: CANCELLATION, TUTOR_COVERED: TUTOR_COVERED, SCHOOL_DRIVEN: SCHOOL_DRIVEN },
+    ORDER: [CATEGORY.UNDELIVERED, CATEGORY.CANCELLATION, CATEGORY.SCHOOL_MISSED, CATEGORY.INTERNAL, CATEGORY.ABSENCE, CATEGORY.OTHER],
+    LISTS: { UNDELIVERED: UNDELIVERED, INTERNAL: INTERNAL, ABSENCE: ABSENCE, CANCELLATION: CANCELLATION, SCHOOL_MISSED: SCHOOL_MISSED, TUTOR_COVERED: TUTOR_COVERED, SCHOOL_DRIVEN: SCHOOL_DRIVEN },
     categoryOf: categoryOf,
     isSchoolDriven: isSchoolDriven,
     isCoveredTutorReason: isCoveredTutorReason,

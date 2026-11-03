@@ -119,23 +119,20 @@
       ],
     },
     'training-analytics': {
-      why: 'PD sessions, training intake and apprentice progress.',
+      why: 'Training for every tutor and site leader (Knowtion), plus last year\'s PD and intake data.',
       steps: [
-        { t: ['#panel-training-analytics .ph-title'], title: 'Training & Development', text: 'Professional development, training intake and apprenticeship progress in one place.' },
-        { t: ['#tdTabNav'], title: 'Four views', text: 'PD Sessions (attendance and ratings), Training Intake, T&D Analytics (apprentice progress) and Field Intel (what staff report from the field).' },
+        { t: ['#panel-training-analytics .ph-title'], title: 'Training & Development', text: 'Training for all onsite staff. Apprentice progress has its own page: TAP · Apprentices.' },
+        { t: ['#tdTab-knowtion'], title: 'Knowtion Training', text: 'Every tutor and site leader who finished Knowtion training this school year: planned hours, time spent, Course 3 and last activity.' },
+        { t: ['#tdTab-pd'], title: 'SY 25-26 archive', text: 'PD Sessions, Training Intake and Program Support from last school year, kept for reference.' },
         { t: ['#tdExecPDFBtn'], title: 'T&D Report PDF', text: 'A ready-to-share PDF summary of training and development.' },
       ],
     },
     'tap-standalone': {
-      why: 'How we track apprentice tutors: roster, OJT, wages and compliance.',
+      why: 'The apprenticeship program (TAP): apprentices and pre-apprentices only.',
       steps: [
-        { t: ['#panel-tap-standalone .ph-title'], title: 'TAP Apprenticeship Dashboard', text: 'Everyone on the Master Roster (Apprentices, Pre-apprentices and Tutors) with live progress toward DOL requirements.' },
-        { t: ['#tapTab-overview'], title: 'Program Overview', text: 'Enrollment against the DOL target and overall OJT/RTI hour progress.' },
-        { t: ['#tapTab-roster'], title: 'Active Roster', text: 'Each apprentice with their site, status and hours.' },
-        { t: ['#tapTab-ojt'], title: 'OJT Progress', text: 'On-the-job training checklist completion by phase. Items needing follow-up show in red.' },
-        { t: ['#tapTab-milestones'], title: 'Wage Milestones', text: 'Who has reached, or is close to, their next wage step.' },
-        { t: ['#tapTab-compliance'], title: 'GAINS Compliance', text: 'DOL registration and paperwork status, so nothing lapses.' },
-        { t: ['#tapTab-ojt-log'], title: 'Log OJT Activity', text: 'Record an observation or OJT activity. It updates the apprentice\'s progress.' },
+        { t: ['#panel-tap-standalone .ph-title'], title: 'TAP · Apprentices', text: 'Apprentices, pre-apprentices and TAP completers from the TAP Tracker. Non-TAP tutors are not included.' },
+        { t: ['#tdhTabs'], title: 'Your view', text: 'Each team sees the tabs it acts on: Programming gets a plain view (who needs attention, by site leader), T&D gets full detail and follow-ups, HR and Finance get status, pay, milestones and compliance.' },
+        { t: ['.dept-tap-log'], title: 'Log OJT Activity', text: 'Record an observation or OJT activity. It updates the apprentice\'s progress.' },
       ],
     },
     'iready-lab': {

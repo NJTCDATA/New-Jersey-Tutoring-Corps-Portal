@@ -91,26 +91,45 @@ This limit is fixed by `apps-scripts/tap-automation.gs`, together with six small
   - Fixed header names that were reading as 0 or blank: RTI Hours - LMS (Total), Current Wage Rate ($), Wage Milestone and OJT Hours (Total).
 - **Verified offline:** 106 learners, 2,163 items, 0 differences from an independent recalculation. Program and month columns add up to each person's totals.
 
-## Portal: Training & Development Hub + TAP tag (`central/modules/tap-insights.js`)
+## Portal: two pages — TAP · Apprentices and Training & Development (Nov 2026)
 
-- **New Central page "T&D Hub · SY 26-27".** It's labeled "Apprentice Progress" for Programming and HR.
-  - **Who sees it:** Training, Programming, Data, HR, Leadership and KB.
-  - **Training & Development view** (default for Training, Data, Leadership and KB), with six tabs:
-    - Overview
-    - Apprentices: a full table with CSV export
-    - Follow-Up: grouped by action, with site leader and supervisor contacts, and a CSV
-    - Training (Knowtion)
-    - Site Leaders: who each site leader observes, and their own training
-    - About the data: where each number comes from and the flag rules
-  - **Program Team view** (default for Programming and HR), in plain language:
-    - At a glance
-    - Our apprentices: cards grouped by site leader or site
-    - By site leader
-    - Online training: Active, Slowed down or Not started
-    - How to read this
-  - The Program Team view only shows flags the Program team can act on. Payroll and data-matching items stay in the T&D view.
-  - Data, Leadership, KB, Training and Programming can switch between the two views.
-- **TAP tag everywhere.** On any Central page, a staff member's full name (in Pearl tables, rosters or profiles) gets a TAP · Apprentice, TAP · Pre-App or TAP · TAP Completed tag.
+The SY 26-27 T&D Hub was split so TAP and training are no longer mixed. No new sidebar pages were added: both live in existing panels, and the old `td-hub` link redirects to TAP · Apprentices.
+
+| Page (panel) | What it covers | Who sees it |
+|---|---|---|
+| **TAP · Apprentices** (`tap-standalone`) | Apprentices, pre-apprentices and TAP completers only. The role comes from the Onsite DB "SY 26-27 OJT" list → Master Roster Program Track. Non-GAINS/PACE tutors are never shown or counted. OJT progress, RTI (Knowtion Course 3), follow-ups, wage milestones, compliance, Log OJT, SY 25-26 cohort and returners. | Programming, Training, HR, Finance, Data, Leadership, KB |
+| **Training & Development** (`training-analytics`) | SY 26-27 Knowtion training for every tutor and site leader (by program and month, with a name-match list). PD Sessions, Training Intake and Program Support are kept as the **SY 25-26 archive** until T&D's new collection method is connected. Field Intel is not shown to Programming, who use Pearl Ops directly. | Training, Programming, Data, Leadership, KB |
+
+**Views on TAP · Apprentices** (`modules/tap-insights.js`):
+
+| View | Departments | Tabs |
+|---|---|---|
+| Program (plain) | Programming | At a glance · Our apprentices · By site leader · Log OJT Activity · How to read this |
+| Full | Training, Data, Leadership, KB | Overview · Apprentices · Follow-Up · By Site Leader · OJT Activity Detail · Wage Milestones · GAINS Compliance* · Log OJT* · SY 25-26 & Returners · About |
+| HR | HR | Overview · Apprentices · Follow-Up · Pay & Status · Wage Milestones · GAINS Compliance · SY 25-26 & Returners · About |
+| Finance | Finance | Overview · Pay & Status · Wage Milestones · GAINS Compliance · About |
+
+\* These tabs keep their existing department rules: Log OJT for Programming, Training and Data; GAINS Compliance for Finance, HR, Leadership, KB and Data. Training, Data, Leadership, KB and Programming can switch between the full and plain views.
+
+**Accuracy fixes in this pass:**
+
+- **Old TAP Dashboard tabs.** Active Roster, OJT Progress and Wage Milestones listed every active Master Roster row, including about 50 non-TAP tutors. They now show TAP participants only.
+  - Wage Milestones lists Apprentices only.
+  - Pre-apprentices and completers show "Not on wage scale". Before this fix they were given a computed tier wage.
+- **PIE.** The TAP roster answer read `trackType`, which nothing set, so every active person counted as an Apprentice and was included in the payout estimate. It now uses the same role rule as the Apps Script.
+- **PIE answers about apprentices.**
+  - "Apprentice OJT progress" questions now answer from the TAP Tracker 26-27. Before, they used the SY 25-26 Program Database checklist.
+  - New "where do I find" answers point to TAP · Apprentices and Training & Development.
+  - All old page names were updated.
+- **Finance → Partnership Risk.** The TAP wage card estimated milestones from last year's 17-item checklist at 25/50/75%. It now uses TAP Tracker OJT hours against the real thresholds (1,100 / 2,200 / 3,300 / 3,800 / 4,000), Apprentices only. It flags any apprentice whose Master Roster milestone label doesn't match their hours.
+- **Section Guide, Definitions and Data Compass.**
+  - Rewritten for both pages. The old T&D definitions described a 17-item checklist and 144 RI hours.
+  - Data Compass entries added for both pages.
+  - The portal tour and Home shortcuts were renamed to match.
+
+### TAP tag
+
+- On any Central page, a staff member's full name (in Pearl tables, rosters or profiles) gets a TAP · Apprentice, TAP · Pre-App or TAP · TAP Completed tag.
   - A red or amber dot means there's a follow-up flag.
   - Clicking the tag opens the person's card.
   - Matching is exact or first-and-last name. A name that's ambiguous is never tagged, and Tutors (non-TAP) are never tagged.

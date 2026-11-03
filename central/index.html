@@ -6345,8 +6345,8 @@
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">Training &amp; Development</div>
-          <h2 class="ph-title">PD, Training &amp; Apprenticeship Analytics</h2>
-          <p class="ph-subtitle">Live data from PD feedback, new hire training intake, tutor observations, site leader observations, and the OTJ apprenticeship checklist.</p>
+          <h2 class="ph-title">Training &amp; Development</h2>
+          <p class="ph-subtitle">SY 26-27 Knowtion training for every tutor and site leader, plus SY 25-26 PD and training-intake data. Apprentice progress is on TAP · Apprentices.</p>
         </div>
         <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap">
           <span class="live-badge" style="font-size:.7rem">LIVE DATA</span>
@@ -6355,17 +6355,21 @@
         </div>
       </div>
 
-      <!-- Sub-tab navigation -->
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)" id="tdTabNav">
-        <button class="pst-tab active" id="tdTab-pd"        onclick="tdShowTab('pd',this)">📋 PD Sessions</button>
-        <button class="pst-tab"        id="tdTab-intake"    onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
-        <button class="pst-tab"        id="tdTab-apprentice"    onclick="tdShowTab('apprentice',this)">🎓 T&D Analytics</button>
-        <button class="pst-tab"        id="tdTab-survey-intel"  onclick="tdShowTab('survey-intel',this)">🗺️ Field Intel</button>
-        <button class="pst-tab"        id="tdTab-program"       onclick="tdShowTab('program',this)" title="Programming lens: where onsite staff need support">🎯 Program Support</button>
+      <!-- Sub-tab navigation. SY 26-27 training = Knowtion (modules/tap-insights.js).
+           PD feedback and Training Intake are SY 25-26 until T&D's new
+           collection method is connected. Apprentice progress is on TAP · Apprentices. -->
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)" id="tdTabNav">
+        <button class="pst-tab active" id="tdTab-knowtion"      onclick="tdShowTab('knowtion',this)">📚 Knowtion Training · SY 26-27</button>
+        <button class="pst-tab td-full-only" id="tdTab-survey-intel" onclick="tdShowTab('survey-intel',this)">🗺️ Field Intel</button>
+        <span style="font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-left:.5rem">SY 25-26 archive</span>
+        <button class="pst-tab"        id="tdTab-pd"            onclick="tdShowTab('pd',this)">📋 PD Sessions</button>
+        <button class="pst-tab"        id="tdTab-intake"        onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
+        <button class="pst-tab"        id="tdTab-program"       onclick="tdShowTab('program',this)" title="Where onsite staff needed support (SY 25-26 PD feedback, intake and observations)">🎯 Program Support</button>
       </div>
 
       <!-- Sub-tab content panels -->
-      <div id="td-content-pd"           class="td-tab-content"></div>
+      <div id="td-content-knowtion"     class="td-tab-content"></div>
+      <div id="td-content-pd"           class="td-tab-content" style="display:none"></div>
       <div id="td-content-intake"       class="td-tab-content" style="display:none"></div>
       <div id="td-content-apprentice"   class="td-tab-content" style="display:none"></div>
       <div id="td-content-survey-intel" class="td-tab-content" style="display:none"></div>
@@ -6397,39 +6401,32 @@
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">SY 2026–2027 · Tutor Apprenticeship Program</div>
-          <h2 class="ph-title">🎓 TAP Apprenticeship Dashboard</h2>
-          <p class="ph-subtitle">Live roster, OJT progress, wage milestones, and DOL compliance tracking for all enrolled NJTC apprentices.</p>
+          <h2 class="ph-title">🎓 TAP · Apprentices</h2>
+          <p class="ph-subtitle" id="tapHubSubtitle">Apprentices, pre-apprentices and TAP completers only — OJT progress, RTI, wage milestones and follow-ups.</p>
         </div>
         <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap">
           <span class="live-badge" style="font-size:.7rem">LIVE DATA</span>
-          <button class="btn btn-secondary btn-sm" onclick="if(window.tdRefresh)tdRefresh();if(window.NJTCTapDash)NJTCTapDash.refresh();" title="Refresh TAP data">↺ Refresh</button>
+          <span id="tapHubStamp" style="font-size:.7rem;color:var(--muted)"></span>
+          <button class="btn btn-secondary btn-sm" onclick="if(window.NJTCTapDash)NJTCTapDash.refresh();if(window.NJTC_TAP)NJTC_TAP.refresh();" title="Refresh TAP data">↺ Refresh</button>
           <button class="btn btn-secondary btn-sm" onclick="tapDownloadOJTChecklists()" title="Download OJT Checklists for all active apprentices">⬇ OJT Checklists (XLSX)</button>
-          <button class="btn btn-primary btn-sm" onclick="tapShowTab('ojt-log',document.getElementById('tapTab-ojt-log'))">📝 Log OJT Activity</button>
+          <button class="btn btn-primary btn-sm dept-tap-log" onclick="NJTC_TAP.tapTab('ojt-log')" style="display:none">📝 Log OJT Activity</button>
           <a class="btn btn-secondary btn-sm" href="https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
         </div>
       </div>
 
-      <!-- TAP sub-tab navigation -->
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)" id="tapTabNav">
-        <button class="pst-tab active" id="tapTab-overview"   onclick="tapShowTab('overview',this)">📊 Program Overview</button>
-        <button class="pst-tab"        id="tapTab-roster"     onclick="tapShowTab('roster',this)">👥 Active Roster</button>
-        <button class="pst-tab"        id="tapTab-ojt"        onclick="tapShowTab('ojt',this)">📋 OJT Progress</button>
-        <button class="pst-tab"        id="tapTab-milestones" onclick="tapShowTab('milestones',this)">💰 Wage Milestones</button>
-        <button class="pst-tab dept-tap-finance" id="tapTab-compliance" onclick="tapShowTab('compliance',this)" style="display:none">🗂️ GAINS Compliance</button>
-        <button class="pst-tab dept-tap-log"    id="tapTab-ojt-log" onclick="tapShowTab('ojt-log',this)" style="display:none">📝 Log OJT Activity</button>
-        <button class="pst-tab"                 id="tapTab-sy2526"  onclick="tapShowTab('sy2526',this)">🗂️ SY 25-26</button>
-        <button class="pst-tab"                 id="tapTab-returners" onclick="tapShowTab('returners',this)">🔁 2-Yr Returners</button>
-      </div>
+      <!-- Tabs + content are drawn by modules/tap-insights.js — one view per
+           department (Programming plain · Training/Data/Leadership/KB full ·
+           HR · Finance). TAP participants only. The original TAP Dashboard
+           renderers (NJTCTapDash in this file) draw the OJT detail, pay,
+           milestones, compliance, Log OJT and SY 25-26 tabs inside it. -->
+      <div id="tapHubRoot"></div>
 
-      <!-- TAP sub-tab content areas -->
-      <div id="tap-content-overview"    class="td-tab-content"></div>
-      <div id="tap-content-roster"      class="td-tab-content" style="display:none"></div>
-      <div id="tap-content-ojt"         class="td-tab-content" style="display:none"></div>
-      <div id="tap-content-milestones"  class="td-tab-content" style="display:none"></div>
-      <div id="tap-content-compliance"  class="td-tab-content" style="display:none"></div>
-      <div id="tap-content-ojt-log"     class="td-tab-content" style="display:none"></div>
-      <div id="tap-content-sy2526"      class="td-tab-content" style="display:none"></div>
-      <div id="tap-content-returners"   class="td-tab-content" style="display:none"></div>
+      <!-- Legacy containers (hidden): older code paths still render the
+           overview here on panel open; nothing visible depends on them. -->
+      <div hidden>
+        <div id="tapTabNav"></div>
+        <div id="tap-content-overview"></div>
+      </div>
     </div>
 
     <!-- ══ UPLOAD / DRIVE PANEL ══════════════════════════════ -->
@@ -6998,30 +6995,30 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=46"></script>
-<script src="modules/shared-charts.js?v=22"></script>
-<script src="modules/shared-filters.js?v=8"></script>
-<script src="modules/home-shortcuts.js?v=5"></script>
+<script src="modules/shared-utils.js?v=48"></script>
+<script src="modules/shared-charts.js?v=23"></script>
+<script src="modules/shared-filters.js?v=9"></script>
+<script src="modules/home-shortcuts.js?v=6"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
 <script src="modules/leadership.js?v=11"></script>
-<script src="modules/training-development.js?v=10"></script>
-<script src="modules/tap-insights.js?v=2"></script>
+<script src="modules/training-development.js?v=11"></script>
+<script src="modules/tap-insights.js?v=3"></script>
 <script src="modules/data-department.js?v=12"></script>
 <script src="modules/hr-department.js?v=3"></script>
 <script src="modules/dol-report.js?v=11"></script>
-<script src="../shared/pearl-categories.js?v=1"></script>
+<script src="../shared/pearl-categories.js?v=2"></script>
 <script src="../shared/comment-flags.js?v=1"></script>
 <script src="modules/pearl-coverage.js?v=2"></script>
-<script src="modules/programming.js?v=30"></script>
+<script src="modules/programming.js?v=31"></script>
 <script src="modules/pdf-export.js?v=9"></script>
-<script src="modules/field-support.js?v=8"></script>
+<script src="modules/field-support.js?v=9"></script>
 <script src="modules/comment-followup.js?v=2"></script>
-<script src="modules/portal-tour.js?v=7"></script>
+<script src="modules/portal-tour.js?v=8"></script>
 <script src="../partner/partner-report.js?v=9"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=2"></script>
-<script src="modules/finance.js?v=6"></script>
+<script src="modules/finance.js?v=7"></script>
 <!-- SY 25-26 Annual Goal Tracking Asana banner (red — alerts/asana-service.js +
      deadline-alerts.js, project 1211431518555737) removed for SY 26-27. Re-add these two
      tags once .github/workflows/sync-asana-tasks.yml points at the new SY project. -->
@@ -7434,6 +7431,12 @@
     return _tapFetchPromise;
   }
 
+  // TAP pages show TAP participants only (Apprentice / Pre-apprentice /
+  // Completed Program). Non-GAINS/PACE tutors who keep an OJT checklist are
+  // on the Master Roster too, but they are not part of the apprenticeship.
+  function _tapOnly(apps) { return (apps || []).filter(a => _roleCategory(a) !== 'Tutor'); }
+  window._tapOnly = _tapOnly;
+
   function getTapData() {
     if (window._njtcTapRoster && window._njtcTapRoster.apprentices) return window._njtcTapRoster;
     return null;
@@ -7533,27 +7536,31 @@
   function renderRoster(el) {
     const data = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderRoster); return; }
-    const apps = data.apprentices;
+    const apps = _tapOnly(data.apprentices).sort((a, b) => a.name.localeCompare(b.name));
     el.innerHTML = `
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:.82rem">
           <thead>
             <tr style="background:#1B3A6B;color:#fff">
-              ${['Name','Status','Site','Region','Cohort','OJT Hrs','RTI Hrs','% Complete','Current Wage','Next Milestone'].map(h=>`<th style="padding:.625rem .75rem;text-align:left;font-size:.72rem;font-weight:700;white-space:nowrap">${h}</th>`).join('')}
+              ${['Name','Role','Status','Site','Region','Cohort','OJT Hrs','RTI Hrs','% Complete','Current Wage','Next Milestone'].map(h=>`<th style="padding:.625rem .75rem;text-align:left;font-size:.72rem;font-weight:700;white-space:nowrap">${h}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${apps.map((a,i) => {
               const tier = wageTier(a.ojtHours||0);
+              const role = _roleCategory(a), onScale = role === 'Apprentice';
               // Sheet wage/milestone (BG/BH — written by the Apps Script milestone
-              // engine) is authoritative when present; computed tier is the fallback.
+              // engine) is authoritative when present; the computed tier is the
+              // fallback for Apprentices only — Pre-apprentices and completers are
+              // not on the wage scale.
               const sheetWage = parseFloat(String(a.wage||'').replace(/[^0-9.]/g,'')) || 0;
-              const dispWage  = sheetWage > 0 ? sheetWage : tier.wage;
-              const nextTier = WAGE_TIERS.slice().reverse().find(t => (a.ojtHours||0) < t.threshold);
+              const dispWage  = sheetWage > 0 ? sheetWage : (onScale ? tier.wage : 0);
+              const nextTier = onScale ? WAGE_TIERS.slice().reverse().find(t => (a.ojtHours||0) < t.threshold) : null;
               const ojtPct = pct(a.ojtHours||0, 4000);
               const isActive = /active/i.test(a.status||'');
               return `<tr style="background:${i%2===0?'#fff':'#f8fafc'};border-bottom:1px solid #e5e7eb">
                 <td style="padding:.5rem .75rem;font-weight:700;color:#1B2A4A">${a.name}</td>
+                <td style="padding:.5rem .75rem;font-size:.75rem">${role}</td>
                 <td style="padding:.5rem .75rem"><span style="background:${isActive?'#d1fae5':'#f3f4f6'};color:${isActive?'#065f46':'#6b7280'};padding:.2rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">${a.status||'—'}</span></td>
                 <td style="padding:.5rem .75rem;font-size:.78rem">${a.site||'—'}</td>
                 <td style="padding:.5rem .75rem;font-size:.78rem">${a.region||'—'}</td>
@@ -7568,8 +7575,8 @@
                     <span style="font-size:.72rem;font-weight:700;white-space:nowrap">${ojtPct}%</span>
                   </div>
                 </td>
-                <td style="padding:.5rem .75rem;font-weight:700;color:#065f46">$${dispWage.toFixed(2)}/hr</td>
-                <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">${nextTier ? nextTier.label + ' ($' + nextTier.wage.toFixed(2) + ')' : '🎉 Complete'}</td>
+                <td style="padding:.5rem .75rem;font-weight:700;color:#065f46">${dispWage > 0 ? '$' + dispWage.toFixed(2) + '/hr' : '—'}</td>
+                <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">${!onScale ? 'Not on wage scale' : nextTier ? nextTier.label + ' ($' + nextTier.wage.toFixed(2) + ')' : '🎉 Complete'}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -7580,7 +7587,7 @@
   function renderOJT(el) {
     const data = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderOJT); return; }
-    const apps = data.apprentices;
+    const apps = _tapOnly(data.apprentices).sort((a, b) => a.name.localeCompare(b.name));
     el.innerHTML = `
       <div style="margin-bottom:1.25rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.875rem">
         ${apps.map(a => {
@@ -7741,7 +7748,8 @@
   function renderMilestones(el) {
     const data = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderMilestones); return; }
-    const apps = data.apprentices;
+    // Wage milestones apply to Apprentices only (same gate as the Apps Script's checkMilestoneAndAlert).
+    const apps = data.apprentices.filter(a => _roleCategory(a) === 'Apprentice');
     const tierGroups = {};
     WAGE_TIERS.forEach(t => { tierGroups[t.label] = []; });
     apps.forEach(a => {
@@ -7893,7 +7901,7 @@
     // Build apprentice list from TAP data — fetch live if not yet cached
     const data  = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderOJTLog); return; }
-    const apps  = data.apprentices;
+    const apps  = _tapOnly(data.apprentices);
     const activeApps = apps.filter(a => /active/i.test(a.status || ''));
     const today = new Date().toISOString().split('T')[0];
     const userProfile = window.NJTC_USER_PROFILE || {};
