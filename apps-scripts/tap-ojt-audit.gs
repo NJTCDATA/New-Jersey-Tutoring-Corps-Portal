@@ -22,10 +22,10 @@
  * ║             activities that are not checked on ANY checklist tab of the  ║
  * ║             person's workbook(s). Every removed row is copied first to   ║
  * ║             "OJT Audit — Removed Rows" (nothing is lost).                ║
- * ║           • ADDS activities checked on a tab clearly named SY 26-27 or   ║
- * ║             Summer 2026 (or the only checklist tab) that are missing     ║
- * ║             from the log. Never for Completed Program people (their      ║
- * ║             workbooks also hold earlier years).                          ║
+ * ║           • ADDS activities checked AND dated June 2026 or later that    ║
+ * ║             are missing from the log (v2). Undated or earlier marks are  ║
+ * ║             listed, never added — workbooks also hold SY 25-26 work.     ║
+ * ║             Never for Completed Program people.                          ║
  * ║           • Never touches portal-logged rows or RTI rows.                ║
  * ║           • Recalculates each changed person.                            ║
  * ║                                                                          ║
@@ -33,6 +33,7 @@
  * ║    .addSeparator()                                                       ║
  * ║    .addItem('OJT Audit: 1) Check log vs workbooks', 'runOJTAudit')       ║
  * ║    .addItem('OJT Audit: 2) Apply ticked fixes',     'applyOJTAuditFixes')║
+ * ║    .addItem('OJT Audit: Undo prior-year/undated adds', 'undoOJTAuditPriorYearAdds')
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -44,13 +45,18 @@ var OJT_AUDIT = {
   TIME_BUDGET_MS: 270 * 1000,
   MAX_AGE_HOURS: 24,
   LOG_TYPE_ADD: 'OJT Activity completion (Audit Import)',
+  // v2: additions only for checkmarks dated in the Summer 2026 / SY 26-27
+  // window. Workbooks also hold SY 25-26 work (tabs like "SY 25-26/Summer 2026"
+  // or a single unlabeled checklist), so undated or earlier checkmarks are
+  // never added — they are listed in Notes instead.
+  ADD_FROM: new Date(2026, 5, 1),
   STATUS_ADD: 'Y — Observed and completed (Audit Import)',
 };
 var OJT_AUDIT_HEADERS = [
   'Apply?', 'Master Roster Name', 'Role', 'Workbook tabs read',
   'Activities in log', 'Activities supported', 'Hours now', 'Hours after fix', 'Change (hrs)',
   'REMOVE — imported, not checked in any workbook tab',
-  'ADD — checked in SY 26-27 / Summer 2026 tab, missing from log',
+  'ADD — checked and dated June 2026 or later, missing from log',
   'Kept — logged in the portal (not in workbook)',
   'Notes', 'Audited'
 ];
@@ -251,11 +257,14 @@ function _ojtAuditPerson(name, logEntry, workbooks, track, schemaIndex) {
     else remove.push(e.label);
   });
   if (!completed) {
-    Object.keys(wbLabeled).forEach(function(k) {
+    var skippedAdd = 0;
+    Object.keys(wbAll).forEach(function(k) {
       if (logKeys[k]) return;
-      var d = wbLabeled[k].date;
-      add.push(wbLabeled[k].label + '@' + (d ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'M/d/yyyy') : 'no date'));
+      var d = wbAll[k].date;
+      if (!d || d < OJT_AUDIT.ADD_FROM) { skippedAdd++; return; }
+      add.push(wbAll[k].label + '@' + Utilities.formatDate(d, Session.getScriptTimeZone(), 'M/d/yyyy'));
     });
+    if (skippedAdd) notes.push(skippedAdd + ' checked item(s) not in the log were NOT added — undated or dated before June 2026 (could be SY 25-26)');
   } else {
     var missing = Object.keys(wbLabeled).filter(function(k) { return !logKeys[k]; }).length;
     if (missing) notes.push('Completed Program — ' + missing + ' workbook item(s) not in log were NOT added (workbook may hold earlier years)');
@@ -361,4 +370,41 @@ function applyOJTAuditFixes() {
   });
   _logNotification('OJT_AUDIT_APPLY', '', ticked.length + ' people updated · ' + toRemove.length + ' rows removed (backed up) · ' + addRows.length + ' rows added', '', 'applyOJTAuditFixes');
   _safeAlert('Done. ' + ticked.length + ' people updated.\nRows removed: ' + toRemove.length + ' (copied to "' + OJT_AUDIT.REMOVED_SHEET + '")\nRows added: ' + addRows.length);
+}
+
+
+// ── One-time correction (v2) ──────────────────────────────────────────────────
+// The first version of the audit (applied 11/3/2026) also added checkmarks that
+// were undated or dated before June 2026 — SY 25-26 work on tabs such as
+// "SY 25-26/Summer 2026" or a single unlabeled checklist (e.g. Caitlin
+// Evgeniadis, Jaejin Lee). This removes ONLY those "Audit Import" rows
+// (backed up first) and recalculates. Summer-dated additions stay.
+function undoOJTAuditPriorYearAdds() {
+  var ss = _getSpreadsheet(), ojtSheet = _getSheetByGID(ss, GID_OJT_LOG);
+  var data = ojtSheet.getDataRange().getValues(), rows = [], people = {};
+  for (var i = 1; i < data.length; i++) {
+    var r = data[i];
+    if (String(r[OJT_LOG_TYPE] || '') !== OJT_AUDIT.LOG_TYPE_ADD) continue;
+    var d = r[OJT_OBS_DATE];
+    if (d instanceof Date && d >= OJT_AUDIT.ADD_FROM) continue;
+    rows.push(i + 1); people[String(r[OJT_APPRENTICE] || '').trim()] = (people[String(r[OJT_APPRENTICE] || '').trim()] || 0) + 1;
+  }
+  if (!rows.length) { _safeAlert('Nothing to undo — no undated or pre-June-2026 Audit Import rows.'); return; }
+  try {
+    var ui = SpreadsheetApp.getUi();
+    var list = Object.keys(people).sort().map(function(n) { return n + ': ' + people[n]; }).join('\n');
+    if (ui.alert('Undo prior-year / undated audit additions', rows.length + ' rows will be removed (backed up first):\n\n' + list, ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  } catch (e) {}
+  var bk = ss.getSheetByName(OJT_AUDIT.REMOVED_SHEET);
+  if (!bk) { bk = ss.insertSheet(OJT_AUDIT.REMOVED_SHEET); bk.getRange(1, 1, 1, data[0].length + 2).setValues([['Removed On', 'Original Row'].concat(data[0])]).setFontWeight('bold'); }
+  var stamp = new Date();
+  var backup = rows.map(function(rn) { return [stamp, rn].concat(data[rn - 1]); });
+  bk.getRange(bk.getLastRow() + 1, 1, backup.length, backup[0].length).setValues(backup);
+  rows.sort(function(a, b) { return b - a; }).forEach(function(rn) { ojtSheet.deleteRow(rn); });
+  _DEFER_COMPLETION_SUMMARY = true;
+  Object.keys(people).forEach(function(n) { recalculateTotals(n); });
+  _DEFER_COMPLETION_SUMMARY = false;
+  try { rebuildCompletionSummary(); } catch (e) {}
+  _logNotification('OJT_AUDIT_UNDO', '', rows.length + ' undated/pre-June-2026 Audit Import rows removed (backed up) for ' + Object.keys(people).length + ' people', '', 'undoOJTAuditPriorYearAdds');
+  _safeAlert('Done. ' + rows.length + ' rows removed (copied to "' + OJT_AUDIT.REMOVED_SHEET + '") for:\n\n' + Object.keys(people).sort().map(function(n) { return n + ': ' + people[n]; }).join('\n'));
 }
