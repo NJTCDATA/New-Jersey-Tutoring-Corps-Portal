@@ -22,7 +22,7 @@
  * ║      the % straight from each workbook + the Master Roster totals.        ║
  * ║                                                                            ║
  * ║  v11 (11/2026): Sheets-API link reading (file chips), 80/80 matcher,      ║
- * ║  date validation, no payroll email when history is first loaded.          ║
+ * ║  date validation. Milestone emails: automatic, once each (main ledger).   ║
  * ║  SAFE TO RE-RUN DAILY — idempotent (never writes the same activity twice) ║
  * ║  and self-continuing (if it nears Apps Script's 6-minute limit it saves   ║
  * ║  its place and resumes 1 minute later).                                   ║
@@ -61,7 +61,7 @@ var SY2627 = {
   REVIEW_SHEET:     'SY 26-27 Import — Needs Review',
   SY_VALUE:         '2026-2027',
   TRACK_TAG:        'SY 26-27',
-  TIME_BUDGET_MS:   270000,               // stop at ~4.5 min, resume via trigger
+  TIME_BUDGET_MS:   240000,               // stop at ~4 min (leaves room for one more person + summary), resume via trigger
   CURSOR_PROP:      'SY2627_SYNC_CURSOR',
   STATS_PROP:       'SY2627_SYNC_STATS',
   CONTINUE_HANDLER: 'continueSY2627Sync',
@@ -167,6 +167,7 @@ function debugSY2627OnePerson() {
 function _sy2627Run(cursor) {
   var t0 = Date.now();
   var props = PropertiesService.getScriptProperties();
+  _DEFER_COMPLETION_SUMMARY = true; // rebuilt once below, not per person
   try {
     if (!ONSITE_DB_SHEET_ID) throw new Error('ONSITE_DB_SHEET_ID is not set in the main script.');
     var fresh = cursor === 0;
@@ -178,6 +179,8 @@ function _sy2627Run(cursor) {
     for (var i = cursor; i < ctx.directory.length; i++) {
       if (Date.now() - t0 > SY2627.TIME_BUDGET_MS) {
         _sy2627FlushReview(ctx);
+        _DEFER_COMPLETION_SUMMARY = false;
+        try { rebuildCompletionSummary(); } catch (e) {}
         props.setProperty(SY2627.CURSOR_PROP, String(i));
         props.setProperty(SY2627.STATS_PROP, JSON.stringify(stats));
         ScriptApp.newTrigger(SY2627.CONTINUE_HANDLER).timeBased().after(60 * 1000).create();
@@ -195,6 +198,8 @@ function _sy2627Run(cursor) {
     }
 
     _sy2627FlushReview(ctx);
+    _DEFER_COMPLETION_SUMMARY = false;
+    try { rebuildCompletionSummary(); } catch (e) {}
     props.deleteProperty(SY2627.CURSOR_PROP);
     props.deleteProperty(SY2627.STATS_PROP);
     SpreadsheetApp.flush();
@@ -202,6 +207,7 @@ function _sy2627Run(cursor) {
     PropertiesService.getScriptProperties().setProperty('AUTO_LAST_RUN_syncSY2627', new Date().toISOString());
     return { done: true, stats: stats };
   } catch (err) {
+    _DEFER_COMPLETION_SUMMARY = false;
     _handleError('_sy2627Run', err);
     return null;
   }
@@ -404,9 +410,9 @@ function _sy2627ProcessPerson(ctx, person) {
     var mrHoursNow = ctx.rSheet.getRange(rr.rowIndex, MR_OJT_HOURS_TOTAL + 1).getValue();
     var firstLoad = out.created || mrHoursNow === '' || mrHoursNow === null;
     if (out.newRows > 0 || firstLoad) {
-      if (firstLoad) _WAGE_BASELINE_NAMES[_normName(rr.name)] = true; // no payroll email for loading history
+      // Milestone emails go out automatically from recalculateTotals(); the
+      // main script's milestone ledger guarantees each milestone is emailed once.
       recalculateTotals(rr.name);
-      delete _WAGE_BASELINE_NAMES[_normName(rr.name)];
     }
     _sy2627ReadRosterTotals(ctx, out);
     return out;
@@ -544,16 +550,24 @@ function _sy2627ReadDirectory(onsiteDb) {
   // v11: Apps Script's RichTextValue cannot see links stored as Google Drive
   // file chips, which is why 41 of 78 workbooks were read as "no link" on
   // 11/2/26. The Sheets API returns hyperlinks, link runs AND chip links.
-  var apiLinks = cLink >= 0 ? _sy2627ApiLinks(onsiteDb.getId(), SY2627.DIRECTORY_TAB, cLink + 1, firstData, lastRow) : [];
+  // v13.3: primary source = the workbook's own Excel export, which contains a
+  // hyperlink for EVERY row (including Drive file chips). Sheets API is the
+  // backup; the quick in-cell check is the last resort.
+  var xlsxLinks = cLink >= 0 ? _sy2627ExportLinks(onsiteDb.getId(), sheet.getName(), cLink + 1, firstData, lastRow) : [];
+  var apiLinks = [];
+  if (cLink >= 0 && xlsxLinks.filter(Boolean).length === 0) apiLinks = _sy2627ApiLinks(onsiteDb.getId(), SY2627.DIRECTORY_TAB, cLink + 1, firstData, lastRow);
   var out = [];
   for (var i = 0; i < values.length; i++) {
     var name = String(values[i][0] || '').trim();
     var role = cRole >= 0 ? String(values[i][cRole] || '').trim() : '';
     if (/site leader/i.test(name) || /observation/i.test(role)) break; // Site Leader section starts here
     if (!name) continue;
-    var ex = { id: _sy2627IdFromUrl(apiLinks[i]) };
+    // v13.2: NO Google Drive title searches here — they ran before the time
+    // check and could use up the whole 6-minute limit on their own. The
+    // Sheets API covers chips/links; the quick in-cell checks cover the rest.
+    var ex = { id: _sy2627IdFromUrl(xlsxLinks[i]) || _sy2627IdFromUrl(apiLinks[i]) };
     if (!ex.id && cLink >= 0) {
-      ex = _extractSpreadsheetIdFromCell(sheet, firstData + i, cLink + 1, rich[i][cLink], values[i][cLink], formulas[i][cLink]);
+      ex = { id: _sy2627QuickCellLink(rich[i][cLink], values[i][cLink], formulas[i][cLink]) };
     }
     out.push({
       name: name, role: role,
@@ -754,6 +768,93 @@ function _sy2627ParseDate(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Portal feed (doGet?tab=sy2627_progress): the Workbook Progress tab as CSV,
+ * plus a "Workbook URL" column taken from the Open-workbook formula (the
+ * plain cell value only says "Open workbook").
+ */
+function _sy2627ProgressCSV() {
+  var sh = _getSpreadsheet().getSheetByName(SY2627.PROGRESS_SHEET);
+  if (!sh || sh.getLastRow() < 1) return '';
+  var rng = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn());
+  var vals = rng.getValues(), forms = rng.getFormulas();
+  var linkCol = vals[0].map(String).indexOf('OJT Workbook');
+  var tz = Session.getScriptTimeZone();
+  return vals.map(function(row, i) {
+    var url = '';
+    if (i === 0) url = 'Workbook URL';
+    else if (linkCol >= 0) { var m = String(forms[i][linkCol] || '').match(/HYPERLINK\("([^"]+)"/i); url = m ? m[1] : ''; }
+    return row.concat([url]).map(function(c) {
+      var s = c instanceof Date ? Utilities.formatDate(c, tz, 'M/d/yyyy') : String(c === null || c === undefined ? '' : c);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\n');
+}
+
+/** Portal feed (doGet?tab=sy2627_review): the Needs Review tab as CSV. */
+function _sy2627ReviewCSV() {
+  var sh = _getSpreadsheet().getSheetByName(SY2627.REVIEW_SHEET);
+  return sh ? _sheetToCSV(sh) : '';
+}
+
+/** Fast in-cell link check (rich-text link, =HYPERLINK, or a pasted URL). No Drive search. */
+function _sy2627QuickCellLink(rich, plain, formula) {
+  var url = '';
+  try {
+    url = (rich && rich.getLinkUrl && rich.getLinkUrl()) || '';
+    if (!url && rich && rich.getRuns) rich.getRuns().forEach(function(run) { if (!url && run.getLinkUrl()) url = run.getLinkUrl(); });
+  } catch (e) {}
+  if (!url && formula) { var m = String(formula).match(/HYPERLINK\(\s*"([^"]+)"/i); if (m) url = m[1]; }
+  if (!url && plain) { var b = String(plain).match(/https?:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+/); if (b) url = b[0]; }
+  return _sy2627IdFromUrl(url);
+}
+
+/**
+ * Reads hyperlinks for one column straight out of the spreadsheet's Excel
+ * (.xlsx) export — the export writes every link, including Drive file chips
+ * that Apps Script's RichTextValue can't see. Returns one URL (or '') per row
+ * from firstRow..lastRow. Never throws; logs the reason if it can't read.
+ */
+function _sy2627ExportLinks(spreadsheetId, tabName, col1, firstRow, lastRow) {
+  var out = [];
+  for (var k = firstRow; k <= lastRow; k++) out.push('');
+  try {
+    var resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) {
+      _logNotification('LINK_READ_WARNING', '', 'Excel export of the Onsite tracker failed (HTTP ' + resp.getResponseCode() + ')', '', '_sy2627ExportLinks');
+      return out;
+    }
+    var files = {};
+    Utilities.unzip(resp.getBlob().setContentType('application/zip')).forEach(function(b) { files[b.getName()] = b; });
+    var text = function(n) { return files[n] ? files[n].getDataAsString() : ''; };
+    var unesc = function(v) { return String(v).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'"); };
+    var attr = function(tag, name) { var m = tag.match(new RegExp('\\s' + name + '="([^"]*)"')); return m ? unesc(m[1]) : ''; };
+    // tab name -> sheet file
+    var relId = '';
+    (text('xl/workbook.xml').match(/<sheet\b[^>]*>/g) || []).forEach(function(t) { if (attr(t, 'name') === tabName) relId = attr(t, 'r:id'); });
+    if (!relId) { _logNotification('LINK_READ_WARNING', '', 'Tab "' + tabName + '" not found in the Excel export', '', '_sy2627ExportLinks'); return out; }
+    var target = '';
+    (text('xl/_rels/workbook.xml.rels').match(/<Relationship\b[^>]*>/g) || []).forEach(function(t) { if (attr(t, 'Id') === relId) target = attr(t, 'Target'); });
+    var sheetPath = target.charAt(0) === '/' ? target.slice(1) : 'xl/' + target.replace(/^\.\//, '');
+    var relsPath = sheetPath.replace(/([^\/]+)$/, '_rels/$1.rels');
+    var rels = {};
+    (text(relsPath).match(/<Relationship\b[^>]*>/g) || []).forEach(function(t) { rels[attr(t, 'Id')] = attr(t, 'Target'); });
+    var colA = _colLetter(col1);
+    (text(sheetPath).match(/<hyperlink\b[^>]*>/g) || []).forEach(function(t) {
+      var ref = attr(t, 'ref').split(':')[0];
+      var m = ref.match(/^([A-Z]+)(\d+)$/);
+      if (!m || m[1] !== colA) return;
+      var row = parseInt(m[2], 10);
+      var url = rels[attr(t, 'r:id')] || '';
+      if (row >= firstRow && row <= lastRow && url) out[row - firstRow] = url;
+    });
+  } catch (e) {
+    _logNotification('LINK_READ_WARNING', '', 'Could not read links from the Excel export: ' + e, '', '_sy2627ExportLinks');
+  }
+  return out;
+}
+
 /** Spreadsheet ID from a Google Sheets URL (or '' if none). */
 function _sy2627IdFromUrl(url) {
   var m = String(url || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -813,6 +914,7 @@ function _sy2627ApiLinks(spreadsheetId, tabName, col1, firstRow, lastRow) {
  */
 function topUpSummerWorkbooks() {
   var t0 = Date.now();
+  _DEFER_COMPLETION_SUMMARY = true;
   var onsiteDb = SpreadsheetApp.openById(ONSITE_DB_SHEET_ID);
   var ss = _getSpreadsheet();
   var rSheet = _getSheetByGID(ss, GID_MASTER_ROSTER);
@@ -820,7 +922,8 @@ function topUpSummerWorkbooks() {
   var summerTab = onsiteDb.getSheetByName(SUMMER_OJT_TAB_NAME);
   var directory = _readSummerOJTDirectory(onsiteDb);
   if (summerTab) {
-    var api = _sy2627ApiLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
+    var api = _sy2627ExportLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
+    if (!api.filter(Boolean).length) api = _sy2627ApiLinks(onsiteDb.getId(), SUMMER_OJT_TAB_NAME, 3, 4, summerTab.getLastRow());
     var nonBlank = [];
     summerTab.getRange(4, 1, Math.max(summerTab.getLastRow() - 3, 1), 1).getValues().forEach(function(r, i) {
       if (String(r[0] || '').trim()) nonBlank.push(api[i] || '');
@@ -870,6 +973,8 @@ function topUpSummerWorkbooks() {
     }
     people++;
   }
+  _DEFER_COMPLETION_SUMMARY = false;
+  try { rebuildCompletionSummary(); } catch (e) {}
   _logNotification('SUMMER_TOPUP', '', people + ' summer workbooks re-read, ' + added + ' missed activities added', '', 'topUpSummerWorkbooks');
   _safeAlert('Summer top-up complete.\n\nWorkbooks re-read: ' + people + '\nMissed activities added: ' + added +
     (skipped.length ? '\n\nSkipped:\n  ' + skipped.join('\n  ') : ''));

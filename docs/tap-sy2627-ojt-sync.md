@@ -74,5 +74,53 @@ This limit is fixed by `apps-scripts/tap-automation.gs`, together with six small
 
    Ties are now broken by domain, then by the checklist section's phase, then by the letter prefix. The matcher was tested on 240 cases with none wrong. The summer workbooks are re-read once with **Summer 2026: Top-up Missed Activities**.
 3. **Dates.** Y marks with no date, or an impossible date (before Mar-25 or more than 31 days in the future), still count toward total hours and %. They are not placed in any month, so they no longer inflate the import month's wage report. They are counted on the progress sheet and listed on Needs Review.
-4. **Wage emails.** When a person's history is loaded for the first time (a new roster row, or no hours yet), crossing a wage tier now logs `WAGE_BASELINE` instead of emailing payroll. Only tiers crossed by new observations send the raise email.
+4. **Wage emails (v12).** Milestone emails are fully automatic. The main script keeps a ledger (Script Property `MILESTONE_SENT`, seeded from the Notifications Log) of the highest milestone already emailed for each person. Whenever someone is at a milestone that hasn't been emailed yet, the email goes out on the next recalculation, whether the hours came from the portal, the nightly sync or a resync. No milestone is emailed twice.
 5. **Portal.** Leader Team's monthly OJT table now reads the month columns from the sheet headers, so Aug-26 and every month from Sep-26 on show up. The LMS/RTI hours card now reads the actual header, `RTI Hours - LMS (Total)`, so it no longer shows 0.
+
+## RTI / training hours from Knowtion (`apps-scripts/tap-rti-knowtion.gs`)
+
+- **Source:** the Knowtion workbook `1a4FTtODGfvO1FsQUp_MpQbePAjTF3Ire6uAHhL-EXFI`. The script reads three tabs by GID: tutors 267261099, site leaders 172053344, and site leader preparation 713859468. It opens the workbook directly, so no published link is needed.
+- **Output tab "RTI — Knowtion":** one row per learner, with Estimated hours, Time Spent hours, the share of estimate, Course 3 (RTI) only (the "(Master)" staff copies are excluded), items completed, items missing an estimate and the last completion date. Both numbers are also shown for every program and every SY month.
+- **Linking names:** "RTI Name Map" is checked first, then an exact roster name, then a strict first-and-last-name match. Tutors who can't be linked are listed on "RTI — Needs Name Match". Site leaders are listed by their Knowtion name.
+- **Rules:** each learner + program + assignment counts once, using the latest completion. "<1 min" counts as 0 minutes, and a blank estimate counts as 0 and is listed under Items Missing Estimate.
+- **Not changed:** the Master Roster's official RTI total and the 288-hour completion check stay as they are until NJTC decides which number counts.
+- **Schedule and access:** the sync runs nightly at about 4am through Automation and can be run anytime from **RTI: Sync Knowtion Hours Now**. The portal reads it through `doGet?tab=rti_knowtion`.
+- **Portal:**
+  - The main dashboard shows "My Training Hours" to tutors and site leaders.
+  - Leader Team shows a compact version on each tutor's card and tutor profile.
+  - Fixed header names that were reading as 0 or blank: RTI Hours - LMS (Total), Current Wage Rate ($), Wage Milestone and OJT Hours (Total).
+- **Verified offline:** 106 learners, 2,163 items, 0 differences from an independent recalculation. Program and month columns add up to each person's totals.
+
+## Portal: Training & Development Hub + TAP tag (`central/modules/tap-insights.js`)
+
+- **New Central page "T&D Hub · SY 26-27".** It's labeled "Apprentice Progress" for Programming and HR.
+  - **Who sees it:** Training, Programming, Data, HR, Leadership and KB.
+  - **Training & Development view** (default for Training, Data, Leadership and KB), with six tabs:
+    - Overview
+    - Apprentices: a full table with CSV export
+    - Follow-Up: grouped by action, with site leader and supervisor contacts, and a CSV
+    - Training (Knowtion)
+    - Site Leaders: who each site leader observes, and their own training
+    - About the data: where each number comes from and the flag rules
+  - **Program Team view** (default for Programming and HR), in plain language:
+    - At a glance
+    - Our apprentices: cards grouped by site leader or site
+    - By site leader
+    - Online training: Active, Slowed down or Not started
+    - How to read this
+  - The Program Team view only shows flags the Program team can act on. Payroll and data-matching items stay in the T&D view.
+  - Data, Leadership, KB, Training and Programming can switch between the two views.
+- **TAP tag everywhere.** On any Central page, a staff member's full name (in Pearl tables, rosters or profiles) gets a TAP · Apprentice, TAP · Pre-App or TAP · TAP Completed tag.
+  - A red or amber dot means there's a follow-up flag.
+  - Clicking the tag opens the person's card.
+  - Matching is exact or first-and-last name. A name that's ambiguous is never tagged, and Tutors (non-TAP) are never tagged.
+- **Flag rules:**
+  - Workbook can't be read.
+  - Not observed in 30+ days.
+  - On the SY 26-27 OJT list but not on the Master Roster.
+  - No OJT logged in the month. During the first 10 days of a month, this checks the previous full month.
+  - Date fixes needed.
+  - Knowtion: nothing on record, or no training in 21+ days.
+  - Within 100 hours of the next wage milestone (T&D view only).
+- **Sources:** the TAP web app feeds `sy2627_progress`, `sy2627_review`, `rti_knowtion` and `rti_needs_match`, with the sheet's gviz export as a backup. The Master Roster comes from the gviz export using fixed column positions.
+- **Fixes:** Central's role categories now include "Completed Program", which was being counted as Tutor. The TAP Dashboard header now says SY 2026–2027.

@@ -6,6 +6,100 @@
 (function () {
   'use strict';
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ██  KNOWTION TRAINING HOURS (RTI) — shared by My Dashboard + Leader Team.
+  //     Reads the TAP web app's ?tab=rti_knowtion and fills any element with
+  //     a data-rti-name="<person>" attribute. Shows BOTH Knowtion numbers:
+  //     Estimated (planned time per item) and Time Spent (time on the page).
+  //     Defined once per page (whichever script loads first).
+  // ══════════════════════════════════════════════════════════════════════════
+  if (!window.NJTC_RTI) window.NJTC_RTI = (function () {
+    let _p = null, _url = '';
+    function norm(s) {
+      return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/\([^)]*\)/g, ' ').replace(/[^a-zA-Z\s]/g, ' ').toLowerCase().trim().replace(/\s+/g, ' ');
+    }
+    function firstLast(s) { const p = norm(s).split(' ').filter(Boolean); return p.length ? p[0] + ' ' + p[p.length - 1] : ''; }
+    function parseCsv(text) {
+      const rows = []; let row = [], field = '', inQ = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i], n = text[i + 1];
+        if (inQ) { if (c === '"' && n === '"') { field += '"'; i++; } else if (c === '"') inQ = false; else field += c; }
+        else if (c === '"') inQ = true;
+        else if (c === ',') { row.push(field); field = ''; }
+        else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+        else if (c !== '\r') field += c;
+      }
+      if (field || row.length) { row.push(field); rows.push(row); }
+      return rows;
+    }
+    function load() {
+      if (!_p) _p = fetch(_url + '?tab=rti_knowtion&_=' + Date.now(), { signal: AbortSignal.timeout(20000) })
+        .then(r => r.text())
+        .then(t => {
+          if (!t || t.trim().startsWith('<') || t.indexOf('Learner (Knowtion)') < 0) return [];
+          const rows = parseCsv(t); const H = rows[0].map(h => h.trim());
+          return rows.slice(1).filter(r => r.length > 1).map(r => { const o = {}; H.forEach((h, i) => { o[h] = (r[i] || '').trim(); }); return o; });
+        })
+        .catch(() => []);
+      return _p;
+    }
+    function find(rows, name) {
+      const n = norm(name); if (!n) return null;
+      const exact = rows.find(r => norm(r['Roster Name']) === n) || rows.find(r => norm(r['Learner (Knowtion)']) === n);
+      if (exact) return exact;
+      const fl = firstLast(name);
+      const hits = rows.filter(r => firstLast(r['Roster Name']) === fl || firstLast(r['Learner (Knowtion)']) === fl);
+      return hits.length === 1 ? hits[0] : null;   // never guess between two people
+    }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+    function num(v) { const x = parseFloat(v); return isFinite(x) ? x : 0; }
+    function html(r, compact) {
+      if (!r) return compact ? '' :
+        '<div style="font-size:.75rem;color:rgba(255,255,255,.45);padding:.25rem 0">No Knowtion training records found yet.</div>';
+      const est = num(r['Estimated Hours']), spent = num(r['Time Spent Hours']);
+      const c3e = num(r['Course 3 (RTI) Estimated Hours']), c3s = num(r['Course 3 (RTI) Time Spent Hours']);
+      const pct = est > 0 ? Math.round(spent / est * 100) : 0;
+      const last = (r['Last Completed'] || '').split(' ')[0];
+      const box = (val, lbl, sub, color) =>
+        '<div style="flex:1;min-width:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.6rem .75rem">' +
+          '<div style="font-size:1.25rem;font-weight:800;color:' + color + '">' + val + '</div>' +
+          '<div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.6)">' + lbl + '</div>' +
+          (sub ? '<div style="font-size:.68rem;color:rgba(255,255,255,.4)">' + sub + '</div>' : '') +
+        '</div>';
+      let progRows = '';
+      if (!compact) {
+        Object.keys(r).filter(k => / — Est Hrs$/.test(k) && k.indexOf('Outside') !== 0).forEach(k => {
+          const pg = k.replace(/ — Est Hrs$/, ''); const e = num(r[k]), s = num(r[pg + ' — Spent Hrs']);
+          if (e || s) progRows += '<tr><td style="padding:3px 6px">' + esc(pg) + '</td><td style="padding:3px 6px;text-align:right">' + e.toFixed(2) + '</td><td style="padding:3px 6px;text-align:right">' + s.toFixed(2) + '</td></tr>';
+        });
+      }
+      return '<div style="margin:.75rem 0">' +
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#ffffff;margin-bottom:.4rem">Training Hours (Knowtion) · SY 26-27</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:.5rem">' +
+          box(est.toFixed(1), 'Estimated hrs', 'all programs', '#a78bfa') +
+          box(spent.toFixed(1), 'Time spent hrs', pct + '% of estimated', '#34d399') +
+          box(c3e.toFixed(1) + ' / ' + c3s.toFixed(1), 'Course 3 (RTI)', 'estimated / time spent', '#FFB81C') +
+          (compact ? '' : box(esc(r['Items Completed'] || '0'), 'Items completed', last ? 'last ' + esc(last) : '', '#e2e8f0')) +
+        '</div>' +
+        (progRows ? '<table style="width:100%;border-collapse:collapse;margin-top:.5rem;font-size:.72rem;color:#e2e8f0"><thead><tr style="color:rgba(255,255,255,.6)"><th style="text-align:left;padding:3px 6px">Program</th><th style="text-align:right;padding:3px 6px">Est hrs</th><th style="text-align:right;padding:3px 6px">Spent hrs</th></tr></thead><tbody>' + progRows + '</tbody></table>' : '') +
+        '<div style="font-size:.66rem;color:rgba(255,255,255,.4);margin-top:.35rem">Estimated = Knowtion’s planned time per item. Time spent = time logged on the Knowtion page (live workshops and outside trainings show little or none). NJTC has not yet decided which counts toward the 288 RTI hours.</div>' +
+      '</div>';
+    }
+    function hydrate() {
+      document.querySelectorAll('[data-rti-name]:not([data-rti-done])').forEach(el => {
+        el.setAttribute('data-rti-done', '1');
+        load().then(rows => { el.innerHTML = html(find(rows, el.getAttribute('data-rti-name')), el.hasAttribute('data-rti-compact')); });
+      });
+    }
+    function start(url) {
+      if (_url) return; _url = url;
+      hydrate();
+      new MutationObserver(hydrate).observe(document.body, { childList: true, subtree: true });
+    }
+    return { start: start, load: load, find: find, html: html };
+  })();
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   function esc(str) {
@@ -3064,6 +3158,14 @@
     // -- Prior-year recap for returning staff (aggregates only, non-blocking) --
     renderPriorYearRecap(pearlId, dashPlaceholder).catch(() => {});
 
+    // -- My Training Hours (Knowtion) — tutors AND site leaders; hidden if no record --
+    try {
+      const rtiBox = document.createElement('div');
+      rtiBox.style.cssText = 'margin-top:1rem';
+      rtiBox.setAttribute('data-rti-name', user.name || '');
+      dashPlaceholder.appendChild(rtiBox);
+    } catch (e) {}
+
     // -- Load My Progress pane async (non-blocking, runs after dashboard renders) --
     // Skip entirely for leader roles — their sub-tab is hidden and Team
     // Progress (My Team tab) is their priority view instead.
@@ -3085,6 +3187,7 @@
   const _TAP_GAS_URL = 'https://script.google.com/macros/s/AKfycbwyTmg8rYcOLb56YJuxMqSwjPmd6TiPLDzDvxty_kr-S1RZ12XXRaVgyL7PblFCQ2tU/exec';
   const _OJT_CSV_URL = _TAP_GAS_URL + '?tab=ojt_log';
   const _MR_CSV_URL  = _TAP_GAS_URL + '?tab=master_roster';
+  try { document.addEventListener('DOMContentLoaded', () => window.NJTC_RTI.start(_TAP_GAS_URL)); if (document.readyState !== 'loading') window.NJTC_RTI.start(_TAP_GAS_URL); } catch (e) {}
 
   function _normN(s) { return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
@@ -3229,7 +3332,7 @@
     const possible = 80 - naCount;
     const ojtPct   = possible > 0 ? Math.round(yCount / possible * 100) : 0;
     const ojtHours = mrRow ? parseFloat(mrRow['OJT Hours (Total)'] || mrRow['OJT Hours'] || 0) || yCount * 50 : yCount * 50;
-    const rtiHours = mrRow ? parseFloat(mrRow['RTI Hours (Total)'] || mrRow['RTI Hours'] || mrRow['LMS Hours'] || 0) || 0 : 0;
+    const rtiHours = mrRow ? parseFloat(mrRow['RTI Hours - LMS (Total)'] || mrRow['RTI Hours (Total)'] || mrRow['RTI Hours'] || mrRow['LMS Hours'] || 0) || 0 : 0;
 
     const PHASE_TOTALS = { Beginning: 33, Middle: 38, End: 9 };
     const phaseStats = {};
@@ -3415,11 +3518,11 @@
           <div class="mp-stat-lbl">Activities Observed</div>
           <div class="mp-stat-sub">${ojtPct}% complete</div>
         </div>
-        ${mrRow && parseFloat(mrRow['Current Wage']||0) > 0 ? `
+        ${mrRow && parseFloat(mrRow['Current Wage Rate ($)']||mrRow['Current Wage']||0) > 0 ? `
         <div class="mp-stat">
-          <div class="mp-stat-val" style="color:#34d399">$${parseFloat(mrRow['Current Wage']).toFixed(2)}</div>
+          <div class="mp-stat-val" style="color:#34d399">$${parseFloat(mrRow['Current Wage Rate ($)']||mrRow['Current Wage']).toFixed(2)}</div>
           <div class="mp-stat-lbl">Current Wage</div>
-          <div class="mp-stat-sub">${esc(mrRow['Milestone Label']||mrRow['Wage Milestone']||'Base')}</div>
+          <div class="mp-stat-sub">${esc(mrRow['Wage Milestone']||mrRow['Milestone Label']||'Base')}</div>
         </div>` : ''}
       </div>
 

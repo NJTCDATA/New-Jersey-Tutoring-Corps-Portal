@@ -35,7 +35,7 @@ var AUTO = {
   BASE_MONTHS:        18,      // Mar-25 … Aug-26 live in the original column blocks
   EXT_START_IDX:      100,     // 0-based index of column 101 (CW) — first column after "Role Type"
   HEADER_ROW:         3,       // Master Roster header row (1-based)
-  TIME_BUDGET_MS:     270000,
+  TIME_BUDGET_MS:     240000,
   RESYNC_CURSOR_PROP: 'AUTO_RESYNC_CURSOR',
   RESYNC_NEXT_PROP:   'AUTO_RESYNC_THEN',   // job to run after a resync finishes
   LAST_RUN_PREFIX:    'AUTO_LAST_RUN_',
@@ -45,6 +45,7 @@ var AUTO = {
     autoMonthStartResync:       { label: 'Month-start full resync (1st)',     make: function(b) { return b.onMonthDay(1).atHour(1); } },
     autoMonthlyWageReport:      { label: 'Monthly wage report + email (1st)', make: function(b) { return b.onMonthDay(1).atHour(7); } },
     autoWeeklyDigest:           { label: 'Weekly status digest (Monday)',     make: function(b) { return b.onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7); } },
+    syncKnowtionRTI:            { label: 'Nightly Knowtion training hours (RTI)', make: function(b) { return b.everyDays(1).atHour(4); } },
   },
 };
 
@@ -147,6 +148,7 @@ function continueAutomationResync() {
 function _autoResyncRun(cursor) {
   var t0 = Date.now();
   var p = PropertiesService.getScriptProperties();
+  _DEFER_COMPLETION_SUMMARY = true; // Completion Summary rebuilt once at the end
   try {
     var ss = _getSpreadsheet();
     var rSheet = _getSheetByGID(ss, GID_MASTER_ROSTER);
@@ -168,6 +170,7 @@ function _autoResyncRun(cursor) {
       recalculateTotals(names[k]);
     }
     p.deleteProperty(AUTO.RESYNC_CURSOR_PROP);
+    _DEFER_COMPLETION_SUMMARY = false;
     rebuildCompletionSummary();
     _autoMarkRun('resync');
     _logNotification('AUTO_RESYNC_DONE', '', names.length + ' apprentices recalculated; months through ' + MONTH_LABELS[MONTH_LABELS.length - 1], '', 'autoResync');
@@ -177,6 +180,7 @@ function _autoResyncRun(cursor) {
     if (next === 'wageReport') _autoRunWageReport();
     return true;
   } catch (err) {
+    _DEFER_COMPLETION_SUMMARY = false;
     _handleError('_autoResyncRun', err);
     return false;
   }
@@ -228,6 +232,8 @@ function _autoRunWageReport(label) {
     var rows = sheet ? Math.max(0, sheet.getLastRow() - 7) : 0;
 
     var to = _autoRecipients(props.WAGE_REPORT_TO, [props.ADMIN_EMAIL || 'amir@njtutoringcorps.org', props.FINANCE_EMAIL_1]);
+    // Milestone test mode (main script) also keeps the wage report away from finance.
+    if (typeof _isMilestoneTestMode === 'function' && _isMilestoneTestMode()) to = _milestoneTestAddress();
     var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + (props.SHEET_ID || _HARDCODED_SHEET_ID) + '/edit#gid=' + sheet.getSheetId();
     var attachments = [];
     try {
@@ -351,7 +357,7 @@ function autoWeeklyDigest() {
 
     lines.push('');
     lines.push('SCHEDULED JOBS — last successful run');
-    ['syncSY2627', 'resync', 'wageReport', 'digest'].forEach(function(k) {
+    ['syncSY2627', 'rtiKnowtion', 'resync', 'wageReport', 'digest'].forEach(function(k) {
       var v = PropertiesService.getScriptProperties().getProperty(AUTO.LAST_RUN_PREFIX + k);
       lines.push('  ' + k + ': ' + (v ? Utilities.formatDate(new Date(v), tz, 'EEE M/d h:mm a') : 'not yet'));
     });
@@ -395,12 +401,15 @@ function automationStatus() {
     return (have[fn] ? '✓ ' : '✗ MISSING  ') + AUTO.HANDLERS[fn].label;
   });
   lines.push('');
-  ['syncSY2627', 'resync', 'wageReport', 'digest'].forEach(function(k) {
+  ['syncSY2627', 'rtiKnowtion', 'resync', 'wageReport', 'digest'].forEach(function(k) {
     var v = p.getProperty(AUTO.LAST_RUN_PREFIX + k);
     lines.push('Last ' + k + ': ' + (v ? Utilities.formatDate(new Date(v), tz, 'EEE M/d/yyyy h:mm a') : 'not yet'));
   });
   lines.push('');
   lines.push('Tracked months: ' + MONTH_LABELS[0] + ' – ' + MONTH_LABELS[MONTH_LABELS.length - 1]);
+  if (typeof _isMilestoneTestMode === 'function') {
+    lines.push('Milestone emails: ' + (_isMilestoneTestMode() ? 'TEST MODE — only ' + _milestoneTestAddress() : 'LIVE — finance'));
+  }
   _safeAlert(lines.join('\n'));
 }
 
