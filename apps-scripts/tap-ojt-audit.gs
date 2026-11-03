@@ -34,6 +34,7 @@
  * ║    .addItem('OJT Audit: 1) Check log vs workbooks', 'runOJTAudit')       ║
  * ║    .addItem('OJT Audit: 2) Apply ticked fixes',     'applyOJTAuditFixes')║
  * ║    .addItem('OJT Audit: Undo prior-year/undated adds', 'undoOJTAuditPriorYearAdds')
+ * ║    .addItem('OJT Audit: Restore SY 25-26 continuation', 'restoreContinuationAdds')
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -50,13 +51,18 @@ var OJT_AUDIT = {
   // or a single unlabeled checklist), so undated or earlier checkmarks are
   // never added — they are listed in Notes instead.
   ADD_FROM: new Date(2026, 5, 1),
+  // v3 (NJTC decision 11/3/2026): TAP is a continuation. For people still in
+  // the program (Apprentice / Pre-apprentice track — not Completed Program,
+  // not Tutors) dated checkmarks from SY 25-26 count too, back to the first
+  // tracked month (Mar-25). Undated checkmarks are still never added.
+  CONTINUATION_FROM: new Date(2025, 2, 1),
   STATUS_ADD: 'Y — Observed and completed (Audit Import)',
 };
 var OJT_AUDIT_HEADERS = [
   'Apply?', 'Master Roster Name', 'Role', 'Workbook tabs read',
   'Activities in log', 'Activities supported', 'Hours now', 'Hours after fix', 'Change (hrs)',
   'REMOVE — imported, not checked in any workbook tab',
-  'ADD — checked and dated June 2026 or later, missing from log',
+  'ADD — checked and dated (apprentices: Mar-25 on; others: June 2026 on), missing from log',
   'Kept — logged in the portal (not in workbook)',
   'Notes', 'Audited'
 ];
@@ -229,6 +235,8 @@ function _ojtAuditRun(cursor) {
 function _ojtAuditPerson(name, logEntry, workbooks, track, schemaIndex) {
   var notes = [], tabsRead = [], wbAll = {}, wbLabeled = {}, unmatched = [], blocked = false;
   var completed = /^completed/i.test(track);
+  var continuing = /^(apprentice|pre-?apprentice)/i.test(track);
+  var addFrom = continuing ? OJT_AUDIT.CONTINUATION_FROM : OJT_AUDIT.ADD_FROM;
   if (!workbooks.length) { notes.push('No workbook link found on SY 26-27 OJT or Summer 26 OJT — cannot verify'); blocked = true; }
   workbooks.forEach(function(w) {
     var wb;
@@ -261,10 +269,10 @@ function _ojtAuditPerson(name, logEntry, workbooks, track, schemaIndex) {
     Object.keys(wbAll).forEach(function(k) {
       if (logKeys[k]) return;
       var d = wbAll[k].date;
-      if (!d || d < OJT_AUDIT.ADD_FROM) { skippedAdd++; return; }
+      if (!d || d < addFrom) { skippedAdd++; return; }
       add.push(wbAll[k].label + '@' + Utilities.formatDate(d, Session.getScriptTimeZone(), 'M/d/yyyy'));
     });
-    if (skippedAdd) notes.push(skippedAdd + ' checked item(s) not in the log were NOT added — undated or dated before June 2026 (could be SY 25-26)');
+    if (skippedAdd) notes.push(skippedAdd + ' checked item(s) not in the log were NOT added — ' + (continuing ? 'undated' : 'undated or dated before June 2026 (not on the Apprentice / Pre-apprentice track)'));
   } else {
     var missing = Object.keys(wbLabeled).filter(function(k) { return !logKeys[k]; }).length;
     if (missing) notes.push('Completed Program — ' + missing + ' workbook item(s) not in log were NOT added (workbook may hold earlier years)');
@@ -407,4 +415,52 @@ function undoOJTAuditPriorYearAdds() {
   try { rebuildCompletionSummary(); } catch (e) {}
   _logNotification('OJT_AUDIT_UNDO', '', rows.length + ' undated/pre-June-2026 Audit Import rows removed (backed up) for ' + Object.keys(people).length + ' people', '', 'undoOJTAuditPriorYearAdds');
   _safeAlert('Done. ' + rows.length + ' rows removed (copied to "' + OJT_AUDIT.REMOVED_SHEET + '") for:\n\n' + Object.keys(people).sort().map(function(n) { return n + ': ' + people[n]; }).join('\n'));
+}
+
+
+// ── v3: put back SY 25-26 continuation checkmarks removed by the undo ────────
+// Restores, from "OJT Audit — Removed Rows", the Audit Import rows that the
+// undo removed for being dated before June 2026 — ONLY for people now on the
+// Apprentice / Pre-apprentice track, ONLY dated Mar-25 → May-26, and only if
+// that activity is not already in the log. Undated rows stay out.
+function restoreContinuationAdds() {
+  var ss = _getSpreadsheet(), ojtSheet = _getSheetByGID(ss, GID_OJT_LOG), rSheet = _getSheetByGID(ss, GID_MASTER_ROSTER);
+  var bk = ss.getSheetByName(OJT_AUDIT.REMOVED_SHEET);
+  if (!bk || bk.getLastRow() < 2) { _safeAlert('Nothing to restore — "' + OJT_AUDIT.REMOVED_SHEET + '" is empty.'); return; }
+  var rData = rSheet.getDataRange().getValues(), trackOf = {};
+  for (var ri = 4; ri < rData.length; ri++) trackOf[_normName(rData[ri][MR_FULL_NAME])] = String(rData[ri][99] || '').trim();
+  var existing = {};
+  ojtSheet.getDataRange().getValues().slice(1).forEach(function(r) {
+    if (/rti/i.test(String(r[OJT_LOG_TYPE] || '')) || !/^y/i.test(String(r[OJT_STATUS] || '').trim())) return;
+    existing[_normName(r[OJT_APPRENTICE]) + '#' + _ojtAuditKey(r[OJT_PHASE], r[OJT_DOMAIN], r[OJT_ACTIVITY])] = true;
+  });
+  var rows = [], people = {};
+  bk.getDataRange().getValues().slice(1).forEach(function(b) {
+    var r = b.slice(2, 18);                                   // original OTJ row (after "Removed On", "Original Row")
+    if (String(r[OJT_LOG_TYPE] || '') !== OJT_AUDIT.LOG_TYPE_ADD) return;
+    var d = r[OJT_OBS_DATE];
+    if (!(d instanceof Date) || d < OJT_AUDIT.CONTINUATION_FROM || d >= OJT_AUDIT.ADD_FROM) return;
+    var nk = _normName(r[OJT_APPRENTICE]);
+    if (!/^(apprentice|pre-?apprentice)/i.test(trackOf[nk] || '')) return;
+    var k = nk + '#' + _ojtAuditKey(r[OJT_PHASE], r[OJT_DOMAIN], r[OJT_ACTIVITY]);
+    if (existing[k]) return;
+    existing[k] = true;
+    r[OJT_TIMESTAMP] = new Date();
+    r[OJT_NOTES] = 'Restored by OJT Audit v3 — SY 25-26 checkmark counted as TAP continuation';
+    rows.push(r);
+    var n = String(r[OJT_APPRENTICE] || '').trim(); people[n] = (people[n] || 0) + 1;
+  });
+  if (!rows.length) { _safeAlert('Nothing to restore.'); return; }
+  try {
+    var ui = SpreadsheetApp.getUi();
+    var list = Object.keys(people).sort().map(function(n) { return n + ': ' + people[n]; }).join('\n');
+    if (ui.alert('Restore SY 25-26 continuation checkmarks', rows.length + ' rows will be added back:\n\n' + list, ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  } catch (e) {}
+  _sy2627AppendOJTRows(ojtSheet, rows);
+  _DEFER_COMPLETION_SUMMARY = true;
+  Object.keys(people).forEach(function(n) { recalculateTotals(n); });
+  _DEFER_COMPLETION_SUMMARY = false;
+  try { rebuildCompletionSummary(); } catch (e) {}
+  _logNotification('OJT_AUDIT_RESTORE', '', rows.length + ' SY 25-26 continuation rows restored for ' + Object.keys(people).join(', '), '', 'restoreContinuationAdds');
+  _safeAlert('Done. ' + rows.length + ' rows restored:\n\n' + Object.keys(people).sort().map(function(n) { return n + ': ' + people[n]; }).join('\n'));
 }

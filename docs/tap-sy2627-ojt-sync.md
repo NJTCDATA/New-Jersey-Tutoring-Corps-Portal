@@ -108,7 +108,9 @@ The 7 extra activities (Beg-Prof C, N, Q · Instr B, O · Env G · Plan A) are a
    - Copies every removed row to "OJT Audit — Removed Rows" first.
    - **Adds** activities that are checked **and dated June 2026 or later** but are missing from the log (v2). Undated or earlier checkmarks are listed in Notes, never added. It never adds for Completed Program people.
    - **v2 correction, 11/3/2026:** the first applied run also added 129 undated or pre-June-2026 checkmarks (SY 25-26 work on "SY 25-26/Summer 2026" tabs or single unlabeled tabs: Caitlin Evgeniadis 72, Jaejin Lee 18, Ava Bonetti 24, Avery Frieze-Dunfee 14, Breaunna Braxton 1). `undoOJTAuditPriorYearAdds()` removes exactly those rows, backs them up and recalculates. The 202 summer-dated additions and the 87 removals stand.
-   - **Open question for T&D:** do SY 25-26 checkmarks count toward someone who became an apprentice in Summer 2026 (e.g., Caitlin Evgeniadis)? Until that's answered, they don't.
+   - **Decision (11/3/2026): OJT is a continuation.** For people still on the Apprentice or Pre-apprentice track, dated SY 25-26 checkmarks count too (back to Mar-25). Tutors and Completed Program people are unchanged, and undated checkmarks are never added.
+     - The audit (v3) follows this rule.
+     - `restoreContinuationAdds()` puts back exactly those rows from the backup tab (Caitlin Evgeniadis: 72, dated Oct 2025 – May 2026, taking her from 150 to 3,750 hours). Run it after T&D confirms, since it triggers her 3,300 milestone.
    - Never touches portal-logged rows or RTI rows.
    - Recalculates each changed person.
    - Refuses to run on an audit more than 24 hours old.
