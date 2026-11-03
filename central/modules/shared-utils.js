@@ -3041,7 +3041,7 @@
       hr:          ['📝 Log a Support Concern', 'Support Log'],
       finance:     ['📊 Check KPI Targets', 'KPI Targets'],
       programming: ['📊 Pearl Operations — live session data', 'Pearl Operations'],
-      training:    ['🎓 Training & Development Analytics', 'T&D Analytics'],
+      training:    ['📚 Training & Development — Knowtion training', 'Training & Development'],
       leadership:  ['📊 Executive Command Center — your full dashboard', 'Department Home'],
       data:        ['🔬 i-Ready Analysis Lab — academic data', 'i-Ready Analysis Lab'],
       kb:          ['📊 Executive Command Center — program overview', 'Department Home'],
@@ -7072,6 +7072,104 @@
     },
 
     /* ══════════════════════════════════════════════════════
+       TAP · APPRENTICES — panel-tap-standalone (modules/tap-insights.js)
+    ══════════════════════════════════════════════════════ */
+    'panel-tap-standalone': {
+      what: {
+        title: 'TAP · Apprentices',
+        icon: '🎓',
+        desc: 'The Tutor Apprenticeship Program only: active Apprentices, Pre-apprentices and TAP completers on the TAP Tracker 26-27 Master Roster. Non-TAP tutors who keep an OJT checklist are excluded. Each department opens its own view: Programming plain language; Training, Data and Leadership full detail; HR and Finance status, pay, milestones and compliance.',
+        alert: '⚠️ Who counts as TAP comes from the Role column of the Onsite DB "SY 26-27 OJT" list. If a person\'s role there is wrong, every TAP number for them is wrong — fix it at the source and the nightly sync carries it through.',
+        sources: [
+          { icon: '📊', label: 'TAP Tracker 26-27', color: '#dbeafe', text: '#1e40af' },
+          { icon: '📋', label: 'Onsite DB · SY 26-27 OJT', color: '#f0fdf4', text: '#15803d' },
+          { icon: '📚', label: 'Knowtion (RTI)', color: '#f5f3ff', text: '#6d28d9' },
+        ],
+        items: [
+          { icon: '🎓', label: 'Master Roster', desc: 'OJT hours (50 per checklist activity marked Y), OJT %, Beginning / Middle / End %, monthly OJT hours, wage milestone and program role.', live: true },
+          { icon: '📒', label: 'SY 26-27 Workbook Progress', desc: 'Each person\'s own SY 26-27 OJT workbook as read by the nightly sync: site leader, latest observation date, workbook %, date problems and unreadable links.', live: true },
+          { icon: '📚', label: 'RTI — Knowtion', desc: 'Knowtion Course 3 (RTI) estimated and time-spent hours for TAP participants. The official RTI total on the Master Roster is unchanged.', live: true },
+          { icon: '🚩', label: 'Follow-up flags', desc: 'Red: workbook can\'t be read, not observed in 30+ days, or not on the Master Roster. Amber: no OJT in the month, date fixes, no or stale Knowtion training.' },
+        ],
+        mission: 'Apprentices are the pipeline into the classroom. The page exists so the people who support them — site leaders, Programming, T&D, HR and Finance — see the same numbers and act on them early.'
+      },
+      read: {
+        title: 'Status guide',
+        intro: 'Every card and row is colored by its most serious flag. During the first 10 days of a month, "this month" checks the previous full month so no one is flagged before observations are entered.',
+        items: [
+          { icon: '🔴', label: 'Needs attention', desc: 'Not observed in 30+ days, the OJT workbook can\'t be opened, or on the OJT list but not on the Master Roster.' },
+          { icon: '🟠', label: 'Keep an eye on', desc: 'Nothing checked off in the month, checklist dates to fix, or Knowtion training not started / nothing in 21+ days.' },
+          { icon: '🟢', label: 'On track', desc: 'Observed recently and nothing to fix.' },
+          { icon: '🔵', label: 'Close to a wage milestone', desc: 'Apprentice within 100 OJT hours of 1,100 / 2,200 / 3,300 / 3,800 / 4,000. The milestone email is sent automatically once when reached.' },
+        ],
+      },
+      cadence: {
+        items: [
+          { icon: '🌙', label: 'OJT workbook sync', desc: 'Nightly around 3 am: reads every workbook linked on the SY 26-27 OJT list and adds new activities to the OTJ log.', badge: 'Nightly' },
+          { icon: '📚', label: 'Knowtion sync', desc: 'Nightly around 4 am: Knowtion completions for tutors and site leaders.', badge: 'Nightly' },
+          { icon: '🔁', label: 'Full resync', desc: 'Every Sunday and on the 1st of the month.', badge: 'Weekly' },
+          { icon: '💵', label: 'Wage report + digest', desc: 'Last month\'s wage report is emailed on the 1st; a status digest every Monday.', badge: 'Monthly' },
+        ],
+        notify: '📣 Tell the Data team before renaming tabs or moving columns in the TAP Tracker 26-27 or the Onsite DB "SY 26-27 OJT" list — the sync and this page read them by position and header name.'
+      },
+      access: {
+        rows: [
+          { role: 'Training & Development', scope: 'Full detail, follow-ups, Log OJT', lvl: 'full', label: 'Full Detail' },
+          { role: 'Programming', scope: 'Plain view by site leader, Log OJT', lvl: 'view', label: 'Program View' },
+          { role: 'HR', scope: 'Status, pay, follow-ups, compliance', lvl: 'view', label: 'HR View' },
+          { role: 'Finance', scope: 'Pay, milestones, compliance', lvl: 'limit', label: 'Finance View' },
+          { role: 'Data / Leadership', scope: 'Full detail', lvl: 'full', label: 'Full Detail' },
+        ],
+        notes: [
+          { icon: '🔐', label: 'Read-only', desc: 'The page never edits the TAP Tracker. Fixes happen in the person\'s OJT workbook, the Onsite DB, or the RTI Name Map, and show up after the next sync.' },
+        ],
+        pii: '⚠️ Contains employee names, wages and USDOL IDs. Do not export or share outside NJTC.'
+      }
+    },
+
+    /* ══════════════════════════════════════════════════════
+       TRAINING & DEVELOPMENT — panel-training-analytics
+    ══════════════════════════════════════════════════════ */
+    'panel-training-analytics': {
+      what: {
+        title: 'Training & Development',
+        icon: '📚',
+        desc: 'Training for every tutor and site leader. SY 26-27 = Knowtion training (estimated and time-spent hours, by program and month). PD Sessions, Training Intake and Program Support are the SY 25-26 archive until the new collection method is connected. Apprentice progress is on TAP · Apprentices.',
+        sources: [
+          { icon: '📚', label: 'Knowtion (via TAP Tracker)', color: '#f5f3ff', text: '#6d28d9' },
+          { icon: '🗂️', label: 'SY 25-26 PD & Intake forms', color: '#f3f4f6', text: '#374151' },
+        ],
+        items: [
+          { icon: '📚', label: 'Knowtion Training', desc: 'Every learner with a completion this school year. Each learner + program + assignment counts once (latest completion). Course 3 (RTI) excludes the staff "(Master)" copies.', live: true },
+          { icon: '📋', label: 'PD Sessions (SY 25-26)', desc: 'Participant ratings from the SY 25-26 PD feedback form.' },
+          { icon: '🎓', label: 'Training Intake (SY 25-26)', desc: 'SY 25-26 training intake responses.' },
+        ],
+      },
+      read: {
+        title: 'Reading the numbers',
+        items: [
+          { icon: '⏱️', label: 'Estimated vs time spent', desc: 'Estimated is Knowtion\'s planned time per item; time spent is what Knowtion recorded on the page. Live workshops record little or none, so time spent is usually lower.' },
+          { icon: '🟢', label: 'Active', desc: 'Completed something in Knowtion in the last 21 days.' },
+          { icon: '🟠', label: 'Slowed down', desc: 'Nothing completed in 21+ days.' },
+        ],
+      },
+      cadence: {
+        items: [
+          { icon: '🌙', label: 'Knowtion sync', desc: 'Nightly around 4 am into the TAP Tracker "RTI — Knowtion" tab; the portal reads it on open.', badge: 'Nightly' },
+          { icon: '🗂️', label: 'SY 25-26 archive', desc: 'Static — last school year\'s forms.', badge: 'Archive' },
+        ],
+      },
+      access: {
+        rows: [
+          { role: 'Training & Development', scope: 'Full detail', lvl: 'full', label: 'Full Detail' },
+          { role: 'Programming', scope: 'Plain view (Active / Slowed down)', lvl: 'view', label: 'Program View' },
+          { role: 'Data / Leadership', scope: 'Full detail', lvl: 'full', label: 'Full Detail' },
+        ],
+        pii: '⚠️ Contains staff names and training records. Internal use only.'
+      }
+    },
+
+    /* ══════════════════════════════════════════════════════
        i-READY ANALYSIS LAB — panel-iready-lab
     ══════════════════════════════════════════════════════ */
     'panel-iready-lab': {
@@ -7149,7 +7247,7 @@
     var _govCurrentPanel = 'panel-kpi';
   var _govCurrentTab   = 'what';
 
-  var BEACON_PANELS = new Set(['panel-kpi','panel-kpi-analytics','panel-sy-analytics','panel-pearl-ops','panel-talent','panel-iready-lab','panel-knowtion']);
+  var BEACON_PANELS = new Set(['panel-kpi','panel-kpi-analytics','panel-sy-analytics','panel-pearl-ops','panel-talent','panel-iready-lab','panel-knowtion','panel-tap-standalone','panel-training-analytics']);
 
   function govOpen() {
     var content = GOV_DATA[_govCurrentPanel];
@@ -8360,7 +8458,7 @@
         lines.push('📎 [OTJ Checklist Link](' + otjLink.trim() + ')');
       }
     } else if (_tdOTJ().length && (entity.hr && entity.hr._apprentice === 'Yes')) {
-      lines.push('\n**OTJ**: Enrolled as TAP apprentice but no OTJ record found. Check T&D Analytics.');
+      lines.push('\n**OTJ**: Enrolled as TAP apprentice but no OTJ record found. Check TAP · Apprentices.');
     }
 
     // ── Observational Check-ins — live from T&D obs maps ─────────────────────
@@ -9032,7 +9130,7 @@
     var msg = '**Site Leadership — ' + short + ':**\n\n';
     if (otjLeaders.size) msg += '📋 T&D records: ' + Array.from(otjLeaders).join(', ') + '\n';
     if (hrLeaders.length) msg += '👤 HR records: ' + hrLeaders.map(function(e){ return e.n+' ('+e.r+')'; }).join(', ') + '\n';
-    if (!otjLeaders.size && !hrLeaders.length) msg += 'No site leader found in HR or T&D records for this site. Try checking Talent Analytics or T&D Analytics directly.';
+    if (!otjLeaders.size && !hrLeaders.length) msg += 'No site leader found in HR or T&D records for this site. Try Talent Analytics or TAP · Apprentices directly.';
     return msg;
   }
 
@@ -9154,6 +9252,29 @@
   function _tdIntake() { return window.njtcIntake || []; }
   function _tdPD()     { return window.njtcPD     || []; }
   function _tdOTJ()    { return window.njtcOTJ    || []; }
+  // SY 26-27 TAP progress summary from the TAP Tracker 26-27 (same model as
+  // TAP · Apprentices). null until modules/tap-insights.js has loaded it.
+  function _tapProgressSummary() {
+        var tm = window.NJTC_TAP && window.NJTC_TAP.model;
+        if (tm && tm.tapPeople && tm.tapPeople.length) {
+          var tp = tm.tapPeople, inT = tp.filter(function(p){ return p.role === 'Apprentice' || p.role === 'Pre-apprentice'; });
+          var cnt = function(r){ return tp.filter(function(p){ return p.role === r; }).length; };
+          var avg = function(l){ return l.length ? Math.round(l.reduce(function(a,p){ return a + p.ojtPct; }, 0) / l.length * 100) : 0; };
+          var ap = tp.filter(function(p){ return p.role === 'Apprentice'; }), pre = tp.filter(function(p){ return p.role === 'Pre-apprentice'; });
+          var active = inT.filter(function(p){ return p.curMonthHrs > 0; }).length;
+          var red = inT.filter(function(p){ return p.flags.some(function(f){ return f.level === 'red'; }); });
+          var out = '**TAP · SY 26-27 OJT progress** (TAP Tracker, synced nightly)\n\n' +
+            '- 🎓 Apprentices: **' + cnt('Apprentice') + '** · avg **' + avg(ap) + '%** of the 80 OJT activities\n' +
+            '- 📘 Pre-apprentices: **' + cnt('Pre-apprentice') + '** · avg **' + avg(pre) + '%**\n' +
+            '- 🏁 Completed Program: **' + cnt('Completed Program') + '**\n\n' +
+            '📅 **' + active + ' of ' + inT.length + '** apprentices/pre-apprentices had OJT activity in ' + tm.focus.long + (tm.focus.isPrev ? ' (last full month)' : ' so far') + '.\n' +
+            '🔴 **' + red.length + '** need attention now (not observed in 30+ days, or their workbook can\'t be read)' + (red.length ? ': ' + red.slice(0, 8).map(function(p){ return p.name; }).join(', ') + (red.length > 8 ? ' …' : '') : '') + '.\n\n' +
+            'Open **TAP · Apprentices** for each person\'s card and the follow-up list.';
+          return out;
+        }
+        return null;
+  }
+
 
   // Find training intake record by name
   function _intakeForName(name) {
@@ -9588,7 +9709,7 @@
         } catch(e) { return 'Survey data not yet loaded.'; }
       }
       if (/academ|iready|growth|impact|scholar growth|math|ela/i.test(ql)) {
-        return 'Individual tutor iReady scores aren\'t broken out per tutor in the current data — iReady links scholars to schools, not individual tutors. To see academic impact by site:\n• Ask "which site has the best math growth?"\n• Or open iReady Analysis Lab → filter by school\n\nFor tutor-level academic data, open T&D Analytics → Observations.';
+        return 'Individual tutor iReady scores aren\'t broken out per tutor in the current data — iReady links scholars to schools, not individual tutors. To see academic impact by site:\n• Ask "which site has the best math growth?"\n• Or open iReady Analysis Lab → filter by school\n\nFor tutor-level academic data, open Talent Analytics and open the tutor\'s profile (iReady overlay).';
       }
       // Can't resolve — re-ask
       return 'Just to confirm — are you asking about **attendance**, **survey satisfaction**, or **academic growth**? Reply with one of those and I\'ll pull the data.';
@@ -10029,6 +10150,19 @@
       dol:      _lens === 'hr' || _lens === 'data',
     };
 
+    // Apprentices (TAP) vs. training (Knowtion) — two separate pages
+    if (/\b(apprentice|tap|ojt|otj|wage milestone|log (an )?ojt|checklist)\b/.test(t)) {
+      var tapDepts = ['training', 'programming', 'hr', 'finance', 'data', 'leadership', 'kb'];
+      if (tapDepts.indexOf(_lens) < 0) return '**Apprentices** live on **TAP · Apprentices**, which your department view doesn\'t include. Ask Training & Development or the Data team.';
+      return '**TAP · Apprentices** (left sidebar) is the apprenticeship page — apprentices, pre-apprentices and TAP completers only. Each team sees its own view: Programming gets *At a glance*, *Our apprentices* and *By site leader*; T&D, Data and Leadership get full detail with *Follow-Up*; HR and Finance get *Pay & Status*, *Wage Milestones* and *GAINS Compliance*.' +
+        (['programming', 'training', 'data'].indexOf(_lens) >= 0 ? ' To record an observation, use **📝 Log OJT Activity** at the top of the page.' : '') +
+        ' Click any **TAP** tag next to a name anywhere in the portal for that person\'s card.';
+    }
+    if (/\b(knowtion|training hours|online training|rti|pd session|training intake)\b/.test(t)) {
+      var tdDepts = ['training', 'programming', 'data', 'leadership', 'kb'];
+      if (tdDepts.indexOf(_lens) < 0) return '**Training** is on the **Training & Development** page, which your department view doesn\'t include. Apprentices\' RTI hours are on **TAP · Apprentices**.';
+      return '**Training & Development** (left sidebar) → **📚 Knowtion Training · SY 26-27** lists every tutor and site leader who finished Knowtion training this year (planned hours, time spent, Course 3 RTI, last activity). **PD Sessions**, **Training Intake** and **Program Support** are the SY 25-26 archive. Apprentices\' RTI also shows on **TAP · Apprentices**.';
+    }
     // Reporting a portal problem
     if (/\breport (a |an )?(problem|bug|issue|error)|something('s| is)? (wrong|broken|off)|(number|data|page)s? (looks?|is|are|seems?) (wrong|off|broken)/.test(t)) {
       return '**Reporting a problem** — under every page title there\'s a **⚑ Report a problem** button. Say what looks wrong and press Send. It goes to the Data & Evaluation team with the page and your department view attached, so you don\'t have to explain where you were.';
@@ -10742,7 +10876,8 @@
           'sy-analytics':'SY Site Analytics — every active NJTC tutoring site with scholars, staff, and sessions.',
           'talent':'Talent Analytics — HR concern pipeline, workforce risk signals, and retention data.',
           'iready-lab':'iReady Analysis Lab — diagnostic scale scores, placement levels, and % of typical academic growth.',
-          'training-analytics':'T&D Analytics — PD session feedback, training intake ratings, apprenticeship tracker, and tutor obs.',
+          'training-analytics':'Training & Development — SY 26-27 Knowtion training for every tutor and site leader, plus the SY 25-26 PD feedback and training-intake archive.',
+          'tap-standalone':'TAP · Apprentices — SY 26-27 apprentices and pre-apprentices only: OJT progress, RTI, follow-ups, wage milestones and compliance.',
           'impact-report':'Impact Report Builder — org-wide scholar impact metrics for board and funder reporting.',
         };
         if (gd) {
@@ -10834,8 +10969,15 @@
     { match: /apprentice|tap\b|tutor apprentice|apprenticeship|tap program|how many apprentice|how many.*tap/i,
       respond: function() {
         // Source of truth: Live Tracker via window.AP_DATA (built in executive-leadership.js)
+        if (/otj|ojt|on.?the.?job|progress|phase|observ|checklist|follow.?up|attention/i.test(String(_lastQ || ''))) { var _tps2 = _tapProgressSummary(); if (_tps2) return _tps2; }
+        var _tm = window.NJTC_TAP && window.NJTC_TAP.model;
+        var _tapLine = '';
+        if (_tm && _tm.tapPeople) {
+          var _c = function(r){ return _tm.tapPeople.filter(function(p){ return p.role === r; }).length; };
+          _tapLine = '**TAP Tracker 26-27 (Master Roster, active):** ' + _c('Apprentice') + ' apprentices · ' + _c('Pre-apprentice') + ' pre-apprentices · ' + _c('Completed Program') + ' completed — the numbers on TAP · Apprentices.\n\n';
+        }
         var apEnrolled = (window.AP_DATA||[]).filter(function(r){ return r.apprentice==='Yes'; });
-        if (!apEnrolled.length) return 'Apprentice data not yet loaded. Open the Apprentice Tracker to load it.';
+        if (!apEnrolled.length) return _tapLine ? _tapLine + 'Open **TAP · Apprentices** for progress and follow-ups.' : 'Apprentice data not yet loaded. Open **TAP · Apprentices** to load it.';
         var count = apEnrolled.length;
         var _syl = function(y){ return String(y||'').replace(/^20(\d\d)-20(\d\d)$/,'$1-$2'); };
         var nNew = apEnrolled.filter(function(r){ return r.apCohort === 'new'; }).length;
@@ -10843,6 +10985,7 @@
         var msg = '**' + count + ' active TAP apprentices' + (window.AP_SY ? ' in SY ' + _syl(window.AP_SY) : '') + '** — ' + nNew + ' new (Onsite Tracker GAINS = Yes) · ' + nCont + ' continuing from earlier cohorts (HR Master List).\n';
         if (window.AP_PRIOR_SY) msg += 'SY ' + _syl(window.AP_PRIOR_SY) + ': **' + (window.AP_PRIOR_SY_TOTAL || 0) + '** apprentices. ';
         msg += 'Pre-apprentices on staff now: **' + (window.AP_PREAPPS || []).length + '** (not counted as apprentices).\n\n';
+        if (_tapLine) msg = _tapLine + '_Staffing view (Onsite Tracker GAINS + HR Master List):_ ' + msg;
         // Race/ethnicity: cross-reference HR_EMPS records (which carry _race/_ethnicity fields)
         var hrByName = {};
         _hrActive().forEach(function(e){ hrByName[((e.n||e.name||'').toLowerCase().replace(/\s+/g,' ').trim())] = e; });
@@ -10865,7 +11008,7 @@
     { match: /apprentice (race|diversity|demographic|ethnic|identity)|race.?of.?apprentice|apprentice.?race/i,
       respond: function() {
         var apEnrolled = (window.AP_DATA||[]).filter(function(r){ return r.apprentice==='Yes'; });
-        if (!apEnrolled.length) return 'Apprentice data not loaded. Open the Apprentice Tracker to load it.';
+        if (!apEnrolled.length) return 'Apprentice data not loaded. Open TAP · Apprentices to load it.';
         var count = apEnrolled.length;
         var hrByName = {};
         _hrActive().forEach(function(e){ hrByName[((e.n||e.name||'').toLowerCase().replace(/\s+/g,' ').trim())] = e; });
@@ -11087,7 +11230,7 @@
     // What is TAP / apprenticeship
     { match: /what is tap|what.?s tap|tutor apprenticeship program|tap program|apprenticeship program|what is an apprentice/i,
       respond: function() {
-        return '**TAP (Tutor Apprenticeship Program)** — NJTC\'s registered apprenticeship program.\n\nApprentices are NJTC tutors enrolled in a structured pathway toward educator certification. They complete on-the-job training, professional development, and formal assessments. TAP is tracked via the HR Master List (col K) and the Apprentice Tracker (T&D Analytics).';
+        return '**TAP (Tutor Apprenticeship Program)** — NJTC\'s registered apprenticeship program.\n\nApprentices are NJTC tutors enrolled in a structured pathway toward educator certification. They complete on-the-job training, professional development, and formal assessments. Each apprentice completes an 80-activity on-the-job (OJT) checklist (50 hours per activity, 4,000 hours) and 288 hours of Related Technical Instruction (RTI, Knowtion Course 3). Apprentices move up the wage scale at 1,100 / 2,200 / 3,300 / 3,800 / 4,000 OJT hours; pre-apprentices are not on the wage scale.\n\nSY 26-27 progress is tracked in the TAP Tracker 26-27 (workbooks synced nightly) — open **TAP · Apprentices** in the portal.';
       }
     },
 
@@ -11147,7 +11290,8 @@
           '🎓 **Pearl (Operations)** — Fetched fresh each time you open the Pearl/Operations panel. Expect **2–5 seconds** depending on sheet size and connection speed.\n\n' +
           '⚠️ **Concerns** — Live fetch from Google Sheets. Loads in **2–4 seconds** when you open the Performance Concerns section.\n\n' +
           '📐 **iReady Analysis Lab** — Uploaded 3× per year (fall, winter, spring). When you open the iReady Lab, expect **5–15 seconds** for data to fully render, especially with large uploads.\n\n' +
-          '📋 **Training & PD Data** — Fetched when the T&D Analytics panel opens. Usually **3–8 seconds**.\n\n' +
+          '📋 **Training & Development** — Knowtion training and the SY 25-26 PD/intake archive load when the page opens. Usually **3–8 seconds**.\n\n' +
+          '🎓 **TAP · Apprentices** — TAP Tracker 26-27 (workbooks synced nightly ~3 am, Knowtion ~4 am). Loads in **3–8 seconds**.\n\n' +
           '**What to do while waiting:** Open the relevant panel, wait for the loading indicator to disappear, then ask PIE your question. You do not need to refresh the page — PIE reads the live data at the moment you ask. If data still seems missing after 15 seconds, see _"What if data doesn\'t show up?"_';
       }
     },
@@ -11415,7 +11559,7 @@
           var apps = active.filter(function(e){ return e._apprentice==='Yes'; }).length;
           parts.push('**Staff:** ' + active.length + ' active · ' + apps + ' TAP apprentices');
         }
-        if (!parts.length) return 'Data still loading — open Pearl Operations, KPI Dashboard, and T&D Analytics to populate PIE.';
+        if (!parts.length) return 'Data still loading — open Pearl Operations, KPI Dashboard, and Training & Development to populate PIE.';
         return parts.join('\n\n') + '\n\nAsk me to generate a flash PDF for a shareable report.';
       }
     },
@@ -11467,8 +11611,8 @@
     { match: /tutor obs|observation|training compliance|pd compliance|completed training|who hasn.?t|staff training/i,
       respond: function() {
         var td = window.njtcIntake || window.njtcPD || [];
-        if (!td.length) return 'Training data not yet loaded — open T&D Analytics to load it.';
-        return 'T&D Analytics has **' + td.length + ' training intake records**. Open T&D Analytics → Observations tab for detailed compliance tracking per tutor.';
+        if (!td.length) return 'Training data not yet loaded — open Training & Development to load it.';
+        return 'Training & Development has **' + td.length + ' SY 25-26 training intake records** (archive). For SY 26-27 training, open Training & Development → Knowtion Training.';
       }
     },
 
@@ -11476,7 +11620,7 @@
     { match: /pd (score|rating|satisfaction|feedback|avg|average)|professional development.*(score|rating|feedback)|training (satisfaction|score|rating)|tutor (satisfaction|feedback)/i,
       respond: function() {
         var pd = window.njtcPD || [];
-        if (!pd.length) return 'PD feedback data not yet loaded — open T&D Analytics.';
+        if (!pd.length) return 'PD feedback data not yet loaded — open Training & Development → PD Sessions (SY 25-26 archive).';
         var scores = pd.map(function(r){ return parseFloat(r.overall_score||r.score||0); }).filter(function(n){ return n>0; });
         if (!scores.length) return 'PD feedback loaded (' + pd.length + ' records) but no score column found.';
         var avg = scores.reduce(function(a,b){ return a+b; },0)/scores.length;
@@ -12397,7 +12541,7 @@
         var tm = window._njtcTutorObs || {};
         var slm = window._njtcSLObs || {};
         var allObsKeys = new Set(Object.keys(tm).concat(Object.keys(slm)));
-        if (!allObsKeys.size) return 'Observation maps not yet loaded. Ask PIE about a specific tutor, or visit T&D Analytics to trigger the obs data load.';
+        if (!allObsKeys.size) return 'Observation maps not yet loaded. Ask PIE about a specific tutor, or open Training & Development to load observation data.';
         var apprentices = (window.HR_EMPS||[]).filter(function(e){ return e.s==='Active' && e._apprentice==='Yes'; });
         if (!apprentices.length) return 'No active TAP apprentices found in HR data.';
         function normN(s){ return (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim(); }
@@ -12606,7 +12750,7 @@
     { match: /training.*(intake|complet|who.*complet|register|enroll|sign.*up|onboard)|intake.*(train|data|record|complet)|who.*completed.*training|training.*record|new.*tutor.*train/i,
       respond: function() {
         var rows = _tdIntake();
-        if (!rows.length) return 'Training intake data not yet loaded — open T&D Analytics.';
+        if (!rows.length) return 'Training intake data not yet loaded — open Training & Development → Training Intake (SY 25-26 archive).';
         var total = rows.length;
         // Try to get unique names
         var names = new Set();
@@ -12626,7 +12770,7 @@
         if (comfAvg) msg += '📊 Avg comfort level: **'+comfAvg+'/5**\n';
         if (cohorts.length) msg += '\n**By Cohort:**\n'+cohorts.map(function(c){ return '• '+c[0]+': '+c[1]; }).join('\n');
         if (dists.length>1) msg += '\n\n**By District:**\n'+dists.map(function(d){ return '• '+d[0]+': '+d[1]; }).join('\n');
-        msg += '\n\nFor individual training records, type a tutor\'s name. For full details, open T&D Analytics.';
+        msg += '\n\nFor individual training records, type a tutor\'s name. For full details, open Training & Development.';
         return msg;
       }
     },
@@ -12635,7 +12779,7 @@
     { match: /pd.*(feedback|session|data|overview|summary|average|score|rating)|professional development.*(feedback|session|score|summary)|how.*(pd|professional development).*(went|rated|scored)/i,
       respond: function() {
         var rows = _tdPD();
-        if (!rows.length) return 'PD feedback data not yet loaded — open T&D Analytics.';
+        if (!rows.length) return 'PD feedback data not yet loaded — open Training & Development → PD Sessions (SY 25-26 archive).';
         var ratings = rows.map(function(r){ return parseFloat(r.rating||0); }).filter(function(n){return n>0;});
         var avg = ratings.length ? (ratings.reduce(function(a,b){return a+b;},0)/ratings.length).toFixed(2) : null;
         // By topic
@@ -12659,7 +12803,7 @@
     { match: /pd.*(session|topic|specific|which|best|worst)|(session|topic).*(pd|feedback|rating|score)|which pd|pd.*topic|how was.*(session|pd|training)/i,
       respond: function() {
         var rows = _tdPD();
-        if (!rows.length) return 'PD feedback data not loaded — open T&D Analytics.';
+        if (!rows.length) return 'PD feedback data not loaded — open Training & Development → PD Sessions (SY 25-26 archive).';
         // Group by session + topic
         var sessMap = {};
         rows.forEach(function(r){
@@ -12692,8 +12836,9 @@
 
     { match: /otj|on.?the.?job|apprentice.*(status|progress|phase|complete|finish|done)|tap.*(status|progress|complete|otj|phase)|(beginning|middle|end).*(otj|phase|complet)|who.*completed.*otj|otj.*status/i,
       respond: function() {
+        var _tps = _tapProgressSummary(); if (_tps) return _tps;
         var rows = _tdOTJ();
-        if (!rows.length) return 'OTJ data not yet loaded — open T&D Analytics → Apprentice Tracker.';
+        if (!rows.length) return 'The SY 26-27 TAP data is still loading — open **TAP · Apprentices** and ask again.';
         var beg = rows.filter(function(r){ return /completed/i.test(r['OTJ Beginning']||''); }).length;
         var mid = rows.filter(function(r){ return /completed/i.test(r['OTJ Middle']||''); }).length;
         var end = rows.filter(function(r){ return /completed/i.test(r['OTJ End']||''); }).length;
@@ -12720,7 +12865,7 @@
     { match: /who.*(not|hasn.?t|haven.?t|missing|need).*(otj|on.?the.?job|phase|training|complete|done)|otj.*(not|missing|incomplete|behind|follow.?up)|follow.?up.*(otj|apprentice|tap)/i,
       respond: function() {
         var rows = _tdOTJ();
-        if (!rows.length) return 'OTJ data not yet loaded — open T&D Analytics → Apprentice Tracker.';
+        if (!rows.length) return 'OTJ data not yet loaded — open TAP · Apprentices.';
         var needsFollowUp = rows.filter(function(r){
           return /not started/i.test(r['OTJ Beginning']||'') ||
                  /not started/i.test(r['OTJ Middle']||'') ||
@@ -12734,7 +12879,7 @@
           var dist = r['District']||r['Region']||'';
           return '🔴 **'+name+'**'+(dist?' ('+dist+')':'')+'\n   Beg:'+_otjIcon(b)+' Mid:'+_otjIcon(m)+' End:'+_otjIcon(en);
         }).join('\n');
-        if (needsFollowUp.length>10) msg += '\n\n…and '+(needsFollowUp.length-10)+' more. Open T&D Analytics for full list.';
+        if (needsFollowUp.length>10) msg += '\n\n…and '+(needsFollowUp.length-10)+' more. Open TAP · Apprentices for the full list.';
         return msg;
       }
     },
@@ -12749,7 +12894,7 @@
           if (!otjRecs.length) return 'No OTJ record found for **' + entity.name + '**. They may not be an enrolled apprentice, or the T&D data may not be loaded yet.';
           var otj = otjRecs[0];
           var link = otj['OTJ Checklist Link'] || otj['OTJ Link'] || otj['Checklist Link'] || '';
-          if (!link || !/^https?:\/\//i.test(link.trim())) return '**' + entity.name + '** — OTJ record found but no checklist link on file. Check T&D Analytics → Apprentice Tracker.';
+          if (!link || !/^https?:\/\//i.test(link.trim())) return '**' + entity.name + '** — OTJ record found but no checklist link on file. Check TAP · Apprentices.';
           var beg = otj['OTJ Beginning']||'—', mid = otj['OTJ Middle']||'—', end = otj['OTJ End']||'—';
           return '**' + entity.name + ' — OTJ Checklist**\n\n' +
             '📎 [Open OTJ Checklist](' + link.trim() + ')\n\n' +
@@ -12760,7 +12905,7 @@
         }
         // No person named — list apprentices with links
         var rows = _tdOTJ();
-        if (!rows.length) return 'OTJ data not yet loaded — open T&D Analytics → Apprentice Tracker first, then ask again.';
+        if (!rows.length) return 'OTJ data not yet loaded — open TAP · Apprentices first, then ask again.';
         var withLinks = rows.filter(function(r){ var l=r['OTJ Checklist Link']||''; return /^https?:\/\//i.test(l); });
         if (!withLinks.length) return 'OTJ records loaded but no checklist links found. Ask your T&D team to add links in the Apprentice Tracker sheet.';
         var msg = '**OTJ Checklists with Links (' + withLinks.length + '):**\n\n';
@@ -12768,7 +12913,7 @@
           var n = r['Master List Name']||'Unknown'; var l = r['OTJ Checklist Link']||'';
           return '📎 ['+n+']('+l+')';
         }).join('\n');
-        if (withLinks.length > 8) msg += '\n…and ' + (withLinks.length-8) + ' more. Open T&D Analytics for full list.';
+        if (withLinks.length > 8) msg += '\n…and ' + (withLinks.length-8) + ' more. Open TAP · Apprentices for the full list.';
         return msg;
       }
     },
@@ -12794,7 +12939,7 @@
           msg += '• 2 obs: **'+total2+'**\n';
           msg += '• 3+ obs: **'+total3p+'**\n';
           if (avgRating) msg += '\n⭐ Avg rating across all obs: **'+avgRating+'/5**';
-          msg += '\n\n📋 Observations are tracked monthly (Oct–Jun NE, Oct–Apr SW). Open **T&D Analytics → Apprentice Tracker** for tutor-by-tutor and month-by-month logs.';
+          msg += '\n\n📋 Observations are tracked monthly (Oct–Jun NE, Oct–Apr SW). Open **TAP · Apprentices** for person-by-person progress and month-by-month OJT.';
           return msg;
         }
         // Fallback: use OTJ obs count field if T&D data is loaded
@@ -12807,10 +12952,10 @@
           msg2 += '• No obs yet: **'+obsZero+'**\n';
           msg2 += '• 1+ obs: **'+obs1p+'** of '+rows.length+'\n';
           msg2 += '• 3+ obs (on track): **'+obs3p+'**\n';
-          msg2 += '\nFor full month-by-month logs (Oct–Jun), open **T&D Analytics → Apprentice Tracker**.';
+          msg2 += '\nFor full month-by-month logs (Oct–Jun), open **TAP · Apprentices**.';
           return msg2;
         }
-        return 'Observation data not yet loaded — open T&D Analytics first. Observations are logged monthly by region (NE: Oct–Jun, SW: Oct–Apr).';
+        return 'Observation data not yet loaded — open Training & Development first. Observations are logged monthly by region (NE: Oct–Jun, SW: Oct–Apr).';
       }
     },
 
@@ -14246,14 +14391,14 @@
           lines.push((otj.completionRate>=85?'🟢':otj.completionRate>=70?'🟡':'🔴')+' OTJ completion: **'+Math.round(otj.completionRate)+'%**');
           if (otj.hoursLogged!=null) lines.push('Hours logged: **'+otj.hoursLogged+'** hrs this cycle');
           if (otj.pending!=null&&otj.pending>0) lines.push('⏳ Pending submissions: **'+otj.pending+'**');
-        } else { lines.push('_OTJ data unavailable — load T&D Analytics module_'); }
+        } else { lines.push('_OTJ data unavailable — load Training & Development_'); }
         // Professional development
         lines.push('\n### Professional Development');
         if (pd && pd.avgScore!=null) {
           lines.push((pd.avgScore>=4?'🟢':pd.avgScore>=3?'🟡':'🔴')+' PD avg feedback score: **'+Math.round(pd.avgScore*10)/10+' / 5**');
           if (pd.sessionsCompleted!=null) lines.push('Sessions completed: **'+pd.sessionsCompleted+'**');
           if (pd.topTopic) lines.push('Top-rated topic: **'+pd.topTopic+'**');
-        } else { lines.push('_PD feedback data unavailable — load T&D Analytics module_'); }
+        } else { lines.push('_PD feedback data unavailable — load Training & Development_'); }
         // Scholar Confidence KPI from KPI_DATA (closest proxy to observation coverage)
         lines.push('\n### Scholar Confidence & Observation KPIs');
         if (kpi) {
@@ -14899,28 +15044,31 @@
 
     var roster = window._njtcTapRoster && window._njtcTapRoster.apprentices;
     if (!roster || !roster.length) {
-      return 'The TAP roster hasn\'t loaded yet in this session — open the TAP Dashboard panel once so live data is available, then ask again.';
+      return 'The TAP roster hasn\'t loaded yet in this session — open **TAP · Apprentices** once so live data is available, then ask again.';
     }
 
-    var active = roster.filter(function(a) { return /active/i.test(a.status || ''); });
-    var byTrack = { apprentice: 0, 'pre-apprentice': 0, tutor: 0 };
-    active.forEach(function(a) {
-      var t = a.trackType || 'apprentice'; // blank = legacy pre-Summer-2026 roster, treated as Apprentice
-      if (byTrack[t] != null) byTrack[t]++;
-    });
-    var apprenticesOnly = active.filter(function(a) { return (a.trackType || 'apprentice') === 'apprentice'; });
+    // Role = the same rule the Apps Script uses for wage gating (window._roleCategory
+    // in index.html): blank or "Apprentice…" = Apprentice, "Pre-apprentice…",
+    // "Completed…" = Completed Program, anything else = Tutor (not TAP).
+    var roleOf = typeof window._roleCategory === 'function' ? window._roleCategory : function() { return 'Apprentice'; };
+    var active = roster.filter(function(a) { return /active|reinstated/i.test(a.status || ''); });
+    var byTrack = { Apprentice: 0, 'Pre-apprentice': 0, 'Completed Program': 0, Tutor: 0 };
+    active.forEach(function(a) { var t = roleOf(a); if (byTrack[t] != null) byTrack[t]++; });
+    var apprenticesOnly = active.filter(function(a) { return roleOf(a) === 'Apprentice'; });
     var atMilestone = apprenticesOnly.filter(function(a) { return (a.ojtHours || 0) >= 1100; }).length;
-    var pendingUsdol = active.filter(function(a) { return !a.usdol; }).length;
+    var tapActive = active.filter(function(a) { return roleOf(a) !== 'Tutor'; });
+    var pendingUsdol = tapActive.filter(function(a) { return !a.usdol; }).length;
 
     var lines = [];
-    lines.push('**TAP Roster — Apprentice / Pre-apprentice / Tutor breakdown:**');
-    lines.push('- 🎓 Apprentices: **' + byTrack.apprentice + '**');
-    lines.push('- 📘 Pre-apprentices: **' + byTrack['pre-apprentice'] + '**');
-    lines.push('- 👥 Tutors (no TAP, hours tracked only): **' + byTrack.tutor + '**');
+    lines.push('**TAP Roster (SY 26-27 Master Roster, active):**');
+    lines.push('- 🎓 Apprentices: **' + byTrack.Apprentice + '**');
+    lines.push('- 📘 Pre-apprentices: **' + byTrack['Pre-apprentice'] + '**');
+    lines.push('- 🏁 Completed Program (returning, already finished TAP): **' + byTrack['Completed Program'] + '**');
+    lines.push('- 👥 Tutors on the roster who are not in TAP (OJT checklist only): **' + byTrack.Tutor + '** — not counted as TAP');
     lines.push('');
     lines.push('💰 Wage-tier eligible (Apprentices only — Pre-apprentices/Tutors never receive wage increases): **' + apprenticesOnly.length + '**, of which **' + atMilestone + '** have crossed at least one milestone (≥1,100 OJT hrs).');
     if (pendingUsdol > 0) {
-      lines.push('⚠️ **' + pendingUsdol + '** active roster member(s) have no USDOL Apprentice ID on file yet — their Master Roster status shows "Pending."');
+      lines.push('ℹ️ **' + pendingUsdol + '** active TAP participant(s) have no USDOL Apprentice ID on the Master Roster.');
     }
 
     var wantsPayout = /\b(payout|paid|wages?)\b/.test(q);
@@ -15341,7 +15489,7 @@
       'home':'Home', 'kpi':'KPI', 'kpi-analytics':'KPI Analytics',
       'pearl-ops':'Pearl Ops', 'sy-analytics':'Site Analytics',
       'talent':'Talent', 'concern':'Concerns', 'iready-lab':'iReady',
-      'training-analytics':'T&D', 'policies':'Policies',
+      'training-analytics':'T&D', 'tap-standalone':'TAP', 'policies':'Policies',
       'impact-report':'Impact', 'finance-analytics':'Finance', 'perf':'Performance',
       'data-cabinet':'Data Sources',
     };
@@ -15362,7 +15510,8 @@
         'concern':         function(){ var c=_concerns(); if(!c.length) return '✅ No concern records on file'; var esc=c.filter(function(r){return _normHrAction(r.hr_action)==='Termination'||_normHrAction(r.hr_action)==='Write Up';}).length; return (esc?'🔴 **'+esc+' escalated** · ':'')+'**'+c.length+'** total concern records · '+new Set(c.map(function(r){return r.emp;})).size+' employees'; },
         'finance-analytics':function(){ var p=_pearl(); return p?'💰 Volume: **'+_n(p.sessions||0)+'** sessions · **'+_n(p.activeScholars||0)+'** scholars · **'+_n(p.schools||0)+'** sites':null; },
         'impact-report':   function(){ var d=_kpi(),irl=_irl(); var pts=[]; if(d) pts.push('KPI **'+d.score+'%**'); if(irl&&irl.mathMedianPctAllYears!=null) pts.push('Math growth **'+Math.round(irl.mathMedianPctAllYears)+'%** typical'); return pts.length?pts.join(' · '):null; },
-        'training-analytics':function(){ var hr=_hrActive(); var apps=hr.filter(function(e){return e._apprentice==='Yes';}).length; return apps?'🌱 TAP pipeline: **'+apps+'/40 apprentices** ('+Math.round(apps/40*100)+'% to DOL target)':null; },
+        'training-analytics':function(){ var m=window.NJTC_TAP&&window.NJTC_TAP.model; if(!m||!m.rti) return null; var sl=m.rti.filter(function(r){return /^site leader/i.test(r['Role']||'');}).length; return '📚 Knowtion SY 26-27: **'+(m.rti.length-sl)+'** tutor-course learners · **'+sl+'** site leaders'; },
+        'tap-standalone':  function(){ var m=window.NJTC_TAP&&window.NJTC_TAP.model; if(!m||!m.tapPeople) return null; var c=function(r){return m.tapPeople.filter(function(p){return p.role===r;}).length;}; return '🎓 TAP SY 26-27: **'+c('Apprentice')+'** apprentices · **'+c('Pre-apprentice')+'** pre-apprentices · **'+c('Completed Program')+'** completed'; },
         'sy-analytics':    function(){ var p=_pearl(); return p&&p.scholAttPct!=null?'📍 Scholar attendance: **'+_pct(p.scholAttPct)+'** · **'+_n(p.missed ? p.missed.undelivered : 0)+'** undelivered sessions':null; },
       };
       var ctxFn = panelCtx[_panel];
@@ -15486,21 +15635,26 @@
       ]
     },
     'tap-standalone': {
-      title: 'TAP Dashboard — Tutor Apprenticeship Program',
-      what: 'Live roster, OJT/RTI hour progress, wage milestone tracking, and DOL compliance status for everyone in the Master Roster — Apprentices, Pre-apprentices, and regular Tutors alike.',
+      title: 'TAP · Apprentices — Tutor Apprenticeship Program',
+      what: 'The apprenticeship program only: active Apprentices, Pre-apprentices and TAP completers on the TAP Tracker 26-27 Master Roster. Non-TAP tutors are not shown or counted. Each department sees its own view (Programming plain; Training, Data and Leadership full detail; HR and Finance status, pay, milestones and compliance).',
       terms: [
-        ['Apprentice', 'Enrolled in the DOL-registered Tutor Apprenticeship Program with an active USDOL Apprentice ID. Eligible for wage-tier increases as OJT hours accumulate.'],
-        ['Pre-apprentice', 'Working toward Apprentice enrollment — tracked in the same roster and has OJT/RTI hours logged, but is NOT yet DOL-registered and does NOT receive wage-tier increases.'],
-        ['Tutor', 'Not enrolled in TAP at all. Appears in this roster (starting Summer 2026) so OJT/RTI hours can be tracked consistently across all onsite staff, but never receives wage-tier increases regardless of hours completed.'],
-        ['OJT Hours', 'On-the-Job Training hours. Calculated as (# of activities marked "Y" on the OJT checklist) × 50 hours per activity. Counts toward the 4,000-hour program completion target — Apprentices and Pre-apprentices only; Tutors\' hours are tracked but do not count toward completion or wage milestones.'],
-        ['RTI Hours', 'Related Technical Instruction hours — logged separately by observers (not from the OJT checklist). Counts toward the 288-hour completion requirement, alongside OJT hours.'],
-        ['Wage Milestone', 'A threshold of accumulated OJT hours (1,100 / 2,200 / 3,300 / 3,800 / 4,000) that triggers an automatic hourly wage increase and a notification email to Finance. Applies ONLY to Apprentices — Pre-apprentices and Tutors do not receive these increases even if their OJT hours cross the same thresholds.'],
+        ['Apprentice', 'Enrolled in the DOL-registered Tutor Apprenticeship Program. On the wage scale: eligible for wage-tier increases as OJT hours accumulate. Program Track blank or starting with "Apprentice".'],
+        ['Pre-apprentice', 'Working toward Apprentice enrollment. Has an OJT checklist and OJT/RTI hours, but is NOT on the wage scale and does NOT receive wage-tier increases.'],
+        ['Completed Program', 'Already finished TAP and returning this school year (Program Track starts with "Completed"). Shown for context; not on the wage scale and never sent milestone emails.'],
+        ['Who counts as TAP', 'Program role comes from the Onsite DB "SY 26-27 OJT" list (Role column) through the nightly sync into the Master Roster Program Track. Non-GAINS/PACE tutors who keep an OJT checklist are on the Master Roster but are not TAP and are excluded from every count on this page.'],
+        ['OJT Hours', '50 hours per OJT checklist activity marked "Y". The checklist has 80 activities (Beginning 33 · Middle 38 · End 9) = 4,000 hours for completion. Summer and school-year activity are combined; each activity counts once.'],
+        ['OJT %', 'Activities marked "Y" ÷ activities possible (80 minus any marked N/A). Beginning / Middle / End % are the same ratio within each phase.'],
+        ['OJT hrs in the month', 'OJT hours dated in that month on the Master Roster month columns. During the first 10 days of a month, flags look at the previous full month so no one is flagged before observations are entered. Checkmarks with no date or an impossible date count toward totals but not toward any month.'],
+        ['RTI Hours', 'Related Technical Instruction — 288 hours required for completion. The official RTI total on the Master Roster is unchanged; Knowtion Course 3 (RTI) estimated and time-spent hours are shown alongside it until NJTC decides which counts.'],
+        ['Wage Milestone', 'OJT-hour thresholds (1,100 / 2,200 / 3,300 / 3,800 / 4,000) that raise an Apprentice\'s hourly wage. Apprentices only. The milestone email is sent automatically once per milestone when it is reached.'],
         ['Base Wage', 'The starting hourly rate ($30.00, or $30.00 also for cert-track before their first milestone) before any milestone has been reached.'],
         ['Cert Track', 'Apprentices holding a Standard, CEAS, or CE certification follow a higher wage schedule with a $10–11/hr premium at each milestone, reflecting their additional qualification.'],
-        ['Program Complete', 'Reached both the 4,000 OJT hour AND 288 RTI hour targets. Only meaningful for Apprentices/Pre-apprentices — Tutors are not on a completion track.'],
-        ['USDOL Apprentice ID', 'The federal registration number confirming DOL enrollment. A blank ID means the person\'s Master Roster status is "Pending" rather than "Active" — they are on the roster but not yet officially registered.'],
+        ['Program Complete', 'Reached both 4,000 OJT hours AND 288 RTI hours.'],
+        ['Needs attention (red)', 'Workbook can\'t be read (missing/broken link on the SY 26-27 OJT list), not observed in 30+ days, or on the OJT list but not on the Master Roster.'],
+        ['Keep an eye on (amber)', 'No OJT logged in the month, checklist dates to fix, no Knowtion training on record, or no Knowtion training in 21+ days.'],
+        ['USDOL Apprentice ID', 'The federal registration number confirming DOL enrollment, from the Master Roster.'],
         ['GAINS Compliance', 'New Jersey Department of Labor\'s tracking system for the apprenticeship program. Compliance status reflects whether required monthly reporting and documentation are current for each Apprentice.'],
-        ['Program Track', 'The Master Roster field distinguishing Apprentice / Pre-apprentice / Tutor for anyone added via the Summer 2026 onboarding process. Blank for staff registered before Summer 2026 — those rows are legacy Apprentices tracked before this distinction existed.'],
+        ['Sync schedule', 'OJT workbooks sync nightly (~3 am), Knowtion training nightly (~4 am), a full resync every Sunday and on the 1st, the wage report on the 1st and a status digest every Monday.'],
       ]
     },
     'talent': {
@@ -15544,17 +15698,18 @@
     },
     'training-analytics': {
       title: 'Training & Development',
-      what: 'Track apprenticeship progress, on-the-job training completion, PD participation, and training outcomes across all NJTC staff.',
+      what: 'Training for every tutor and site leader. SY 26-27 training comes from Knowtion; PD Sessions, Training Intake and Program Support are the SY 25-26 archive until the new collection method is connected. Apprentice progress is on TAP · Apprentices.',
       terms: [
-        ['OTJ Completion %', 'Formula: (# checklist items marked complete ÷ 17 total required items) × 100 per apprentice. 17 items span the full program year; all 17 must be complete for apprenticeship certification.'],
-        ['OTJ Phases', 'Three required observation windows: Beginning (fall, Sept–Nov) · Middle (winter, Dec–Feb) · End (spring, Mar–May). Each phase must be formally documented by a site leader or PM.'],
-        ['Needs Follow-Up', 'An OTJ checklist item flagged as incomplete or requiring a return visit. Appears in red in the tracker. Must be resolved before phase is counted as complete.'],
-        ['ADP Status', '"Active" = on NJTC payroll, receiving compensation. "Inactive" / blank = separated or on leave. Only Active apprentices count toward the program\'s enrolled headcount of 30.'],
-        ['Apprentice', 'Staff enrolled in NJTC\'s TAP (Tutor Apprenticeship Program) — a DOL-registered apprenticeship. Requires active enrollment on the TAP roster AND active ADP payroll status.'],
-        ['DOL Target', 'NJTC\'s Department of Labor benchmark for registered apprenticeship enrollment. Current program target: 40 apprentices. 30 enrolled = 75% of DOL target.'],
-        ['PD Rating', 'Participant-rated score (1–5) for each professional development session. Avg ≥4.0 = well-received. Scores pulled from PD feedback form; visible in the PD Feedback tab.'],
-        ['Tutor Observation', 'A formal coaching visit logged by a site leader, typically monthly. Tracked across NE and SW separately. Observation coverage = % of apprentices with ≥1 obs per month.'],
-        ['Related Instruction', 'The classroom/training component of the DOL apprenticeship model (in addition to OTJ). 144 hours required over the program year for full certification.'],
+        ['Knowtion learner', 'Anyone with at least one Knowtion completion this school year (tutor courses or site leader trainings). Includes staff who took the tutor courses.'],
+        ['Estimated hours', 'Knowtion\'s planned time for each completed item, summed. Items without an estimate count as 0 and are listed as "no estimate".'],
+        ['Time spent', 'Time Knowtion recorded on the page. Live workshops, site visits and outside trainings record little or none, so it is usually lower than estimated.'],
+        ['Course 3 (RTI)', 'Knowtion "Course 3: NJTC Related Technical Instruction (RTI)" only, excluding the staff "(Master)" copies. This is the apprenticeship\'s RTI course.'],
+        ['Counting rule', 'Each learner + program + assignment counts once, using the latest completion. "<1 min" counts as 0 minutes.'],
+        ['Active / Slowed down', 'Active = completed something in the last 21 days. Slowed down = nothing completed in 21+ days.'],
+        ['Name matching', 'Knowtion names are linked to the TAP Master Roster through the RTI Name Map, an exact name, or a strict first + last name match. Unlinked names still show by their Knowtion name; only TAP participants need a match.'],
+        ['PD Rating (SY 25-26)', 'Participant-rated score (1–5) for each professional development session, from the SY 25-26 PD feedback form.'],
+        ['Training Intake (SY 25-26)', 'New-hire and returning-staff training intake responses from SY 25-26.'],
+        ['Sync schedule', 'Knowtion training syncs nightly (~4 am) into the TAP Tracker "RTI — Knowtion" tab.'],
       ]
     },
     'sy-analytics': {

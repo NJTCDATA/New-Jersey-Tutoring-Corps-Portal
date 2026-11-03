@@ -3187,7 +3187,7 @@ ${hasAcad ? `
     <span style="font-size:.875rem"><strong style="color:${avgPctMoved>=40?'#0d6e3a':'#d97706'}">${avgPctMoved}%</strong> <span style="color:var(--muted)">avg of scholars improved placement</span></span>
     <span style="font-size:.875rem"><strong>${acadMovers.length}</strong> <span style="color:var(--muted)">tutors with academic data</span></span>
   </div>
-  <div style="font-size:.7rem;color:var(--muted);margin-top:.375rem;font-style:italic">For tutor-level academic detail, open iReady Analysis Lab or T&D Analytics.</div>
+  <div style="font-size:.7rem;color:var(--muted);margin-top:.375rem;font-style:italic">For tutor-level academic detail, open the i-Ready Analysis Lab.</div>
 </div>` : ''}
 
 <!-- SY Rehire Status -->
@@ -3652,7 +3652,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       ${emp._tndObsLink?`<a href="${esc(emp._tndObsLink)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:.75rem;color:#0369a1;font-weight:600;text-decoration:none">📄 View OTJ Sheet ↗</a>`:''}
     </div>
   </div>` : ''}
-</div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open T&D Analytics or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
+</div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open Training & Development or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
 
     // ── Concerns ─────────────────────────────────────────────────────
     const _liveConcernRecs = _hrConcernRecsOf(emp);

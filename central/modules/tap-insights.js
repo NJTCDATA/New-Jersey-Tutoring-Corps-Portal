@@ -12,8 +12,11 @@
      1. The APPRENTICE TAG — wherever a staff name appears on any Central page
         (Pearl tables, rosters, profiles), TAP participants get a small tag.
         Clicking it opens a compact card: progress, this month, flags, training.
-     2. The TRAINING & DEVELOPMENT HUB panel (#panel-td-hub) — Overview,
-        Apprentices, Follow-Up, Training (Knowtion), Site Leaders, About.
+     2. TAP · APPRENTICES (#panel-tap-standalone → #tapHubRoot) — TAP
+        participants only, with a view per department (Programming plain;
+        Training/Data/Leadership/KB full; HR; Finance).
+     3. TRAINING & DEVELOPMENT → "Knowtion Training" tab — every tutor's and
+        site leader's Knowtion training (not TAP-specific).
    Every number shown comes straight from those tabs — nothing is estimated
    here. Names are joined on the exact Master Roster name the Apps Script
    writes; a name the portal can't match exactly (or uniquely) is not tagged.
@@ -31,7 +34,7 @@
     rti:      { sheet: 'RTI — Knowtion',                 endpoint: 'rti_knowtion',    must: 'Learner (Knowtion)' },
     rtiMatch: { sheet: 'RTI — Needs Name Match',         endpoint: 'rti_needs_match', must: 'Knowtion Learner' },
   };
-  const HUB_DEPTS = ['training', 'programming', 'data', 'leadership', 'kb', 'hr'];
+  const HUB_DEPTS = ['training', 'programming', 'data', 'leadership', 'kb', 'hr', 'finance'];   // can open TAP · Apprentices
   const CACHE_MS = 3 * 60 * 1000;
 
   // Master Roster fixed column contract (0-based) — same positions the Apps
@@ -167,7 +170,7 @@
           ojtHours: num(get(r, MR.ojtHours)), rtiOfficial: num(get(r, MR.rtiHours)), ojtPct: ratio(get(r, MR.ojtPct)),
           yCount: num(get(r, MR.yCount)), possible: num(get(r, MR.possible)),
           beg: ratio(get(r, MR.beg)), mid: ratio(get(r, MR.mid)), end: ratio(get(r, MR.end)),
-          milestone: get(r, MR.milestone), months,
+          milestone: get(r, MR.milestone), wage: get(r, MR.wage), months,
           curMonthHrs: num(get(r, monthCol(focus.idx))),     // hours in the FOCUS month (see rule above)
           prevMonthHrs: curIdx > 0 ? num(get(r, monthCol(monthIndex(prevD)))) : 0,
           progress: null, rti: null, flags: [],
@@ -293,7 +296,7 @@
         <div>${p.flags.length ? p.flags.map(flagPill).join('') : '<span style="font-size:.75rem;color:#059669;font-weight:600">✓ No flags</span>'}</div>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
           ${wbUrl ? `<a href="${esc(wbUrl)}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none">Open OJT workbook ↗</a>` : ''}
-          ${!full && hubAllowed() ? `<button class="btn btn-primary btn-sm" onclick="NJTC_TAP.openInHub(${esc(JSON.stringify(p.name))})">Open in T&amp;D Hub</button>` : ''}
+          ${!full && hubAllowed() ? `<button class="btn btn-primary btn-sm" onclick="NJTC_TAP.openInHub(${esc(JSON.stringify(p.name))})">Open in TAP · Apprentices</button>` : ''}
         </div>
       </div>`;
   }
@@ -332,7 +335,7 @@
     const p = lookup(t.getAttribute('data-tapi-name')); if (p) openPop(t, p);
   }, true);
 
-  const SKIP = '.tapi-tag,.tapi-pop,input,textarea,select,option,script,style,button,#panel-td-hub,.ct-sidebar,svg,canvas';
+  const SKIP = '.tapi-tag,.tapi-pop,input,textarea,select,option,script,style,button,#panel-td-hub,#tapHubRoot,.ct-sidebar,svg,canvas';
   const TEXT_SEL = 'td,span,a,strong,b,div,li,h3,h4,h5,p,label';
   function tagWithin(root) {
     if (!_model || !root || !root.querySelectorAll) return;
@@ -362,50 +365,100 @@
     }).observe(main, { childList: true, subtree: true });
   }
 
-  // ── 2. Training & Development Hub ──────────────────────────────────────────
-  let _tab = null, _lens = null, _filters = { role: 'Apprentice', q: '', flagged: false, kRole: 'Tutor', kq: '', pRole: 'TAP', pAttention: false, pGroup: 'leader', pq: '' };
-  // Who sees which view by default. Program-facing teams get the plain view;
-  // T&D (Ashley's team) and the data/leadership lenses get full detail.
-  const LENS_DEFAULT = { training: 'td', data: 'td', leadership: 'td', kb: 'td', programming: 'program', hr: 'program' };
-  const LENS_SWITCH = ['data', 'leadership', 'kb', 'training', 'programming'];
+  // ── 2. Two portal pages, one data model ─────────────────────────────────────
+  //   TAP · Apprentices (#panel-tap-standalone, root #tapHubRoot) — apprentices,
+  //     pre-apprentices and TAP completers only (Master Roster role, which the
+  //     sync takes from the Onsite DB "SY 26-27 OJT" list). Never non-TAP tutors.
+  //   Training & Development (#panel-training-analytics, tab "knowtion") —
+  //     Knowtion training for every tutor and site leader. Not TAP.
+  // Each department gets the view that fits what it acts on:
+  //   program  → Programming: plain language, people-first
+  //   full     → Training (Ashley's team), Data, Leadership, KB: full detail
+  //   hr       → HR: status, pay, follow-up, compliance
+  //   finance  → Finance: pay, milestones, compliance
+  let _tab = null, _view = null, _filters = { role: 'Apprentice', q: '', flagged: false, kRole: 'Tutor', kq: '', pRole: 'TAP', pAttention: false, pGroup: 'leader', pq: '' };
+  const VIEW_BY_DEPT = { programming: 'program', hr: 'hr', finance: 'finance', training: 'full', data: 'full', leadership: 'full', kb: 'full' };
+  const VIEW_SWITCH = ['data', 'leadership', 'kb', 'training', 'programming'];      // can flip full ⇄ program
   // Flags the Program team can act on (payroll and data-matching items stay with T&D).
   const PROGRAM_FLAGS = ['workbook', 'stale-obs', 'no-month', 'dates', 'kn-none', 'kn-stale'];
-  function lens() { if (!_lens) _lens = LENS_DEFAULT[currentDept()] || 'program'; return _lens; }
-  const TD_TABS = [['overview','📊 Overview'],['apprentices','🎓 Apprentices'],['followup','🚩 Follow-Up'],['training','📚 Training (Knowtion)'],['leaders','🧭 Site Leaders'],['about','ℹ️ About the data']];
-  const PG_TABS = [['p-glance','👋 At a glance'],['p-people','🎓 Our apprentices'],['p-leaders','🧭 By site leader'],['p-training','📚 Online training'],['p-help','❓ How to read this']];
+  function view() { if (!_view) _view = VIEW_BY_DEPT[currentDept()] || 'full'; return _view; }
+  function lens() { return view() === 'program' ? 'program' : 'td'; }
+  // Same department gates the old TAP tabs used (Log OJT / GAINS Compliance).
+  const LOG_DEPTS = ['programming', 'training', 'data'];
+  const COMPLIANCE_DEPTS = ['finance', 'hr', 'leadership', 'kb', 'data'];
+  const T = {
+    'p-glance': '👋 At a glance', 'p-people': '🎓 Our apprentices', 'p-leaders': '🧭 By site leader', 'p-help': '❓ How to read this',
+    overview: '📊 Overview', apprentices: '🎓 Apprentices', followup: '🚩 Follow-Up', leaders: '🧭 By Site Leader',
+    ojt: '📋 OJT Activity Detail', roster: '💵 Pay & Status', milestones: '💰 Wage Milestones', compliance: '🗂️ GAINS Compliance',
+    'ojt-log': '📝 Log OJT Activity', past: '🗂️ SY 25-26 & Returners', about: 'ℹ️ About the data',
+  };
+  const TAP_TABS = {
+    program: ['p-glance', 'p-people', 'p-leaders', 'ojt-log', 'p-help'],
+    full:    ['overview', 'apprentices', 'followup', 'leaders', 'ojt', 'milestones', 'compliance', 'ojt-log', 'past', 'about'],
+    hr:      ['overview', 'apprentices', 'followup', 'roster', 'milestones', 'compliance', 'past', 'about'],
+    finance: ['overview', 'roster', 'milestones', 'compliance', 'about'],
+  };
+  function tapTabs() {
+    const d = currentDept();
+    return TAP_TABS[view()].filter(k => (k !== 'ojt-log' || LOG_DEPTS.includes(d)) && (k !== 'compliance' || COMPLIANCE_DEPTS.includes(d)));
+  }
+  // Tabs drawn by the original TAP Dashboard renderers in index.html (NJTCTapDash).
+  const LEGACY = { ojt: 1, roster: 1, milestones: 1, compliance: 1, 'ojt-log': 1, past: 1 };
 
-  function hubShell() {
-    const tabs = lens() === 'td' ? TD_TABS : PG_TABS;
-    const canSwitch = LENS_SWITCH.includes(currentDept());
+  function tapShell() {
+    const canSwitch = VIEW_SWITCH.includes(currentDept());
     return `
       ${canSwitch ? `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.75rem;font-size:.75rem;color:var(--muted)">View:
-        <button class="pst-tab ${lens() === 'td' ? 'active' : ''}" onclick="NJTC_TAP.setLens('td')">Training &amp; Development (full detail)</button>
-        <button class="pst-tab ${lens() === 'program' ? 'active' : ''}" onclick="NJTC_TAP.setLens('program')">Program Team (simple)</button></div>` : ''}
+        <button class="pst-tab ${view() === 'full' ? 'active' : ''}" onclick="NJTC_TAP.setView('full')">Full detail</button>
+        <button class="pst-tab ${view() === 'program' ? 'active' : ''}" onclick="NJTC_TAP.setView('program')">Program Team (simple)</button></div>` : ''}
       <div id="tdhTabs" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)">
-        ${tabs.map(([k, l]) => `<button class="pst-tab ${_tab === k ? 'active' : ''}" data-tab="${k}" onclick="NJTC_TAP.hubTab('${k}')">${l}</button>`).join('')}
+        ${tapTabs().map(k => `<button class="pst-tab" data-tab="${k}" onclick="NJTC_TAP.tapTab('${k}')">${T[k]}</button>`).join('')}
       </div>
       <div id="tdhBody"></div>`;
   }
-  function renderHub() {
-    const root = document.getElementById('tdHubRoot'); if (!root) return;
-    if (!_model) { root.innerHTML = loadingHtml(); load().then(() => renderHub()); return; }
-    const tabs = lens() === 'td' ? TD_TABS : PG_TABS;
-    if (!_tab || !tabs.some(t => t[0] === _tab)) _tab = tabs[0][0];
-    if (!document.getElementById('tdhTabs') || root.getAttribute('data-lens') !== lens()) { root.innerHTML = hubShell(); root.setAttribute('data-lens', lens()); }
+  function stampText() { return 'Workbooks synced ' + (_model.progSynced ? fmtDate(_model.progSynced) : '—') + ' · Knowtion synced ' + (_model.rtiSynced ? fmtDate(_model.rtiSynced) : '—'); }
+  function renderTap() {
+    const root = document.getElementById('tapHubRoot'); if (!root) return;
+    if (!_model) { root.innerHTML = loadingHtml(); load().then(() => renderTap()); return; }
+    const tabs = tapTabs();
+    if (!_tab || !tabs.includes(_tab)) _tab = tabs[0];
+    const sig = view() + '|' + currentDept();
+    if (!document.getElementById('tdhTabs') || root.getAttribute('data-view') !== sig) { root.innerHTML = tapShell(); root.setAttribute('data-view', sig); }
     document.querySelectorAll('#tdhTabs .pst-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === _tab));
-    const title = document.getElementById('tdHubTitle'), sub = document.getElementById('tdHubSubtitle');
-    if (title) title.textContent = lens() === 'td' ? 'Training & Development Hub' : 'Apprentice Progress — Program Team';
-    if (sub) sub.textContent = lens() === 'td'
-      ? 'SY 26-27 apprentice OJT progress, Knowtion training hours, follow-ups and data quality — one place, straight from the TAP Tracker.'
-      : 'How our apprentices are doing this school year: who has been observed, who needs attention, and who has done their online training.';
+    const sub = document.getElementById('tapHubSubtitle');
+    if (sub) sub.textContent = view() === 'program'
+      ? 'How our apprentices are doing this school year: who has been observed, who needs attention, and who is keeping up with their training.'
+      : 'Apprentices, pre-apprentices and TAP completers only — OJT progress, RTI (Knowtion Course 3), wage milestones and follow-ups, straight from the TAP Tracker 26-27.';
+    const stamp = document.getElementById('tapHubStamp'); if (stamp) stamp.textContent = stampText();
     const body = document.getElementById('tdhBody');
-    const stamp = document.getElementById('tdHubStamp');
-    if (stamp) stamp.textContent = 'Workbooks synced ' + (_model.progSynced ? fmtDate(_model.progSynced) : '—') + ' · Knowtion synced ' + (_model.rtiSynced ? fmtDate(_model.rtiSynced) : '—');
-    const R = { overview: rOverview, apprentices: rApprentices, followup: rFollowUp, training: rTraining, leaders: rLeaders, about: rAbout,
-      'p-glance': pGlance, 'p-people': pPeople, 'p-leaders': pLeaders, 'p-training': pTraining, 'p-help': pHelp }[_tab] || rOverview;
+    if (LEGACY[_tab]) {
+      if (!window.NJTCTapDash || typeof window.NJTCTapDash.renderTab !== 'function') { body.innerHTML = loadingHtml(); setTimeout(renderTap, 400); return; }
+      if (_tab === 'past') {
+        body.innerHTML = section('SY 25-26 cohort') + '<div id="tapPast2526"></div>' + section('2-year returners') + '<div id="tapPastRet"></div>';
+        window.NJTCTapDash.renderTab('sy2526', document.getElementById('tapPast2526'));
+        window.NJTCTapDash.renderTab('returners', document.getElementById('tapPastRet'));
+      } else {
+        body.innerHTML = '<div id="tapLegacyBody"></div>' + (_tab === 'milestones' ? '<div style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Wage milestones apply to Apprentices only. Pre-apprentices and TAP completers are not on the wage scale.</div>' : '');
+        window.NJTCTapDash.renderTab(_tab, document.getElementById('tapLegacyBody'));
+      }
+      return;
+    }
+    const R = { overview: rOverview, apprentices: rApprentices, followup: rFollowUp, leaders: rLeaders, about: rAbout,
+      'p-glance': pGlance, 'p-people': pPeople, 'p-leaders': pLeaders, 'p-help': pHelp }[_tab] || rOverview;
     body.innerHTML = sourceWarning() + R();
   }
-  function loadingHtml() { return '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div>Loading SY 26-27 TAP and training data…</div>'; }
+  // Training & Development → "Knowtion Training" tab (training-development.js calls this)
+  function renderTraining(el) {
+    el = el || document.getElementById('td-content-knowtion'); if (!el) return;
+    if (!_model) { el.innerHTML = loadingHtml(); load().then(() => renderTraining(el)); return; }
+    el.innerHTML = sourceWarning() + `<div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">SY 2026–27 · Knowtion synced ${_model.rtiSynced ? fmtDate(_model.rtiSynced) : '—'}</div>` + (view() === 'program' ? kPlain() : kFull());
+  }
+  function rerender() {
+    if (document.getElementById('tapHubRoot') && isShown('panel-tap-standalone')) renderTap();
+    const k = document.getElementById('td-content-knowtion'); if (k && k.innerHTML && isShown('panel-training-analytics')) renderTraining(k);
+  }
+  function isShown(id) { const el = document.getElementById(id); return !!el && (el.classList.contains('active') || el.offsetParent !== null); }
+  function loadingHtml() { return '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div>Loading SY 26-27 TAP Tracker data…</div>'; }
   function sourceWarning() {
     const s = _model.sources, miss = Object.keys(s).filter(k => s[k] === 'unavailable');
     if (!miss.length) return '';
@@ -431,42 +484,91 @@
     const noMonth = training.filter(p => p.curMonthHrs === 0).length;
     const linked = m.progress.filter(r => r['Workbook URL'] || /open workbook/i.test(r['OJT Workbook'] || '') || r['Checklist Tab Read']).length;
     const red = act.filter(p => flagSummary(p) === 'red').length, amber = act.filter(p => flagSummary(p) === 'amber').length;
-    const kn = m.rti, tutorsK = kn.filter(r => !/^site leader/i.test(r['Role'] || '')), slK = kn.filter(r => /^site leader/i.test(r['Role'] || ''));
-    const sum = (list, col) => list.reduce((s, r) => s + num(r[col]), 0);
-    const progs = {};
-    kn.forEach(r => Object.keys(r).forEach(k => {
-      const mm = k.match(/^(.*) — Est Hrs$/); if (!mm || /^Outside SY/i.test(mm[1])) return;
-      const pg = mm[1], e = num(r[k]), s = num(r[pg + ' — Spent Hrs']);
-      if (!progs[pg]) progs[pg] = { learners: 0, est: 0, spent: 0 };
-      if (e || s) progs[pg].learners++; progs[pg].est += e; progs[pg].spent += s;
-    }));
-    const monthsK = [];
-    if (kn.length) Object.keys(kn[0]).forEach(k => { const mm = k.match(/^([A-Z][a-z]{2}-\d{2}) Est Hrs$/); if (mm) monthsK.push(mm[1]); });
-    const mRows = monthsK.map(lbl => ({ lbl, est: sum(kn, lbl + ' Est Hrs'), spent: sum(kn, lbl + ' Spent Hrs') })).filter(x => x.est || x.spent);
-    const maxM = Math.max(1, ...mRows.map(x => x.est));
+    const withK = training.filter(p => p.rti);
+    const c3e = withK.reduce((s, p) => s + num(p.rti['Course 3 (RTI) Estimated Hours']), 0), c3s = withK.reduce((s, p) => s + num(p.rti['Course 3 (RTI) Time Spent Hours']), 0);
+    const nearMs = ap.filter(p => p.flags.some(f => f.code === 'milestone')).length;
     return `
-      ${section('TAP participants · SY 26-27', 'Active people on the Master Roster, by program role')}
+      ${section('TAP participants · SY 26-27', 'Active on the Master Roster as Apprentice, Pre-apprentice or Completed Program (role from the Onsite DB SY 26-27 OJT list). Non-TAP tutors are not included.')}
       ${grid([
         kpi(ap.length, 'Apprentices', 'avg ' + pctTxt(avg(ap)) + ' of OJT activities', '#059669'),
         kpi(pre.length, 'Pre-apprentices', 'avg ' + pctTxt(avg(pre)) + ' of OJT activities', '#0891b2'),
         kpi(done.length, 'Completed Program', 'returning, already finished TAP', '#7c3aed'),
         kpi(monthHrs.toLocaleString(), 'OJT hrs logged in ' + m.focus.long, noMonth + ' of ' + training.length + ' apprentices/pre-apprentices with none' + (m.focus.isPrev ? '' : ' yet'), noMonth ? '#b45309' : '#059669'),
-        kpi(linked + ' / ' + m.progress.length, 'SY 26-27 workbooks read', 'from the SY 26-27 OJT list'),
+        kpi(linked + ' / ' + m.progress.length, 'SY 26-27 workbooks read', 'everyone on the SY 26-27 OJT list'),
         kpi(red + ' · ' + amber, 'Need follow-up', 'urgent · watch — see Follow-Up', red ? '#b91c1c' : '#b45309'),
       ])}
-      ${section('Training hours (Knowtion) · SY 26-27', 'Estimated = Knowtion’s planned time per item · Time spent = time logged on the Knowtion page')}
+      ${section('RTI · Knowtion Course 3 (apprentices & pre-apprentices)', 'Estimated = Knowtion’s planned time per item · Time spent = time logged on the Knowtion page. The official RTI total on the Master Roster is unchanged.')}
+      ${grid([
+        kpi(withK.length + ' of ' + training.length, 'With Knowtion training', (training.length - withK.length) + ' with no record (or name not matched)', training.length - withK.length ? '#b45309' : '#059669'),
+        kpi(hrs(c3e), 'Course 3 (RTI) est. hrs', hrs(c3s) + ' hrs time spent', '#b45309'),
+        kpi(nearMs, 'Apprentices near a wage milestone', 'within 100 OJT hrs — email goes automatically', '#1d4ed8'),
+      ])}`;
+  }
+
+  // ── Training & Development: Knowtion (every tutor and site leader) ─────────
+  const isSL = r => /^site leader/i.test(r['Role'] || '');
+  function kFull() {
+    const kn = _model.rti, tutorsK = kn.filter(r => !isSL(r)), slK = kn.filter(isSL);
+    const sum = (list, col) => list.reduce((s, r) => s + num(r[col]), 0);
+    const progs = {};
+    kn.forEach(r => Object.keys(r).forEach(k => {
+      const mm = k.match(/^(.*) — Est Hrs$/); if (!mm || /^Outside SY/i.test(mm[1])) return;
+      const pg = mm[1], e = num(r[k]), sp = num(r[pg + ' — Spent Hrs']);
+      if (!progs[pg]) progs[pg] = { learners: 0, est: 0, spent: 0 };
+      if (e || sp) progs[pg].learners++; progs[pg].est += e; progs[pg].spent += sp;
+    }));
+    const monthsK = [];
+    if (kn.length) Object.keys(kn[0]).forEach(k => { const mm = k.match(/^([A-Z][a-z]{2}-\d{2}) Est Hrs$/); if (mm) monthsK.push(mm[1]); });
+    const mRows = monthsK.map(lbl => ({ lbl, est: sum(kn, lbl + ' Est Hrs'), spent: sum(kn, lbl + ' Spent Hrs') })).filter(x => x.est || x.spent);
+    const maxM = Math.max(1, ...mRows.map(x => x.est));
+    const tapSet = new Set(_model.tapPeople);
+    const tapLinked = kn.filter(r => { const p = r['Roster Name'] ? _model.byKey[normName(r['Roster Name'])] : null; return p && tapSet.has(p); }).length;
+    return `
+      ${section('Knowtion training · SY 26-27', 'Every tutor and site leader with a Knowtion completion. Estimated = Knowtion’s planned time per item · Time spent = time logged on the Knowtion page.')}
       ${grid([
         kpi(tutorsK.length, 'Learners in tutor courses', hrs(sum(tutorsK, 'Estimated Hours')) + ' est · ' + hrs(sum(tutorsK, 'Time Spent Hours')) + ' spent hrs · includes staff who took the courses'),
         kpi(slK.length, 'Site leaders with training', hrs(sum(slK, 'Estimated Hours')) + ' est · ' + hrs(sum(slK, 'Time Spent Hours')) + ' spent hrs'),
         kpi(hrs(sum(kn, 'Course 3 (RTI) Estimated Hours')), 'Course 3 (RTI) est. hrs', hrs(sum(kn, 'Course 3 (RTI) Time Spent Hours')) + ' hrs time spent', '#b45309'),
         kpi(num(sum(kn, 'Items Completed')).toLocaleString(), 'Items completed', sum(kn, 'Items Missing Estimate') + ' with no estimate'),
+        kpi(tapLinked, 'Active TAP participants among learners', 'their RTI also shows on TAP · Apprentices', '#7c3aed'),
       ])}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem">
         <div>${section('By program')}${table([{ t: 'Program' }, { t: 'Learners', r: 1 }, { t: 'Est. hrs', r: 1 }, { t: 'Time spent', r: 1 }, { t: 'Spent / est', r: 1 }],
           Object.keys(progs).sort((a, b) => progs[b].est - progs[a].est).map(pg => { const x = progs[pg]; return `<tr>${td(esc(pg))}${td(x.learners, 1)}${td(hrs(x.est), 1)}${td(hrs(x.spent), 1)}${td(x.est ? Math.round(x.spent / x.est * 100) + '%' : '—', 1)}</tr>`; }))}</div>
         <div>${section('By month')}${table([{ t: 'Month' }, { t: 'Estimated vs time spent' }, { t: 'Est.', r: 1 }, { t: 'Spent', r: 1 }],
           mRows.map(x => `<tr>${td(x.lbl)}${td(`<div style="height:8px;background:#ede9fe;border-radius:4px;width:${Math.round(x.est / maxM * 100)}%"><div style="height:8px;background:#7c3aed;border-radius:4px;width:${x.est ? Math.round(x.spent / x.est * 100) : 0}%"></div></div>`)}${td(hrs(x.est), 1)}${td(hrs(x.spent), 1)}</tr>`))}</div>
-      </div>`;
+      </div>
+      ${section('Learners')}
+      ${rTraining()}
+      ${_model.rtiMatch.length ? section('Knowtion names not linked to the roster (' + _model.rtiMatch.length + ')', 'Only matters for TAP participants: add their Knowtion name and exact Master Roster name on the “RTI Name Map” tab. Everyone’s hours still show above by Knowtion name.') +
+        table([{ t: 'Knowtion learner' }, { t: 'Role' }, { t: 'Possible roster name (not applied)' }],
+          _model.rtiMatch.map(r => `<tr>${td(`<strong>${esc(r['Knowtion Learner'])}</strong>`)}${td(esc(r['Role'] || ''))}${td(esc(r['Possible Roster Name (check — not applied)'] || '—'))}</tr>`)) : ''}`;
+  }
+  function kStatus(r) {
+    const d = daysAgo(parseDate(r['Last Completed']));
+    return d !== null && d > 21 ? { t: 'Slowed down', c: '#b45309' } : { t: 'Active', c: '#047857' };
+  }
+  function kPlain() {
+    const f = _filters, q = looseName(f.kq);
+    const all = _model.rti;
+    const list = all.filter(r => f.kRole === 'All' || (f.kRole === 'Tutor' ? !isSL(r) : isSL(r)))
+      .filter(r => !q || looseName(r['Learner (Knowtion)']).indexOf(q) >= 0 || looseName(r['Roster Name']).indexOf(q) >= 0)
+      .sort((a, b) => ({ 'Slowed down': 0, 'Active': 1 })[kStatus(a).t] - ({ 'Slowed down': 0, 'Active': 1 })[kStatus(b).t] || String(a['Learner (Knowtion)']).localeCompare(String(b['Learner (Knowtion)'])));
+    const c = (w, sl) => all.filter(r => isSL(r) === sl && kStatus(r).t === w).length;
+    const cnt = k => all.filter(r => k === 'All' || (k === 'Tutor' ? !isSL(r) : isSL(r))).length;
+    return `
+      <div style="font-size:.85rem;color:var(--text-2);margin-bottom:1rem">Online training happens in <strong>Knowtion</strong>. This page lists every tutor and site leader who has finished something there this school year. “Planned hours” is how long the finished items are meant to take; “hours on Knowtion” is the time Knowtion recorded (live workshops don’t count there, so it’s usually lower).</div>
+      ${grid([kpi(c('Active', false), 'Tutors active', 'trained in the last 3 weeks', '#047857'), kpi(c('Slowed down', false), 'Tutors slowed down', 'nothing in 3+ weeks', '#b45309'),
+        kpi(c('Active', true), 'Site leaders active', 'trained in the last 3 weeks', '#047857'), kpi(c('Slowed down', true), 'Site leaders slowed down', 'nothing in 3+ weeks', '#b45309')], 170)}
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.9rem">
+        ${['Tutor', 'Site Leader', 'All'].map(k => `<button class="pst-tab ${f.kRole === k ? 'active' : ''}" onclick="NJTC_TAP.setFilter('kRole','${k}')">${k === 'Tutor' ? 'Tutors' : k === 'Site Leader' ? 'Site leaders' : 'Everyone'} (${cnt(k)})</button>`).join('')}
+        <input type="search" placeholder="Find a name…" value="${esc(f.kq)}" oninput="NJTC_TAP.setFilter('kq',this.value,true)" style="margin-left:auto;padding:.4rem .6rem;border:1px solid var(--border);border-radius:8px;min-width:200px">
+      </div>
+      <div id="tdhTrainTable">${table([{ t: 'Name' }, { t: 'Status' }, { t: 'Items finished', r: 1 }, { t: 'Planned hours', r: 1 }, { t: 'Hours on Knowtion', r: 1 }, { t: 'Last training', r: 1 }],
+        list.map(r => { const w = kStatus(r), p = r['Roster Name'] ? _model.byKey[normName(r['Roster Name'])] : null;
+          return `<tr>${td(`<strong>${esc(r['Learner (Knowtion)'])}</strong>${p && p.role !== 'Tutor' ? ' ' + rolePill(p.role) : ''}<div style="font-size:.68rem;color:var(--muted)">${esc(r['Role'] || '')}</div>`)}${td(`<span style="color:${w.c};font-weight:700">${w.t}</span>`)}${td(num(r['Items Completed']), 1)}${td(hrs(r['Estimated Hours']), 1)}${td(hrs(r['Time Spent Hours']), 1)}${td(fmtDate(parseDate(r['Last Completed'])), 1)}</tr>`; }),
+        { empty: 'No one matches.' })}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Someone missing? They may not have finished anything in Knowtion yet. Apprentices’ training also shows on <strong>TAP · Apprentices</strong>.</div>`;
   }
 
   function apprRows(list) {
@@ -579,24 +681,25 @@
       L.people.push(p);
       const d = parseDate((p.progress || {})['Latest Observation']); if (d && (!L.last || d > L.last)) L.last = d;
     });
-    const slK = {}; _model.rti.filter(r => /^site leader/i.test(r['Role'] || '')).forEach(r => { slK[firstLast(r['Learner (Knowtion)'])] = r; });
     const rows = Object.values(leaders).sort((a, b) => b.people.filter(p => flagSummary(p) === 'red').length - a.people.filter(p => flagSummary(p) === 'red').length || a.name.localeCompare(b.name));
     return `
-      ${section('Site leader coverage', 'TAP participants each site leader observes (from the SY 26-27 OJT list), with their own Knowtion training')}
-      ${table([{ t: 'Site leader' }, { t: 'TAP participants', r: 1 }, { t: 'Urgent', r: 1 }, { t: 'Watch', r: 1 }, { t: 'OJT hrs ' + _model.focus.short, r: 1 }, { t: 'Most recent observation', r: 1 }, { t: 'Own training est / spent', r: 1 }, { t: 'People' }],
-        rows.map(L => { const k = slK[firstLast(L.name)];
-          return `<tr>${td(`<strong>${esc(L.name)}</strong>`)}${td(L.people.length, 1)}${td(L.people.filter(p => flagSummary(p) === 'red').length || '', 1)}${td(L.people.filter(p => flagSummary(p) === 'amber').length || '', 1)}${td(L.people.reduce((s, p) => s + p.curMonthHrs, 0).toLocaleString(), 1)}${td(fmtDate(L.last), 1)}${td(k ? hrs(k['Estimated Hours']) + ' / ' + hrs(k['Time Spent Hours']) : '—', 1)}${td(L.people.map(p => `<span style="white-space:nowrap">${esc(p.name)}${flagSummary(p) === 'red' ? ' 🔴' : flagSummary(p) === 'amber' ? ' 🟠' : ''}</span>`).join(', '))}</tr>`; }))}`;
+      ${section('Site leader coverage', 'TAP participants each site leader observes (from the SY 26-27 OJT list). Site leaders’ own training is on Training & Development.')}
+      ${table([{ t: 'Site leader' }, { t: 'TAP participants', r: 1 }, { t: 'Urgent', r: 1 }, { t: 'Watch', r: 1 }, { t: 'OJT hrs ' + _model.focus.short, r: 1 }, { t: 'Most recent observation', r: 1 }, { t: 'People' }],
+        rows.map(L => {
+          return `<tr>${td(`<strong>${esc(L.name)}</strong>`)}${td(L.people.length, 1)}${td(L.people.filter(p => flagSummary(p) === 'red').length || '', 1)}${td(L.people.filter(p => flagSummary(p) === 'amber').length || '', 1)}${td(L.people.reduce((s, p) => s + p.curMonthHrs, 0).toLocaleString(), 1)}${td(fmtDate(L.last), 1)}${td(L.people.map(p => `<span style="white-space:nowrap">${esc(p.name)}${flagSummary(p) === 'red' ? ' 🔴' : flagSummary(p) === 'amber' ? ' 🟠' : ''}</span>`).join(', '))}</tr>`; }))}`;
   }
 
   function rAbout() {
     const s = _model.sources;
     const li = (t, d) => `<li style="margin-bottom:.45rem"><strong>${t}</strong> — ${d}</li>`;
     return `<div style="max-width:860px;font-size:.84rem;line-height:1.6;color:var(--text-2)">
+      ${section('Who is on this page')}
+      <p>Only TAP participants: people active on the Master Roster whose program role is Apprentice, Pre-apprentice or Completed Program. The role comes from the Onsite DB “SY 26-27 OJT” list through the nightly sync. Non-GAINS/PACE tutors who keep an OJT checklist are not TAP and are not shown or counted here.</p>
       ${section('Where the numbers come from')}
       <ul style="padding-left:1.1rem">
         ${li('Master Roster (TAP Tracker 26-27)', 'OJT hours, OJT %, phase %, monthly OJT hours, wage milestone and program role. 50 OJT hours per completed checklist activity; summer and school-year activity combined, each activity counted once. Source: ' + s.mr + '.')}
         ${li('SY 26-27 Workbook Progress', 'each person’s own SY 26-27 OJT workbook as read by the nightly sync: site leader, workbook %, latest observation date, issues. Source: ' + s.progress + '.')}
-        ${li('RTI — Knowtion', 'Knowtion completions for tutors and site leaders. Estimated = Knowtion’s planned time per item; Time spent = time on the Knowtion page. Course 3 (RTI) excludes the staff “(Master)” copies. Source: ' + s.rti + '.')}
+        ${li('RTI — Knowtion', 'Knowtion completions. On this page only TAP participants’ training is used (their RTI); every tutor’s and site leader’s training is on Training & Development. Estimated = Knowtion’s planned time per item; Time spent = time on the Knowtion page. Course 3 (RTI) excludes the staff “(Master)” copies. Source: ' + s.rti + '.')}
         ${li('Needs Review / Needs Name Match', 'items the sync would not guess at (unreadable workbooks, impossible dates, unmatched names).')}
       </ul>
       ${section('Flag rules')}
@@ -739,21 +842,12 @@
       ${table([{ t: 'Site leader' }, { t: 'Apprentices' , r: 1}, { t: 'Had activity in ' + _model.focus.long, r: 1 }, { t: 'Need attention', r: 1 }, { t: 'Most recent observation', r: 1 }, { t: 'Who' }],
         rows.map(({ x, seen, need, last }) => `<tr>${td(`<strong>${esc(x.name)}</strong>`)}${td(x.people.length, 1)}${td(seen + ' of ' + x.people.length, 1)}${td(need ? `<strong style="color:#b91c1c">${need}</strong>` : '0', 1)}${td(last ? fmtDate(last) + ' (' + daysAgo(last) + ' days ago)' : '—', 1)}${td(x.people.map(p => `<a href="javascript:void(0)" onclick="NJTC_TAP.showPerson(${esc(JSON.stringify(p.name))})" style="color:${pStatus(p).c};font-weight:600;white-space:nowrap">${esc(p.name)}</a>`).join(', '))}</tr>`))}`;
   }
-  function pTraining() {
-    const list = _model.tapPeople.filter(p => p.role !== 'Completed Program').sort((a, b) => ({ 'Not started': 0, 'Slowed down': 1, 'Active': 2 })[trainingWord(a).t] - ({ 'Not started': 0, 'Slowed down': 1, 'Active': 2 })[trainingWord(b).t] || a.name.localeCompare(b.name));
-    const c = w => list.filter(p => trainingWord(p).t === w).length;
-    return `
-      <div style="font-size:.85rem;color:var(--text-2);margin-bottom:1rem">Online training happens in <strong>Knowtion</strong>. “Planned hours” is how long the courses they finished are meant to take; “hours on Knowtion” is the time Knowtion recorded (live workshops don’t count there, so it’s usually lower).</div>
-      ${grid([kpi(c('Active'), 'Active', 'trained in the last 3 weeks', '#047857'), kpi(c('Slowed down'), 'Slowed down', 'nothing in 3+ weeks', '#b45309'), kpi(c('Not started'), 'Not started', 'no online training on record', '#b91c1c')], 180)}
-      ${table([{ t: 'Name' }, { t: 'Status' }, { t: 'Courses finished', r: 1 }, { t: 'Planned hours', r: 1 }, { t: 'Hours on Knowtion', r: 1 }, { t: 'Last training', r: 1 }],
-        list.map(p => { const r = p.rti, w = trainingWord(p); return `<tr>${td(`<strong>${esc(p.name)}</strong> ${rolePill(p.role)}`)}${td(`<span style="color:${w.c};font-weight:700">${w.t}</span>`)}${td(r ? num(r['Items Completed']) : '—', 1)}${td(r ? hrs(r['Estimated Hours']) : '—', 1)}${td(r ? hrs(r['Time Spent Hours']) : '—', 1)}${td(r ? fmtDate(parseDate(r['Last Completed'])) : '—', 1)}</tr>`; }))}
-      <div style="font-size:.72rem;color:var(--muted);margin-top:.5rem">“Not started” can also mean their name in Knowtion is spelled differently — the Training &amp; Development team matches those.</div>`;
-  }
   function pHelp() {
     const li = (t, d) => `<li style="margin-bottom:.55rem"><strong>${t}</strong> — ${d}</li>`;
     return `<div style="max-width:780px;font-size:.88rem;line-height:1.65;color:var(--text-2)">
       ${section('What this page shows')}
-      <p>Every apprentice has a checklist of 80 on-the-job activities. Their site leader observes them and checks activities off. This page reads those checklists every night and shows how each person is doing. It also shows the online training they have finished in Knowtion.</p>
+      <p>This page is only about the apprenticeship program (TAP): apprentices and pre-apprentices. Every apprentice has a checklist of 80 on-the-job activities. Their site leader observes them and checks activities off. This page reads those checklists every night and shows how each person is doing, plus whether they are keeping up with their online training (Knowtion), which counts toward their apprenticeship.</p>
+      <p>Training for <em>all</em> tutors and site leaders is on the <strong>Training &amp; Development</strong> page.</p>
       ${section('What the colors mean')}
       <ul style="padding-left:1.1rem">
         ${li('<span style="color:#b91c1c">Needs attention</span>', 'they haven’t been observed in more than 30 days, or we can’t open their checklist. Reach out to their site leader.')}
@@ -763,7 +857,7 @@
       ${section('The TAP tag')}
       <p>Wherever you see a staff member’s name in the portal (for example in Pearl), apprentices have a small <strong>TAP</strong> tag next to their name. A red or orange dot means something needs attention. Click the tag to see their card.</p>
       ${section('Who to ask')}
-      <p>Questions about the numbers or a name that looks wrong: the Training &amp; Development team. Updates happen automatically every night.</p>
+      <p>Questions about the numbers or a name that looks wrong: the Training &amp; Development team. Updates happen automatically every night. Use <strong>Log OJT Activity</strong> to record an observation directly.</p>
     </div>`;
   }
 
@@ -790,18 +884,20 @@
   window.NJTC_TAP = {
     load, lookup, closePop, exportCsv,
     get model() { return _model; },
-    hubTab(k) { _tab = k; renderHub(); },
-    setLens(l) { _lens = l; _tab = null; renderHub(); },
+    tapTab(k) { _tab = k; renderTap(); },
+    resetView() { _view = null; _tab = null; if (_model) rerender(); },
+    setView(v) { _view = v; _tab = null; rerender(); },
+    renderTap, renderTraining,
     setFilter(k, v, debounce) {
       _filters[k] = v;
-      if (!debounce) { renderHub(); return; }
+      if (!debounce) { rerender(); return; }
       clearTimeout(_qTimer);
       _qTimer = setTimeout(() => {
-        const id = _tab === 'apprentices' ? 'tdhApprTable' : _tab === 'training' ? 'tdhTrainTable' : _tab === 'p-people' ? 'tdhPeople' : null;
-        const box = id && document.getElementById(id);
-        if (!box) { renderHub(); return; }
-        const tmp = document.createElement('div'); tmp.innerHTML = (_tab === 'apprentices' ? rApprentices() : _tab === 'p-people' ? pPeople() : rTraining());
-        const fresh = tmp.querySelector('#' + id); if (fresh) box.innerHTML = fresh.innerHTML;
+        const D = { q: ['tdhApprTable', rApprentices], pq: ['tdhPeople', pPeople], kq: ['tdhTrainTable', () => view() === 'program' ? kPlain() : rTraining()] }[k];
+        const box = D && document.getElementById(D[0]);
+        if (!box) { rerender(); return; }
+        const tmp = document.createElement('div'); tmp.innerHTML = D[1]();
+        const fresh = tmp.querySelector('#' + D[0]); if (fresh) box.innerHTML = fresh.innerHTML;
       }, 250);
     },
     showPerson(name) {
@@ -815,13 +911,15 @@
     },
     openInHub(name) {
       closePop();
-      if (lens() === 'td') { _tab = 'apprentices'; _filters.role = 'All'; _filters.q = name; _filters.flagged = false; }
-      else { _tab = 'p-people'; _filters.pRole = 'All'; _filters.pq = name; _filters.pAttention = false; }
-      const btn = document.querySelector('.sidebar-link[data-panel="td-hub"]');
-      if (typeof window.showPanel === 'function') window.showPanel('td-hub', btn);
-      setTimeout(renderHub, 60);
+      const v = view();
+      if (v === 'program') { _tab = 'p-people'; _filters.pRole = 'All'; _filters.pq = name; _filters.pAttention = false; }
+      else if (v === 'finance') { _tab = 'roster'; }
+      else { _tab = 'apprentices'; _filters.role = 'All'; _filters.q = name; _filters.flagged = false; }
+      const btn = document.querySelector('.sidebar-link[data-panel="tap-standalone"]');
+      if (typeof window.showPanel === 'function') window.showPanel('tap-standalone', btn);
+      setTimeout(renderTap, 60);
     },
-    refresh() { _model = null; document.querySelectorAll('[data-tapi]').forEach(el => { el.removeAttribute('data-tapi'); el.querySelectorAll('.tapi-tag').forEach(t => t.remove()); }); load(true).then(() => { renderHub(); tagWithin(document.querySelector('.ct-main')); }); },
+    refresh() { _model = null; document.querySelectorAll('[data-tapi]').forEach(el => { el.removeAttribute('data-tapi'); el.querySelectorAll('.tapi-tag').forEach(t => t.remove()); }); load(true).then(() => { rerender(); tagWithin(document.querySelector('.ct-main')); }); },
   };
 
   function hookPanel() {
@@ -829,8 +927,10 @@
     if (typeof orig !== 'function') { setTimeout(hookPanel, 300); return; }
     if (orig._tapiHooked) return;
     const wrapped = function (id, btn) {
+      // The old T&D Hub page is now TAP · Apprentices (bookmarks / old links).
+      if (id === 'td-hub') { id = 'tap-standalone'; btn = document.querySelector('.sidebar-link[data-panel="tap-standalone"]'); return wrapped.call(this, id, btn); }
       const r = orig.apply(this, arguments);
-      if (id === 'td-hub') setTimeout(renderHub, 30);
+      if (id === 'tap-standalone') setTimeout(renderTap, 30);
       return r;
     };
     wrapped._tapiHooked = true;
@@ -839,7 +939,9 @@
   function boot() {
     hookPanel();
     // Load after the portal's own first render so it never slows the home page.
-    setTimeout(() => load().then(m => { if (m) { startTagging(); if (document.getElementById('panel-td-hub') && document.getElementById('panel-td-hub').classList.contains('active')) renderHub(); } }), 2500);
+    // Old TAP sub-tab buttons / links (e.g. "Log OJT Activity" in the header) → the new tabs.
+    window.tapShowTab = function (id) { _tab = id === 'sy2526' || id === 'returners' ? 'past' : id; renderTap(); };
+    setTimeout(() => load().then(m => { if (m) { startTagging(); rerender(); } }), 2500);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

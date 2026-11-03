@@ -48,7 +48,7 @@
         b.onclick = () => showPanel('finance-analytics', b);
       });
     } else if (dept === 'training') {
-      if (label) label.textContent = 'T&D Analytics';
+      if (label) label.textContent = 'Training & Development';
       talentBtns.forEach(b => {
         b.setAttribute('data-panel', 'training-analytics');
         b.onclick = () => showPanel('training-analytics', b);
@@ -65,42 +65,28 @@
     const mgmtTabs = document.querySelectorAll('.td-mgmt-tab');
     mgmtTabs.forEach(b => b.style.display = (dept === 'training') ? '' : 'none');
 
-    // Data + Programming dept: show T&D/Apprentice Analytics sidebar link
-    // Also show for Finance, HR, Leadership, and KB as a dedicated TAP section
-    const dataTDBtns = document.querySelectorAll('.dept-nav-td-data');
-    const TAP_VISIBLE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
-    dataTDBtns.forEach(b => {
-      b.style.display = TAP_VISIBLE_DEPTS.includes(dept) ? '' : 'none';
-      // dept-nav-td-data always points to T&D Analytics panel (training-analytics)
-      // It should ALWAYS be labeled T&D Analytics — it is the T&D section, not TAP
-      b.textContent = '🎓 T&D Analytics';
-      b.title = 'Training and Development program performance and staff outcome data';
+    // Two separate pages (Nov 2026):
+    //   Training & Development (training-analytics) — training for every tutor
+    //     and site leader (Knowtion) + SY 25-26 PD/intake archive.
+    //   TAP · Apprentices (tap-standalone) — the apprenticeship program only,
+    //     with a view per department (modules/tap-insights.js).
+    const TD_DEPTS  = ['training', 'programming', 'data', 'leadership', 'kb'];
+    const TAP_DEPTS = ['training', 'programming', 'hr', 'finance', 'data', 'leadership', 'kb'];
+    document.querySelectorAll('.dept-nav-td-data').forEach(b => {
+      b.style.display = TD_DEPTS.includes(dept) ? '' : 'none';
+      b.innerHTML = '<span class="sl-icon">📚</span> <span class="dept-nav-td-data-label">Training &amp; Development</span>';
+      b.title = 'Training for every tutor and site leader (Knowtion), plus SY 25-26 PD and intake data';
     });
-    // SY 26-27 Training & Development Hub (modules/tap-insights.js). The hub
-    // picks its own view per department: full detail for Training/Data/
-    // Leadership/KB, plain-language Program Team view for Programming/HR.
-    const TD_HUB_DEPTS = ['training', 'programming', 'data', 'leadership', 'kb', 'hr'];
-    document.querySelectorAll('.dept-nav-td-hub').forEach(b => {
-      b.style.display = TD_HUB_DEPTS.includes(dept) ? '' : 'none';
-      const lbl = b.querySelector('.dept-nav-td-hub-label');
-      if (lbl) lbl.textContent = ['programming', 'hr'].includes(dept) ? 'Apprentice Progress' : 'T&D Hub · SY 26-27';
-    });
-    // TAP Standalone Dashboard — visible to all departments that interact with the apprenticeship program
-    const TAP_STANDALONE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
+    // The SY 26-27 T&D Hub page was split into the two pages above.
+    document.querySelectorAll('.dept-nav-td-hub').forEach(b => { b.style.display = 'none'; });
     document.querySelectorAll('.dept-nav-tap-standalone').forEach(b => {
-      b.style.display = TAP_STANDALONE_DEPTS.includes(dept) ? '' : 'none';
-      // Update the label span to match department context
+      b.style.display = TAP_DEPTS.includes(dept) ? '' : 'none';
       const labelSpan = b.querySelector('.dept-nav-tap-standalone-label');
-      if (labelSpan) {
-        if (['programming', 'hr', 'training'].includes(dept)) {
-          labelSpan.textContent = 'Apprentice Analytics';
-          b.title = 'Apprentice Analytics — OJT activity tracking, phase completion, and program outcomes';
-        } else {
-          labelSpan.textContent = 'TAP Dashboard';
-          b.title = 'TAP Apprenticeship Dashboard — active roster, OJT progress, wage milestones, and program completion';
-        }
-      }
+      if (labelSpan) labelSpan.textContent = 'TAP · Apprentices';
+      b.title = 'Tutor Apprenticeship Program — apprentices and pre-apprentices only: progress, follow-ups, wage milestones, compliance';
     });
+    // Each department opens TAP · Apprentices on its own view.
+    if (window.NJTC_TAP && typeof window.NJTC_TAP.setView === 'function' && window.NJTC_TAP.resetView) window.NJTC_TAP.resetView();
 
     // TAP sub-tab visibility rules (some tabs are dept-specific)
     const tapFinanceTabs = document.querySelectorAll('.dept-tap-finance');
