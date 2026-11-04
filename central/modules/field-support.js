@@ -34,6 +34,13 @@
     'HADDON TWP ONLY -- Teacher requested whole group support',
   ]);
   const ARCHIVED_REASON = 'Scholar Archived - Removed from Sessions';
+  // The "don't know why" reason. Tutors choose it instead of guessing; the
+  // Site Leader follows up only when the same scholar repeats it.
+  const UNAVAILABLE_REASON = 'Scholar Unavailable; Out of the Classroom';
+  const REPEAT_UNAVAILABLE = 2;   // 2+ unavailable/blank in the report window → SL follow-up
+  // Reason-mix check: a tutor who uses one missed reason far more than the
+  // other tutors at the same school is probably picking it by default.
+  const REASON_MIX = { minTutorMisses: 5, minSiteMisses: 5, minShare: 70, minGap: 30 };
   // Comment follow-up rules (shared/comment-flags.js) — browser global or Node require
   const FLAGS = (typeof window !== 'undefined' && window.NJTC_COMMENT_FLAGS) ||
     (typeof require === 'function' ? (function () { try { return require('../../shared/comment-flags.js'); } catch (e) { return null; } })() : null);
@@ -133,6 +140,8 @@
     const missingScholar = [];// attended scholars without a scholar survey
     const pullouts = [];      // classroom-teacher pull-out rows
     const incompletes = [];   // never-completed sessions
+    const unknownMiss = {};   // scholar → misses logged Unavailable or blank (reason unknown)
+    const reasonMix = {};     // school → tutor → reason → count (scholar Missed rows with a reason)
     const tutors = {}, schools = {};
 
     const tutorRec = (s) => {
@@ -220,6 +229,20 @@
         if (st === 'Not recorded') addIssue(s, 'notRecorded', who);
         if (st !== 'Missed') return;
         if (!reason) addIssue(s, 'blankScholar', who);
+        if (!reason || reason === UNAVAILABLE_REASON) {
+          const k = (s.school || '') + '|' + (r[ATT.USER_ID] || r[ATT.USER] || '');
+          if (!unknownMiss[k]) unknownMiss[k] = { school: s.school || '', scholar: r[ATT.USER] || '', scholarId: r[ATT.USER_ID] || '',
+            tutors: new Set(), dates: [], unavailable: 0, blank: 0 };
+          const u = unknownMiss[k];
+          u.tutors.add(s.instructor || ''); u.dates.push(ymd);
+          if (reason) u.unavailable++; else u.blank++;
+        }
+        if (reason && reason !== ARCHIVED_REASON) {
+          const sk = s.school || '', tk = s.instructor || 'Unassigned';
+          reasonMix[sk] = reasonMix[sk] || {};
+          reasonMix[sk][tk] = reasonMix[sk][tk] || {};
+          reasonMix[sk][tk][reason] = (reasonMix[sk][tk][reason] || 0) + 1;
+        }
         if (reason === ARCHIVED_REASON) addIssue(s, 'archived', who);
         if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation') cancelTypeReasons.add(reason);
         if (reason === 'Tutor Absent' && tutorAttended && !tutorMissedRows.length) addIssue(s, 'wrongTutorAbs', who);
@@ -336,6 +359,49 @@
     });
     const scholarPullouts = Object.values(ctByScholar).sort((a, b) => b.pullouts - a.pullouts);
 
+    // Scholars whose misses keep being logged "unavailable" / blank — the
+    // Site Leader checks school attendance or asks the teacher at a break.
+    const unavailableRepeat = Object.values(unknownMiss).filter(u => u.dates.length >= REPEAT_UNAVAILABLE).map(u => {
+      const dates = [...new Set(u.dates)].sort();
+      return { school: u.school, scholar: u.scholar, scholarId: u.scholarId, tutors: [...u.tutors].filter(Boolean).join('; '),
+        times: u.dates.length, unavailable: u.unavailable, blank: u.blank, dates: dates.join(', '), lastDate: dates[dates.length - 1] || '' };
+    }).sort((a, b) => b.times - a.times || a.school.localeCompare(b.school) || a.scholar.localeCompare(b.scholar));
+
+    // Reason-mix outliers: compare each tutor's most-used reason with the
+    // share of that reason among the OTHER tutors at the same school.
+    const reasonOutliers = [];
+    Object.entries(reasonMix).forEach(([school, byTutor]) => {
+      Object.entries(byTutor).forEach(([tutor, counts]) => {
+        const n = Object.values(counts).reduce((a, b) => a + b, 0);
+        if (n < REASON_MIX.minTutorMisses) return;
+        const [top, topN] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        const share = Math.round(topN / n * 100);
+        let siteN = 0, siteTop = 0;
+        Object.entries(byTutor).forEach(([t2, c2]) => {
+          if (t2 === tutor) return;
+          Object.entries(c2).forEach(([rsn, k]) => { siteN += k; if (rsn === top) siteTop += k; });
+        });
+        if (siteN < REASON_MIX.minSiteMisses) return;
+        const siteShare = Math.round(siteTop / siteN * 100);
+        if (share >= REASON_MIX.minShare && share - siteShare >= REASON_MIX.minGap)
+          reasonOutliers.push({ school, tutor, misses: n, topReason: top, tutorShare: share, siteShare, siteMisses: siteN });
+      });
+    });
+    reasonOutliers.sort((a, b) => (b.tutorShare - b.siteShare) - (a.tutorShare - a.siteShare) || a.school.localeCompare(b.school));
+
+    // One list of everything a Site Leader (not the tutor) follows up on,
+    // so each SL can filter to their own schools.
+    const slFollowUp = [];
+    unavailableRepeat.forEach(u => slFollowUp.push({ school: u.school, item: 'Scholar unavailable / no reason ' + u.times + ' times',
+      who: u.scholar, tutor: u.tutors, dates: u.dates, step: 'Check school attendance or ask the teacher at a natural break; update the reason in Pearl if known.' }));
+    issues.filter(i => i.issueKey === 'shouldCancel').forEach(i => slFollowUp.push({ school: i.school, item: 'Whole group missed - should be a cancellation',
+      who: i.session, tutor: i.tutor, dates: i.date, step: 'Cancel the session in Pearl with the reason (' + (i.reasonEntered || '') + ').' }));
+    issues.filter(i => i.issueKey === 'cancelNoReason').forEach(i => slFollowUp.push({ school: i.school, item: 'Cancelled with no reason (FYI)',
+      who: i.session, tutor: i.tutor, dates: i.date, step: 'Cannot be changed now. Remind whoever cancelled to choose a reason next time.' }));
+    reasonOutliers.forEach(o => slFollowUp.push({ school: o.school, item: 'Reason-mix check: "' + o.topReason + '" on ' + o.tutorShare + '% of misses (school: ' + o.siteShare + '%)',
+      who: o.tutor, tutor: o.tutor, dates: '', step: 'Review the reason guide with the tutor in the next huddle.' }));
+    slFollowUp.sort((a, b) => a.school.localeCompare(b.school));
+
     // Tutor and scholar comments that need someone to follow up (escalate first)
     const sessById = {};
     (input.sessions || []).forEach(s => { if (s && s.id) sessById[s.id] = s; });
@@ -358,11 +424,14 @@
       archived: issues.filter(i => i.issueKey === 'archived').length,
       cancelFixes: issues.filter(i => SITE_LEADER_FIX.has(i.issueKey)).length,
       teacherPullouts: pullouts.length, scholarsPulled3: scholarPullouts.filter(x => x.pullouts >= 3).length,
+      scholarsUnavailableRepeat: unavailableRepeat.length, reasonOutliers: reasonOutliers.length,
+      slFollowUp: slFollowUp.length,
       commentsEscalate: flaggedComments.filter(c => c.tier === 'escalate').length,
       commentsFollowUp: flaggedComments.filter(c => c.tier === 'followup').length,
     };
     return { region, school: schoolF, from, to, generatedAt: now.toISOString(), totals,
-      schools: schoolList, tutors: tutorList, issues, incompletes, missingTutor, missingScholar, pullouts, scholarPullouts, flaggedComments };
+      schools: schoolList, tutors: tutorList, issues, incompletes, missingTutor, missingScholar, pullouts, scholarPullouts, flaggedComments,
+      unavailableRepeat, reasonOutliers, slFollowUp };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -396,6 +465,13 @@
         R.pullouts.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.scholar, i.scholarId, i.wholeGroup])],
       ['Pull-outs by Scholar', ['School', 'Scholar', 'Scholar ID', 'Teacher Pull-outs', 'Most Recent'],
         R.scholarPullouts.map(x => [x.school, x.scholar, x.scholarId, x.pullouts, x.lastDate])],
+      // SL-owned follow-ups. Status / Notes are left blank for the SL to fill in.
+      ['Site Leader Follow-up', ['School', 'Item', 'Scholar / Session / Tutor', 'Tutor', 'Date(s)', 'Next Step', 'Status', 'Notes'],
+        (R.slFollowUp || []).map(x => [x.school, x.item, x.who, x.tutor, x.dates, x.step, '', ''])],
+      ['Repeat Unavailable', ['School', 'Scholar', 'Scholar ID', 'Tutor(s)', 'Times', 'Logged Unavailable', 'Reason Blank', 'Dates', 'Most Recent'],
+        (R.unavailableRepeat || []).map(x => [x.school, x.scholar, x.scholarId, x.tutors, x.times, x.unavailable, x.blank, x.dates, x.lastDate])],
+      ['Reason Mix Check', ['School', 'Tutor', 'Missed Rows With a Reason', 'Most-Used Reason', 'Tutor Share %', 'Other Tutors at School Share %', 'Other Tutors Missed Rows'],
+        (R.reasonOutliers || []).map(x => [x.school, x.tutor, x.misses, x.topReason, x.tutorShare, x.siteShare, x.siteMisses])],
       // Status / Owner / Follow-up Notes are left blank for the team to fill in.
       ['Flagged Comments', ['Priority', 'Category', 'Date', 'School', 'Tutor', 'Session', 'Session ID', 'From', 'Scholar', 'Overall Rating',
         'Comment', 'Suggested Follow-up', 'Status', 'Owner', 'Follow-up Notes', 'Comment ID'],
@@ -589,7 +665,7 @@
             <button type="button" id="fsPdfBtn" onclick="njtcFieldSupport.download('pdf')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;font-weight:700;cursor:pointer">⬇ Weekly Report (PDF)</button>
             <button type="button" onclick="njtcFieldSupport.download('xlsx')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:#166534;color:#fff;font-weight:700;cursor:pointer">⬇ Support Detail (Excel)</button>
           </div>
-          <div style="font-size:.72rem;color:var(--muted);margin-top:.55rem">Internal - for the Central Team, not for partners. Partners get their own version from the Partner PDF button.</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.55rem">Internal - for the Central Team, not for partners. Partners get their own version from the Partner PDF button. The Excel's <b>Site Leader Follow-up</b> tab lists what each SL owns (repeat unavailable scholars, cancellations, reason-mix checks) - filter it by school.</div>
           <div id="fsStatus" role="status" aria-live="polite" style="font-size:.78rem;color:var(--muted);margin-top:.5rem;min-height:1em"></div>
         </div>
       </div>`;
