@@ -4582,6 +4582,10 @@
         critBtn.style.display = critCount > 0 ? '' : 'none';
         setText('poCriticalN', critCount);
       }
+      // Site Leader Flags button (modules/field-support.js) — same data, two-week window
+      if (window.njtcFieldSupport && typeof window.njtcFieldSupport.refreshFlagsButton === 'function') {
+        setTimeout(() => window.njtcFieldSupport.refreshFlagsButton(), 0);
+      }
     }
 
     // ── FILTERED DATA HELPERS ─────────────────────────────────────────────

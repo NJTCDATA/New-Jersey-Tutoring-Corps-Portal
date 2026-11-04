@@ -34,6 +34,13 @@
     'HADDON TWP ONLY -- Teacher requested whole group support',
   ]);
   const ARCHIVED_REASON = 'Scholar Archived - Removed from Sessions';
+  // The "don't know why" reason. Tutors choose it instead of guessing; the
+  // Site Leader follows up only when the same scholar repeats it.
+  const UNAVAILABLE_REASON = 'Scholar Unavailable; Out of the Classroom';
+  const REPEAT_UNAVAILABLE = 2;   // 2+ unavailable/blank in the report window → SL follow-up
+  // Reason-mix check: a tutor who uses one missed reason far more than the
+  // other tutors at the same school is probably picking it by default.
+  const REASON_MIX = { minTutorMisses: 5, minSiteMisses: 5, minShare: 70, minGap: 30 };
   // Comment follow-up rules (shared/comment-flags.js) — browser global or Node require
   const FLAGS = (typeof window !== 'undefined' && window.NJTC_COMMENT_FLAGS) ||
     (typeof require === 'function' ? (function () { try { return require('../../shared/comment-flags.js'); } catch (e) { return null; } })() : null);
@@ -133,6 +140,8 @@
     const missingScholar = [];// attended scholars without a scholar survey
     const pullouts = [];      // classroom-teacher pull-out rows
     const incompletes = [];   // never-completed sessions
+    const unknownMiss = {};   // scholar → misses logged Unavailable or blank (reason unknown)
+    const reasonMix = {};     // school → tutor → reason → count (scholar Missed rows with a reason)
     const tutors = {}, schools = {};
 
     const tutorRec = (s) => {
@@ -220,6 +229,20 @@
         if (st === 'Not recorded') addIssue(s, 'notRecorded', who);
         if (st !== 'Missed') return;
         if (!reason) addIssue(s, 'blankScholar', who);
+        if (!reason || reason === UNAVAILABLE_REASON) {
+          const k = (s.school || '') + '|' + (r[ATT.USER_ID] || r[ATT.USER] || '');
+          if (!unknownMiss[k]) unknownMiss[k] = { school: s.school || '', scholar: r[ATT.USER] || '', scholarId: r[ATT.USER_ID] || '',
+            tutors: new Set(), dates: [], unavailable: 0, blank: 0 };
+          const u = unknownMiss[k];
+          u.tutors.add(s.instructor || ''); u.dates.push(ymd);
+          if (reason) u.unavailable++; else u.blank++;
+        }
+        if (reason && reason !== ARCHIVED_REASON) {
+          const sk = s.school || '', tk = s.instructor || 'Unassigned';
+          reasonMix[sk] = reasonMix[sk] || {};
+          reasonMix[sk][tk] = reasonMix[sk][tk] || {};
+          reasonMix[sk][tk][reason] = (reasonMix[sk][tk][reason] || 0) + 1;
+        }
         if (reason === ARCHIVED_REASON) addIssue(s, 'archived', who);
         if (input.categoryOf && classify(r) === 'service_interruption' && input.categoryOf(reason) === 'cancellation') cancelTypeReasons.add(reason);
         if (reason === 'Tutor Absent' && tutorAttended && !tutorMissedRows.length) addIssue(s, 'wrongTutorAbs', who);
@@ -336,6 +359,49 @@
     });
     const scholarPullouts = Object.values(ctByScholar).sort((a, b) => b.pullouts - a.pullouts);
 
+    // Scholars whose misses keep being logged "unavailable" / blank — the
+    // Site Leader checks school attendance or asks the teacher at a break.
+    const unavailableRepeat = Object.values(unknownMiss).filter(u => u.dates.length >= REPEAT_UNAVAILABLE).map(u => {
+      const dates = [...new Set(u.dates)].sort();
+      return { school: u.school, scholar: u.scholar, scholarId: u.scholarId, tutors: [...u.tutors].filter(Boolean).join('; '),
+        times: u.dates.length, unavailable: u.unavailable, blank: u.blank, dates: dates.join(', '), lastDate: dates[dates.length - 1] || '' };
+    }).sort((a, b) => b.times - a.times || a.school.localeCompare(b.school) || a.scholar.localeCompare(b.scholar));
+
+    // Reason-mix outliers: compare each tutor's most-used reason with the
+    // share of that reason among the OTHER tutors at the same school.
+    const reasonOutliers = [];
+    Object.entries(reasonMix).forEach(([school, byTutor]) => {
+      Object.entries(byTutor).forEach(([tutor, counts]) => {
+        const n = Object.values(counts).reduce((a, b) => a + b, 0);
+        if (n < REASON_MIX.minTutorMisses) return;
+        const [top, topN] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        const share = Math.round(topN / n * 100);
+        let siteN = 0, siteTop = 0;
+        Object.entries(byTutor).forEach(([t2, c2]) => {
+          if (t2 === tutor) return;
+          Object.entries(c2).forEach(([rsn, k]) => { siteN += k; if (rsn === top) siteTop += k; });
+        });
+        if (siteN < REASON_MIX.minSiteMisses) return;
+        const siteShare = Math.round(siteTop / siteN * 100);
+        if (share >= REASON_MIX.minShare && share - siteShare >= REASON_MIX.minGap)
+          reasonOutliers.push({ school, tutor, misses: n, topReason: top, tutorShare: share, siteShare, siteMisses: siteN });
+      });
+    });
+    reasonOutliers.sort((a, b) => (b.tutorShare - b.siteShare) - (a.tutorShare - a.siteShare) || a.school.localeCompare(b.school));
+
+    // One list of everything a Site Leader (not the tutor) follows up on,
+    // so each SL can filter to their own schools.
+    const slFollowUp = [];
+    unavailableRepeat.forEach(u => slFollowUp.push({ school: u.school, item: 'Scholar unavailable / no reason ' + u.times + ' times',
+      who: u.scholar, tutor: u.tutors, dates: u.dates, step: 'Check school attendance or ask the teacher at a natural break; update the reason in Pearl if known.' }));
+    issues.filter(i => i.issueKey === 'shouldCancel').forEach(i => slFollowUp.push({ school: i.school, item: 'Whole group missed - should be a cancellation',
+      who: i.session, tutor: i.tutor, dates: i.date, step: 'Cancel the session in Pearl with the reason (' + (i.reasonEntered || '') + ').' }));
+    issues.filter(i => i.issueKey === 'cancelNoReason').forEach(i => slFollowUp.push({ school: i.school, item: 'Cancelled with no reason (FYI)',
+      who: i.session, tutor: i.tutor, dates: i.date, step: 'Cannot be changed now. Remind whoever cancelled to choose a reason next time.' }));
+    reasonOutliers.forEach(o => slFollowUp.push({ school: o.school, item: 'Reason-mix check: "' + o.topReason + '" on ' + o.tutorShare + '% of misses (school: ' + o.siteShare + '%)',
+      who: o.tutor, tutor: o.tutor, dates: '', step: 'Review the reason guide with the tutor in the next huddle.' }));
+    slFollowUp.sort((a, b) => a.school.localeCompare(b.school));
+
     // Tutor and scholar comments that need someone to follow up (escalate first)
     const sessById = {};
     (input.sessions || []).forEach(s => { if (s && s.id) sessById[s.id] = s; });
@@ -358,11 +424,14 @@
       archived: issues.filter(i => i.issueKey === 'archived').length,
       cancelFixes: issues.filter(i => SITE_LEADER_FIX.has(i.issueKey)).length,
       teacherPullouts: pullouts.length, scholarsPulled3: scholarPullouts.filter(x => x.pullouts >= 3).length,
+      scholarsUnavailableRepeat: unavailableRepeat.length, reasonOutliers: reasonOutliers.length,
+      slFollowUp: slFollowUp.length,
       commentsEscalate: flaggedComments.filter(c => c.tier === 'escalate').length,
       commentsFollowUp: flaggedComments.filter(c => c.tier === 'followup').length,
     };
     return { region, school: schoolF, from, to, generatedAt: now.toISOString(), totals,
-      schools: schoolList, tutors: tutorList, issues, incompletes, missingTutor, missingScholar, pullouts, scholarPullouts, flaggedComments };
+      schools: schoolList, tutors: tutorList, issues, incompletes, missingTutor, missingScholar, pullouts, scholarPullouts, flaggedComments,
+      unavailableRepeat, reasonOutliers, slFollowUp };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -396,6 +465,13 @@
         R.pullouts.map(i => [i.date, i.school, i.tutor, i.session, i.sessionId, i.scholar, i.scholarId, i.wholeGroup])],
       ['Pull-outs by Scholar', ['School', 'Scholar', 'Scholar ID', 'Teacher Pull-outs', 'Most Recent'],
         R.scholarPullouts.map(x => [x.school, x.scholar, x.scholarId, x.pullouts, x.lastDate])],
+      // SL-owned follow-ups. Status / Notes are left blank for the SL to fill in.
+      ['Site Leader Follow-up', ['School', 'Item', 'Scholar / Session / Tutor', 'Tutor', 'Date(s)', 'Next Step', 'Status', 'Notes'],
+        (R.slFollowUp || []).map(x => [x.school, x.item, x.who, x.tutor, x.dates, x.step, '', ''])],
+      ['Repeat Unavailable', ['School', 'Scholar', 'Scholar ID', 'Tutor(s)', 'Times', 'Logged Unavailable', 'Reason Blank', 'Dates', 'Most Recent'],
+        (R.unavailableRepeat || []).map(x => [x.school, x.scholar, x.scholarId, x.tutors, x.times, x.unavailable, x.blank, x.dates, x.lastDate])],
+      ['Reason Mix Check', ['School', 'Tutor', 'Missed Rows With a Reason', 'Most-Used Reason', 'Tutor Share %', 'Other Tutors at School Share %', 'Other Tutors Missed Rows'],
+        (R.reasonOutliers || []).map(x => [x.school, x.tutor, x.misses, x.topReason, x.tutorShare, x.siteShare, x.siteMisses])],
       // Status / Owner / Follow-up Notes are left blank for the team to fill in.
       ['Flagged Comments', ['Priority', 'Category', 'Date', 'School', 'Tutor', 'Session', 'Session ID', 'From', 'Scholar', 'Overall Rating',
         'Comment', 'Suggested Follow-up', 'Status', 'Owner', 'Follow-up Notes', 'Comment ID'],
@@ -522,7 +598,7 @@
   // Lowest tutor attendance first, then most open items.
   // ─────────────────────────────────────────────────────────────────────────
   const TUTOR_CHECKIN = { minSessions: 3, minFixes: 3 };
-  const TUTOR_RULE = 'Tutors with a real pattern, year to date: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
+  const TUTOR_RULE = 'Tutors with a real pattern in the last two weeks: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
     '(incomplete sessions, tutor surveys still inside the 7-day window, blank missed reasons, attendance not recorded or mismatched). A quick check-in from the Site Leader or PM usually clears this up.';
   function tutorsToCheckIn(R) {
     const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
@@ -546,7 +622,10 @@
   //   PDF   → Region Weekly Report: the Partner Weekly Report layout
   //           (partner/partner-report.js) for a region, with "Tutors to check
   //           in with" and a per-school tutor view for the Central Team.
-  //   Excel → the Support Report detail tabs, year to date through the week.
+  //   Excel → the Support Report detail tabs for a rolling two-week window
+  //           ending with the chosen week (recent enough for tutors to
+  //           remember and fix). "Full school year to date" keeps the YTD
+  //           view for program-level reporting.
   // ─────────────────────────────────────────────────────────────────────────
   const REGION_NAME = { NE: 'North-East', SW: 'South-West' };
   let _region = 'ALL';
@@ -580,13 +659,13 @@
           </div></div>
           <div style="margin-bottom:.85rem"><label for="fsSchool" style="${lbl};display:block">School (optional)</label>
             <select id="fsSchool" style="${inp}"><option value="">All schools in the region</option></select></div>
-          <div style="margin-bottom:1.1rem"><label for="fsWeek" style="${lbl};display:block">Week</label>
+          <div style="margin-bottom:1.1rem"><label for="fsWeek" style="${lbl};display:block">Week (Support Report covers this week and the week before)</label>
             <select id="fsWeek" style="${inp}" disabled><option value="">Loading Pearl weeks…</option></select></div>
           <div style="display:flex;gap:.6rem">
             <button type="button" id="fsPdfBtn" onclick="njtcFieldSupport.download('pdf')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;font-weight:700;cursor:pointer">⬇ Weekly Report (PDF)</button>
             <button type="button" onclick="njtcFieldSupport.download('xlsx')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:#166534;color:#fff;font-weight:700;cursor:pointer">⬇ Support Detail (Excel)</button>
           </div>
-          <div style="font-size:.72rem;color:var(--muted);margin-top:.55rem">Internal - for the Central Team, not for partners. Partners get their own version from the Partner PDF button.</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.55rem">Internal - for the Central Team, not for partners. Partners get their own version from the Partner PDF button. The Excel's <b>Site Leader Follow-up</b> tab lists what each SL owns (repeat unavailable scholars, cancellations, reason-mix checks) - filter it by school.</div>
           <div id="fsStatus" role="status" aria-live="polite" style="font-size:.78rem;color:var(--muted);margin-top:.5rem;min-height:1em"></div>
         </div>
       </div>`;
@@ -651,27 +730,171 @@
     if (school) b = Object.assign({}, b, { attendance: PR.scoped(b.attendance, PR.ATT.DISTRICT, PR.ATT.SCHOOL, null, { school }) });
     const prev = sel.value;
     const weeks = PR.allWeeks(b).reverse();
-    sel.innerHTML = weeks.map(w => `<option value="${w.key}">Week of ${escA(PR.weekRangeLabel(w.key))}</option>`).join('') + '<option value="ALL">Full school year to date</option>';
     const want = _wantWeek && PR.weekBucket(_wantWeek.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3/$1'));
+    // Opened from Home / PIE / Site Leader Flags on a week this scope has no
+    // attendance rows for yet (e.g. Monday morning): still offer that week so
+    // the report covers exactly the window the caller showed.
+    if (want && !weeks.some(w => w.key === want.key)) { weeks.push(want); weeks.sort((x, y) => y.key.localeCompare(x.key)); }
+    sel.innerHTML = weeks.map(w => `<option value="${w.key}">Week of ${escA(PR.weekRangeLabel(w.key))}</option>`).join('') + '<option value="ALL">Full school year to date</option>';
     if (want && weeks.some(w => w.key === want.key)) { sel.value = want.key; _wantWeek = ''; }
     else sel.value = weeks.some(w => w.key === prev) || prev === 'ALL' ? prev : (weeks.length ? weeks[0].key : 'ALL');
     sel.disabled = false;
   }
 
+  const ymdOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function weekEnd(key) {
     if (!key || key === 'ALL') return '';
     const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + 6);
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return ymdOf(d);
+  }
+  // Rolling window: the chosen week plus the week before it (14 days).
+  const WINDOW_WEEKS = 2;
+  function windowStart(key) {
+    if (!key || key === 'ALL') return '';
+    const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() - 7 * (WINDOW_WEEKS - 1));
+    return ymdOf(d);
   }
 
-  // Support Report numbers, year to date through the chosen week
+  // Support Report numbers: rolling two weeks ending with the chosen week,
+  // or the full school year when "Full school year to date" is chosen.
   function currentReport() {
     const input = window.po.getFieldSupportInput(_region);
+    const week = (document.getElementById('fsWeek') || {}).value || 'ALL';
     input.region = _region;
     input.school = (document.getElementById('fsSchool') || {}).value || '';
-    input.from = '';
-    input.to = weekEnd((document.getElementById('fsWeek') || {}).value || 'ALL');
+    input.from = windowStart(week);
+    input.to = weekEnd(week);
     return computeFieldSupport(input);
+  }
+  function windowText(R) {
+    return R.from ? 'last two weeks, ' + R.from + ' to ' + R.to : 'school year to date';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DEFAULT WINDOW — shared by Home, PIE and Site Leader Flags so every place
+  // shows the same numbers as the Support Report opened on the same week:
+  // the Monday–Sunday week of the latest session that has already started,
+  // plus the week before it.
+  // ─────────────────────────────────────────────────────────────────────────
+  function mondayKey(ymd) {
+    const d = new Date(ymd + 'T12:00:00'); if (isNaN(d)) return '';
+    const day = d.getDay(); d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return ymdOf(d);
+  }
+  function latestWeekKey(input) {
+    const now = (input && input.now) || new Date(), today = ymdOf(now);
+    let last = '';
+    ((input && input.sessions) || []).forEach(s => {
+      const y = s && toYMD(s.start);
+      if (y && y <= today && y > last) { const d = new Date(s.start); if (isNaN(d) || d <= now) last = y; }
+    });
+    return mondayKey(last || today);
+  }
+  function defaultWindow(input) {
+    const key = latestWeekKey(input);
+    return { weekKey: key, from: windowStart(key), to: weekEnd(key) };
+  }
+  // The Support Report for a scope. opts.ytd → full school year; otherwise
+  // the default two-week window.
+  function reportFor(input, opts) {
+    opts = opts || {};
+    const w = opts.ytd ? { weekKey: '', from: '', to: '' } : defaultWindow(input);
+    const R = computeFieldSupport(Object.assign({}, input, { region: opts.region || 'ALL', school: opts.school || '', from: w.from, to: w.to }));
+    R.weekKey = w.weekKey;
+    return R;
+  }
+  const shortDate = ymd => { const d = new Date(ymd + 'T12:00:00'); return isNaN(d) ? ymd : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  function windowLabel(R) {
+    return R.from ? shortDate(R.from) + ' – ' + shortDate(R.to) + ', ' + R.to.slice(0, 4) : 'school year to date';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SITE LEADER FLAGS — glowing button in Pearl Operations (Programming +
+  // Data). Same list as the Excel "Site Leader Follow-up" tab, default window.
+  // ─────────────────────────────────────────────────────────────────────────
+  const FLAG_KINDS = [
+    { key: 'unavail', label: 'Scholar unavailable / no reason 2+ times', test: x => /^Scholar unavailable/.test(x.item) },
+    { key: 'cancel',  label: 'Whole group missed - should be a cancellation', test: x => /^Whole group missed/.test(x.item) },
+    { key: 'noreas',  label: 'Cancelled with no reason (FYI)', test: x => /^Cancelled with no reason/.test(x.item) },
+    { key: 'mix',     label: 'Reason-mix check', test: x => /^Reason-mix check/.test(x.item) },
+  ];
+  let _flagsRegion = 'ALL', _btnSig = '';
+  function flagsInput() {
+    if (typeof window === 'undefined' || !window.po || typeof window.po.getFieldSupportInput !== 'function') return null;
+    const input = window.po.getFieldSupportInput('ALL');
+    return input && input.sessions && input.sessions.length ? input : null;
+  }
+  function refreshFlagsButton() {
+    try {
+      const btn = document.getElementById('poSlFlagsBtn'); if (!btn) return;
+      const input = flagsInput(); if (!input) return;
+      const sig = (input.attRows || []).length + '|' + input.sessions.length + '|' + ymdOf(input.now || new Date()) + '|' + (input.hasCancelReasons ? 1 : 0);
+      if (sig === _btnSig) return;
+      _btnSig = sig;
+      const R = reportFor(input, { region: 'ALL' });
+      const n = R.slFollowUp.length;
+      const nEl = document.getElementById('poSlFlagsN'); if (nEl) nEl.textContent = n;
+      btn.classList.toggle('fs-flags-glow', n > 0);
+      btn.classList.toggle('fs-flags-clear', n === 0);
+      btn.title = n > 0
+        ? n + ' Site Leader follow-up' + (n === 1 ? '' : 's') + ' for ' + windowLabel(R) + ' - click to see them by school'
+        : 'No Site Leader follow-ups for ' + windowLabel(R);
+    } catch (e) { console.warn('[SL Flags]', e); }
+  }
+  function openFlags(region) {
+    if (region === 'NE' || region === 'SW' || region === 'ALL') _flagsRegion = region;
+    const input = flagsInput();
+    if (!input) { alert('Pearl Ops data not ready yet - try again in a moment.'); return; }
+    const R = reportFor(input, { region: _flagsRegion });
+    let m = document.getElementById('fsFlagsModal');
+    if (!m) {
+      m = document.createElement('div'); m.id = 'fsFlagsModal';
+      m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:center;justify-content:center;padding:1rem';
+      m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
+      document.body.appendChild(m);
+    }
+    const counts = FLAG_KINDS.map(k => ({ k, n: R.slFollowUp.filter(k.test).length }));
+    const bySchool = {};
+    R.slFollowUp.forEach(x => { (bySchool[x.school] = bySchool[x.school] || []).push(x); });
+    const th = 'text-align:left;padding:.4rem .5rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)';
+    const td = 'padding:.45rem .5rem;font-size:.8rem;vertical-align:top;border-bottom:1px solid var(--border)';
+    const body = Object.keys(bySchool).sort().map(sc => `
+      <div style="margin-top:1rem"><div style="font-weight:700;font-size:.9rem;color:var(--text);margin-bottom:.3rem">${escA(sc)} <span style="font-weight:500;color:var(--muted);font-size:.78rem">· ${bySchool[sc].length}</span></div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Item</th><th style="${th}">Scholar / Session / Tutor</th><th style="${th}">Tutor</th><th style="${th}">Date(s)</th><th style="${th}">Next step</th></tr></thead><tbody>
+      ${bySchool[sc].map(x => `<tr><td style="${td};font-weight:600">${escA(x.item)}</td><td style="${td}">${escA(x.who)}</td><td style="${td}">${escA(x.tutor)}</td><td style="${td};white-space:nowrap">${escA(x.dates)}</td><td style="${td}">${escA(x.step)}</td></tr>`).join('')}
+      </tbody></table></div></div>`).join('');
+    m.innerHTML = `
+      <div role="dialog" aria-modal="true" aria-labelledby="fsFlagsTitle" style="background:var(--surface);border-radius:16px;width:980px;max-width:96vw;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.3)">
+        <div style="background:#0a1628;border-bottom:3px solid #f0a500;padding:1.1rem 1.4rem;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;gap:1rem">
+          <div><div id="fsFlagsTitle" style="color:#fff;font-weight:700">🚩 Site Leader Flags</div>
+          <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.15rem">What Site Leaders follow up on (not tutor data entry) · ${escA(windowLabel(R))} · same list as the Excel "Site Leader Follow-up" tab</div></div>
+          <button type="button" aria-label="Close" onclick="document.getElementById('fsFlagsModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>
+        <div style="padding:1.1rem 1.4rem">
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+            ${['ALL', 'NE', 'SW'].map(r => `<button type="button" aria-pressed="${r === _flagsRegion}" onclick="njtcFieldSupport.openFlags('${r}')" style="padding:.35rem .85rem;font-size:.8rem;font-weight:600;border-radius:8px;cursor:pointer;border:1.5px solid ${r === _flagsRegion ? 'var(--blue-mid)' : 'var(--border)'};background:${r === _flagsRegion ? 'var(--blue-mid)' : 'var(--surface)'};color:${r === _flagsRegion ? '#fff' : 'var(--text)'}">${r === 'ALL' ? 'All Regions' : r + ' Region'}</button>`).join('')}
+            <span style="flex:1"></span>
+            <button type="button" onclick="njtcFieldSupport.flagsExcel()" style="padding:.45rem .9rem;border:none;border-radius:8px;background:#166534;color:#fff;font-weight:700;cursor:pointer;font-size:.8rem">⬇ Support Detail (Excel)</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.5rem">
+            ${counts.map(c => `<div style="border:1px solid var(--border);border-radius:10px;padding:.55rem .7rem"><div style="font-size:1.25rem;font-weight:800;color:${c.n ? '#b91c1c' : '#15803d'}">${c.n}</div><div style="font-size:.74rem;color:var(--muted)">${escA(c.k.label)}</div></div>`).join('')}
+          </div>
+          ${R.slFollowUp.length ? body : '<div style="padding:1.5rem 0;text-align:center;color:var(--muted)">✅ Nothing for Site Leaders to follow up on in this window.</div>'}
+          <div style="font-size:.72rem;color:var(--muted);margin-top:1rem;line-height:1.5">
+            <b>Repeat unavailable:</b> a scholar logged "Scholar Unavailable; Out of the Classroom" or with no reason ${REPEAT_UNAVAILABLE}+ times in the window. Tutors choose Unavailable instead of guessing; the SL checks school attendance or asks the teacher at a natural break, then updates the reason in Pearl if known.
+            <b>Should be a cancellation:</b> no scholar attended and a school/NJTC reason was logged as a missed reason; the SL cancels the session in Pearl with that reason.
+            <b>Cancelled with no reason:</b> FYI only - Pearl locks the Canceled Reason once a session is cancelled, so remind whoever cancelled to choose one next time${input.hasCancelReasons ? '' : ' (Canceled Reason is only in the SY 26-27 Pearl data)'}.
+            <b>Reason-mix check:</b> a tutor with ${REASON_MIX.minTutorMisses}+ missed rows who uses one reason on ${REASON_MIX.minShare}%+ of them, ${REASON_MIX.minGap}+ points more than the other tutors at the school (${REASON_MIX.minSiteMisses}+ rows). A prompt to review the reason guide, not proof the reason was wrong.
+          </div>
+        </div>
+      </div>`;
+    m.style.display = 'flex';
+  }
+  function flagsExcel() {
+    const input = flagsInput();
+    if (!input || !window.XLSX) { alert('Excel library or Pearl data not loaded - refresh and try again.'); return; }
+    const R = reportFor(input, { region: _flagsRegion });
+    window.XLSX.writeFile(buildWorkbook(window.XLSX, R), fileStem(R) + '.xlsx');
   }
   function scopeText(R) {
     return R.school || (R.region === 'ALL' ? 'All Regions' : R.region + ' Region');
@@ -697,7 +920,8 @@
       const schoolExtra = {};
       R.schools.forEach(c => { schoolExtra[c.school] = { tutorAttendance: c.tutorAttendance, support: c.support }; });
       const out = await window.NJTCPartnerReport.generatePDF(regionBundle(), { district: 'ALL', school: school || 'ALL', week }, {
-        internal: { preparedFor: 'NJTC Central Team (internal)', tutors: tutorsToCheckIn(R), tutorRule: TUTOR_RULE, schoolExtra },
+        internal: { preparedFor: 'NJTC Central Team (internal)', tutors: tutorsToCheckIn(R), schoolExtra, supportWindow: windowText(R),
+          tutorRule: R.from ? TUTOR_RULE : TUTOR_RULE.replace('in the last two weeks', 'year to date') },
       });
       status('Downloaded ' + out.name);
     } catch (e) {
@@ -706,7 +930,9 @@
     }
   }
 
-  const api = { open, download, computeFieldSupport, buildWorkbook, buildPDF, sheetSpecs, tutorsToCheckIn, TUTOR_RULE };
+  const api = { open, download, computeFieldSupport, buildWorkbook, buildPDF, sheetSpecs, tutorsToCheckIn, TUTOR_RULE,
+    defaultWindow, latestWeekKey, reportFor, windowLabel, openFlags, flagsExcel, refreshFlagsButton,
+    REPEAT_UNAVAILABLE, REASON_MIX, UNAVAILABLE_REASON };
   if (typeof window !== 'undefined') window.njtcFieldSupport = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

@@ -5413,6 +5413,13 @@
     .sl-modal textarea { width:100%;min-height:90px;padding:.75rem;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.875rem;font-family:inherit;resize:vertical;box-sizing:border-box; }
     .sl-modal textarea:focus { outline:none;border-color:#2563eb; }
     .sl-modal-actions { display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem; }
+    /* Site Leader Flags (Pearl Ops, Programming + Data) — glows while there
+       are follow-ups in the two-week Support Report window */
+    .fs-flags-btn { padding:.45rem 1rem;font-size:.8125rem;font-weight:700;border-radius:8px;cursor:pointer;align-items:center;gap:.25rem;letter-spacing:.01em;border:1.5px solid #b91c1c;background:#fff1f2;color:#991b1b; }
+    .fs-flags-btn.fs-flags-glow { background:linear-gradient(135deg,#b91c1c,#ef4444);color:#fff;border-color:#b91c1c;animation:fs-flags-pulse 1.8s ease-in-out infinite; }
+    .fs-flags-btn.fs-flags-clear { background:var(--surface);color:#15803d;border-color:#86efac; }
+    @keyframes fs-flags-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.55),0 0 6px rgba(239,68,68,.35)} 50%{box-shadow:0 0 0 7px rgba(239,68,68,0),0 0 18px rgba(239,68,68,.65)} }
+    @media (prefers-reduced-motion: reduce) { .fs-flags-btn.fs-flags-glow { animation:none;box-shadow:0 0 0 3px rgba(239,68,68,.45); } }
     /* Nav glow — fires for Programming & Data when HR resolves a log */
     @keyframes sl-glow-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} 50%{box-shadow:0 0 0 5px rgba(16,185,129,.38)} }
     .sl-glow-active { animation:sl-glow-pulse 2s ease-in-out infinite;border-radius:8px; }
@@ -5772,6 +5779,7 @@
           <span id="poSyncText" style="font-size:.8125rem;color:var(--muted)">Loading…</span>
           <button class="po-ticket-btn btn btn-secondary" onclick="po.openTicketsView()" title="Pearl Operations Ticket System — submit data requests and view responses" style="display:none">📬 Tickets</button>
           <button class="btn btn-secondary" onclick="po.refresh(true)" id="poRefreshBtn">↺ Refresh</button>
+          <button class="po-prog-data-only fs-flags-btn" id="poSlFlagsBtn" data-tour="po-sl-flags" onclick="njtcFieldSupport.openFlags('ALL')" title="Site Leader follow-ups for the last two weeks" style="display:none">🚩 <span id="poSlFlagsN">…</span>&nbsp;Site Leader Flags</button>
           <button class="po-prog-data-only" data-tour="po-support-ne" onclick="njtcFieldSupport.open('NE')" title="NE Region Weekly Report: the Partner Weekly Report layout with tutors to check in with (PDF), plus the Support Report detail (Excel)" style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#7c2d12,#c2410c);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">📄 NE Weekly Report</button>
           <button class="po-prog-data-only" data-tour="po-support-sw" onclick="njtcFieldSupport.open('SW')" title="SW Region Weekly Report: the Partner Weekly Report layout with tutors to check in with (PDF), plus the Support Report detail (Excel)" style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#7c2d12,#c2410c);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">📄 SW Weekly Report</button>
           <button class="po-pdf-data-only" onclick="po.showFieldReportModal()" title="Download a filtered report for onsite staff: survey follow-up, low ratings, and comments" style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#065f46,#059669);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">📋 Onsite Staff Report</button>
@@ -6995,10 +7003,10 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=48"></script>
+<script src="modules/shared-utils.js?v=49"></script>
 <script src="modules/shared-charts.js?v=23"></script>
 <script src="modules/shared-filters.js?v=9"></script>
-<script src="modules/home-shortcuts.js?v=6"></script>
+<script src="modules/home-shortcuts.js?v=7"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
 <script src="modules/leadership.js?v=11"></script>
@@ -7010,12 +7018,12 @@
 <script src="../shared/pearl-categories.js?v=2"></script>
 <script src="../shared/comment-flags.js?v=1"></script>
 <script src="modules/pearl-coverage.js?v=2"></script>
-<script src="modules/programming.js?v=31"></script>
+<script src="modules/programming.js?v=32"></script>
 <script src="modules/pdf-export.js?v=9"></script>
-<script src="modules/field-support.js?v=9"></script>
+<script src="modules/field-support.js?v=11"></script>
 <script src="modules/comment-followup.js?v=2"></script>
-<script src="modules/portal-tour.js?v=8"></script>
-<script src="../partner/partner-report.js?v=9"></script>
+<script src="modules/portal-tour.js?v=9"></script>
+<script src="../partner/partner-report.js?v=10"></script>
 <script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=2"></script>
 <script src="modules/finance.js?v=7"></script>
