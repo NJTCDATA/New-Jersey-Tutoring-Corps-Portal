@@ -14,8 +14,8 @@ const HEX = {
 };
 const THEME = {
   name: 'NJTC',
-  headFontFace: 'DM Serif Display',
-  bodyFontFace: 'DM Sans',
+  headFontFace: 'Cambria',
+  bodyFontFace: 'Calibri',
   colors: {
     dk1: HEX.ink, lt1: 'FFFFFF', dk2: HEX.navy, lt2: HEX.wash,
     accent1: HEX.gold, accent2: HEX.navy2, accent3: HEX.red, accent4: HEX.amber, accent5: HEX.green, accent6: HEX.muted,
@@ -36,43 +36,43 @@ const SHAPE = pres.ShapeType;
 
 // ── Layouts ────────────────────────────────────────────────────────────────
 const footer = (dark) => ([
-  { text: { text: 'NEW JERSEY TUTORING CORPS', options: { x: 0.6, y: 6.95, w: 4, h: 0.3, fontSize: 9, bold: true, charSpacing: 3, color: dark ? 'FFFFFF' : HEX.navy, fontFace: 'DM Sans', margin: 0 } } },
-  { text: { text: 'North-East Site Leaders  ·  November 2026', options: { x: 4.6, y: 6.95, w: 5, h: 0.3, fontSize: 9, color: dark ? 'B9C4D1' : HEX.muted, fontFace: 'DM Sans', margin: 0 } } },
+  { text: { text: 'NEW JERSEY TUTORING CORPS', options: { x: 0.6, y: 6.95, w: 4, h: 0.3, fontSize: 9, bold: true, charSpacing: 3, color: dark ? 'FFFFFF' : HEX.navy, fontFace: 'Calibri', margin: 0 } } },
+  { text: { text: 'North-East Site Leaders  ·  November 2026', options: { x: 4.6, y: 6.95, w: 5, h: 0.3, fontSize: 9, color: dark ? 'B9C4D1' : HEX.muted, fontFace: 'Calibri', margin: 0 } } },
 ]);
-const slideNum = (dark) => ({ x: 12.2, y: 6.95, w: 0.55, h: 0.3, fontSize: 9, color: dark ? 'B9C4D1' : HEX.muted, fontFace: 'DM Sans', align: 'right' });
+const slideNum = (dark) => ({ x: 12.2, y: 6.95, w: 0.55, h: 0.3, fontSize: 9, color: dark ? 'B9C4D1' : HEX.muted, fontFace: 'Calibri', align: 'right' });
 
 pres.defineSlideMaster({
   title: 'TITLE_DARK', background: { color: HEX.navy },
   objects: [
     ...footer(true),
-    { placeholder: { options: { name: 'title', type: 'title', align: 'left', x: 0.6, y: 2.2, w: 9.5, h: 2.1, fontFace: 'DM Serif Display', fontSize: 60, color: 'FFFFFF', valign: 'bottom', margin: 0 }, text: '' } },
-    { placeholder: { options: { name: 'body', type: 'body', x: 0.6, y: 4.5, w: 9, h: 1.2, fontFace: 'DM Sans', fontSize: 20, color: 'D6DEE8', valign: 'top', margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'title', type: 'title', align: 'left', bold: true, x: 0.6, y: 2.2, w: 9.5, h: 2.1, fontFace: 'Cambria', fontSize: 60, color: 'FFFFFF', valign: 'bottom', margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'body', type: 'body', x: 0.6, y: 4.5, w: 9, h: 1.2, fontFace: 'Calibri', fontSize: 20, color: 'D6DEE8', valign: 'top', margin: 0 }, text: '' } },
   ],
 });
 pres.defineSlideMaster({
   title: 'SECTION_DARK', background: { color: HEX.navy }, slideNumber: slideNum(true),
   objects: [
     ...footer(true),
-    { placeholder: { options: { name: 'title', type: 'title', align: 'left', x: 0.6, y: 2.6, w: 11, h: 1.4, fontFace: 'DM Serif Display', fontSize: 48, color: 'FFFFFF', valign: 'bottom', margin: 0 }, text: '' } },
-    { placeholder: { options: { name: 'body', type: 'body', x: 0.6, y: 4.2, w: 10, h: 1.2, fontFace: 'DM Sans', fontSize: 20, color: 'D6DEE8', valign: 'top', margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'title', type: 'title', align: 'left', bold: true, x: 0.6, y: 2.6, w: 11, h: 1.4, fontFace: 'Cambria', fontSize: 48, color: 'FFFFFF', valign: 'bottom', margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'body', type: 'body', x: 0.6, y: 4.2, w: 10, h: 1.2, fontFace: 'Calibri', fontSize: 20, color: 'D6DEE8', valign: 'top', margin: 0 }, text: '' } },
   ],
 });
 pres.defineSlideMaster({
   title: 'CONTENT', background: { color: 'FFFFFF' }, slideNumber: slideNum(false),
   objects: [
     ...footer(false),
-    { placeholder: { options: { name: 'eyebrow', type: 'body', x: 0.6, y: 0.45, w: 12, h: 0.3, fontFace: 'DM Sans', fontSize: 11, bold: true, charSpacing: 3, color: HEX.goldInk, margin: 0 }, text: '' } },
-    { placeholder: { options: { name: 'title', type: 'title', align: 'left', x: 0.6, y: 0.78, w: 12.1, h: 0.85, fontFace: 'DM Serif Display', fontSize: 36, color: HEX.ink, valign: 'top', margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'eyebrow', type: 'body', x: 0.6, y: 0.45, w: 12, h: 0.3, fontFace: 'Calibri', fontSize: 11, bold: true, charSpacing: 3, color: HEX.goldInk, margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'title', type: 'title', align: 'left', bold: true, x: 0.6, y: 0.78, w: 12.1, h: 0.85, fontFace: 'Cambria', fontSize: 36, color: HEX.ink, valign: 'top', margin: 0 }, text: '' } },
   ],
 });
 // Gold = talk time. Every time the screen goes gold, the room is talking.
 pres.defineSlideMaster({
-  title: 'MOMENT', background: { color: HEX.gold }, slideNumber: { x: 12.2, y: 6.95, w: 0.55, h: 0.3, fontSize: 9, color: HEX.navy, fontFace: 'DM Sans', align: 'right' },
+  title: 'MOMENT', background: { color: HEX.gold }, slideNumber: { x: 12.2, y: 6.95, w: 0.55, h: 0.3, fontSize: 9, color: HEX.navy, fontFace: 'Calibri', align: 'right' },
   objects: [
-    { text: { text: 'NEW JERSEY TUTORING CORPS', options: { x: 0.6, y: 6.95, w: 4, h: 0.3, fontSize: 9, bold: true, charSpacing: 3, color: HEX.navy, fontFace: 'DM Sans', margin: 0 } } },
-    { placeholder: { options: { name: 'eyebrow', type: 'body', x: 0.6, y: 0.9, w: 10, h: 0.5, fontFace: 'DM Sans', fontSize: 16, bold: true, charSpacing: 4, color: HEX.navy, margin: 0 }, text: '' } },
-    { placeholder: { options: { name: 'title', type: 'title', align: 'left', x: 0.6, y: 1.6, w: 11.4, h: 3.3, fontFace: 'DM Serif Display', fontSize: 44, color: HEX.navy, valign: 'top', margin: 0 }, text: '' } },
-    { placeholder: { options: { name: 'body', type: 'body', x: 0.6, y: 5.1, w: 11.4, h: 1.4, fontFace: 'DM Sans', fontSize: 18, color: HEX.navy, valign: 'top', margin: 0 }, text: '' } },
+    { text: { text: 'NEW JERSEY TUTORING CORPS', options: { x: 0.6, y: 6.95, w: 4, h: 0.3, fontSize: 9, bold: true, charSpacing: 3, color: HEX.navy, fontFace: 'Calibri', margin: 0 } } },
+    { placeholder: { options: { name: 'eyebrow', type: 'body', x: 0.6, y: 0.9, w: 10, h: 0.5, fontFace: 'Calibri', fontSize: 16, bold: true, charSpacing: 4, color: HEX.navy, margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'title', type: 'title', align: 'left', bold: true, x: 0.6, y: 1.6, w: 11.4, h: 3.3, fontFace: 'Cambria', fontSize: 44, color: HEX.navy, valign: 'top', margin: 0 }, text: '' } },
+    { placeholder: { options: { name: 'body', type: 'body', x: 0.6, y: 5.1, w: 11.4, h: 1.4, fontFace: 'Calibri', fontSize: 18, color: HEX.navy, valign: 'top', margin: 0 }, text: '' } },
   ],
 });
 
@@ -92,18 +92,18 @@ function moment(section, kind, minutes, prompt, sub) {
   if (sub) s.addText(sub, { placeholder: 'body' });
   return s;
 }
-function txt(s, text, o) { s.addText(text, Object.assign({ isTextBox: true, margin: 0, fontFace: 'DM Sans', color: HEX.body, fontSize: 14, valign: 'top', objectName: id('t') }, o)); }
+function txt(s, text, o) { s.addText(text, Object.assign({ isTextBox: true, margin: 0, fontFace: 'Calibri', color: HEX.body, fontSize: 14, valign: 'top', objectName: id('t') }, o)); }
 function box(s, x, y, w, h, fill, o) { s.addShape(SHAPE.roundRect, Object.assign({ x, y, w, h, fill: { color: fill }, line: { color: fill, width: 0 }, rectRadius: 0.08, objectName: id('box') }, o || {})); }
 function rect(s, x, y, w, h, fill, o) { s.addShape(SHAPE.rect, Object.assign({ x, y, w, h, fill: { color: fill }, line: { color: fill, width: 0 }, objectName: id('rect') }, o || {})); }
 function num(s, x, y, n, o) {
   o = o || {};
   const d = o.d || 0.5;
   s.addShape(SHAPE.ellipse, { x, y, w: d, h: d, fill: { color: o.fill || HEX.navy }, line: { color: o.fill || HEX.navy, width: 0 }, objectName: id('dot') });
-  s.addText(String(n), { x, y, w: d, h: d, isTextBox: true, margin: 0, align: 'center', valign: 'middle', fontFace: 'DM Serif Display', fontSize: o.size || 18, color: o.color || HEX.gold, objectName: id('n') });
+  s.addText(String(n), { x, y, w: d, h: d, isTextBox: true, margin: 0, align: 'center', valign: 'middle', fontFace: 'Cambria', fontSize: o.size || 18, color: o.color || HEX.gold, objectName: id('n') });
 }
 function bullets(s, items, o) {
   s.addText(items.map((t, i) => ({ text: t, options: { bullet: { indent: 14 }, breakLine: i < items.length - 1 } })),
-    Object.assign({ isTextBox: true, margin: 0, fontFace: 'DM Sans', fontSize: 14, color: HEX.body, valign: 'top', paraSpaceAfter: 7, objectName: id('list') }, o));
+    Object.assign({ isTextBox: true, margin: 0, fontFace: 'Calibri', fontSize: 14, color: HEX.body, valign: 'top', paraSpaceAfter: 7, objectName: id('list') }, o));
 }
 function chip(s, x, y, label, kind) {
   const map = { now: [HEX.redWash, HEX.red], today: [HEX.amberWash, HEX.amber], week: ['E6EDF5', HEX.navy2], gold: [HEX.goldWash, HEX.goldInk] };
@@ -148,7 +148,7 @@ Name the three outcomes: everyone leaves with (1) a daily routine, (2) a clear e
   ];
   rows.forEach((r, i) => {
     const y = 1.95 + i * 0.75;
-    txt(s, r[0], { x: 0.6, y, w: 0.9, h: 0.6, fontFace: 'DM Serif Display', fontSize: 22, color: HEX.goldInk, valign: 'middle' });
+    txt(s, r[0], { x: 0.6, y, w: 0.9, h: 0.6, fontFace: 'Cambria', fontSize: 22, color: HEX.goldInk, valign: 'middle' });
     txt(s, r[1], { x: 1.6, y, w: 4.6, h: 0.6, fontSize: 17, bold: true, color: HEX.ink, valign: 'middle' });
     txt(s, r[2], { x: 6.2, y, w: 4.4, h: 0.6, fontSize: 14, color: HEX.muted, valign: 'middle' });
     if (r[3]) chip(s, 10.75, y + 0.14, r[3], 'gold');
@@ -187,7 +187,7 @@ pres.addSection({ title: 'Data' });
   stats.forEach((st, i) => {
     const x = 0.6 + i * (cw + gap);
     box(s, x, 2.15, cw, 2.9, HEX.wash);
-    txt(s, st[0], { x: x + 0.25, y: 2.45, w: cw - 0.4, h: 1.0, fontFace: 'DM Serif Display', fontSize: 44, color: HEX.navy });
+    txt(s, st[0], { x: x + 0.25, y: 2.45, w: cw - 0.4, h: 1.0, fontFace: 'Cambria', fontSize: 44, color: HEX.navy });
     txt(s, st[1], { x: x + 0.25, y: 3.6, w: cw - 0.45, h: 1.2, fontSize: 14, color: HEX.body });
   });
   txt(s, 'This is the foundation. Survey completion is a routine your tutors already own. That’s proof the region can build habits that stick.', { x: 0.6, y: 5.45, w: 11.5, h: 0.6, fontSize: 16, color: HEX.ink });
@@ -224,7 +224,7 @@ Don't linger. 90 seconds max.`);
   // callout
   box(s, 9.0, 1.65, 3.73, 4.15, HEX.navy);
   txt(s, 'Scholar attendance held', { x: 9.3, y: 1.95, w: 3.2, h: 0.4, fontSize: 14, bold: true, color: HEX.gold });
-  txt(s, '92.2% → 90.1%', { x: 9.3, y: 2.35, w: 3.3, h: 0.7, fontFace: 'DM Serif Display', fontSize: 32, color: 'FFFFFF' });
+  txt(s, '92.2% → 90.1%', { x: 9.3, y: 2.35, w: 3.3, h: 0.7, fontFace: 'Cambria', fontSize: 32, color: 'FFFFFF' });
   txt(s, 'Still well above the 80% goal.\n\nWhat slipped is everything around the session: coverage, cancellations, and closing the loop in Pearl. Those are ours to own.', { x: 9.3, y: 3.15, w: 3.2, h: 2.5, fontSize: 14, color: 'D6DEE8' });
   txt(s, SOURCE + ' Late October included school events and testing; counts are as logged in Pearl.', { x: 0.6, y: 6.25, w: 12, h: 0.5, fontSize: 10, color: HEX.muted });
   s.addNotes(`This is the reframe slide. Say it plainly: "Taneisha has been talking about attendance, and attendance is fine. What's slipping is reliability, the stuff around the session."
@@ -307,7 +307,7 @@ pres.addSection({ title: 'Ownership' });
     const shape = i === 0 ? SHAPE.homePlate : SHAPE.chevron;
     const fill = i < 3 ? HEX.navy : HEX.grey;
     s.addShape(shape, { x, y, w: sw - 0.05, h: 1.0, fill: { color: fill }, line: { color: fill, width: 0 }, objectName: id('step') });
-    txt(s, st[0], { x: x + 0.35, y, w: sw - 0.75, h: 1.0, valign: 'middle', align: 'center', fontSize: 14, bold: true, color: i < 3 ? 'FFFFFF' : HEX.ink });
+    txt(s, st[0], { x: x + 0.45, y, w: sw - 0.95, h: 1.0, valign: 'middle', align: 'center', fontSize: 13, bold: true, color: i < 3 ? 'FFFFFF' : HEX.ink });
     txt(s, st[1], { x: x + 0.1, y: y + 1.15, w: sw - 0.25, h: 0.4, align: 'center', fontSize: 13, color: i < 3 ? HEX.ink : HEX.muted, bold: i < 3 });
   });
   txt(s, 'When a flag reaches the region, the problem has already cost scholars a session, and someone has to stop and chase it. Our job is to move the catch to the left.', { x: 0.6, y: 4.95, w: 8.2, h: 1.0, fontSize: 18, color: HEX.ink });
@@ -352,7 +352,7 @@ Tie it back to the Stop & Jot: "Remember the gap you wrote down? That's this arr
     const x = 0.6 + i * (cw + gap);
     box(s, x, 1.95, cw, 4.75, HEX.wash);
     num(s, x + 0.3, 2.2, i + 1);
-    txt(s, c[0], { x: x + 0.95, y: 2.15, w: cw - 1.1, h: 0.4, fontFace: 'DM Serif Display', fontSize: 22, color: HEX.ink });
+    txt(s, c[0], { x: x + 0.95, y: 2.15, w: cw - 1.1, h: 0.4, fontFace: 'Cambria', fontSize: 22, color: HEX.ink });
     txt(s, c[1].toUpperCase(), { x: x + 0.95, y: 2.55, w: cw - 1.1, h: 0.3, fontSize: 10, bold: true, charSpacing: 2, color: HEX.goldInk });
     bullets(s, c[2], { x: x + 0.3, y: 3.1, w: cw - 0.55, h: 3.5, fontSize: 13.5 });
   });
@@ -378,12 +378,12 @@ pres.addSection({ title: 'Routines' });
   cols.forEach((c, i) => {
     const x = 0.6 + i * (cw + gap);
     num(s, x, 1.95, i + 1, { d: 0.55 });
-    txt(s, c[0], { x: x + 0.7, y: 1.92, w: 3, h: 0.45, fontFace: 'DM Serif Display', fontSize: 26, color: HEX.ink });
+    txt(s, c[0], { x: x + 0.7, y: 1.92, w: 3, h: 0.45, fontFace: 'Cambria', fontSize: 26, color: HEX.ink });
     txt(s, c[1], { x: x + 0.7, y: 2.37, w: 3, h: 0.3, fontSize: 12, bold: true, color: HEX.goldInk });
     bullets(s, c[2], { x: x + 0.05, y: 2.95, w: cw - 0.3, h: 2.6, fontSize: 13.5 });
   });
   box(s, 0.6, 5.75, 12.1, 0.8, HEX.navy);
-  txt(s, 'Nobody leaves the building with an open session.', { x: 0.9, y: 5.75, w: 11.5, h: 0.8, valign: 'middle', fontFace: 'DM Serif Display', fontSize: 24, color: 'FFFFFF' });
+  txt(s, 'Nobody leaves the building with an open session.', { x: 0.9, y: 5.75, w: 11.5, h: 0.8, valign: 'middle', fontFace: 'Cambria', fontSize: 24, color: 'FFFFFF' });
   s.addNotes(`This is the slide (and the matching one-pager) Site Leaders take back to their tutors.
 
 The non-negotiable is the bottom line: close every session before leaving the building. Almost every data flag (Incomplete, Not recorded, blank reason) disappears if that one habit holds.
@@ -418,7 +418,7 @@ Share out: one or two strong examples. Tell the room to steal them.`);
   const heights = [1.45, 1.75, 1.05];
   rows.forEach((r, i) => {
     const h = heights[i];
-    txt(s, r[0], { x: 0.6, y: y + 0.05, w: 2.3, h: 0.5, fontFace: 'DM Serif Display', fontSize: 22, color: HEX.ink });
+    txt(s, r[0], { x: 0.6, y: y + 0.05, w: 2.3, h: 0.5, fontFace: 'Cambria', fontSize: 22, color: HEX.ink });
     const n = r[1].length, gx = 3.0, gw = 9.7, g = 0.15;
     const cw = (gw - g * (n - 1)) / n;
     r[1].forEach((c, j) => {
@@ -463,7 +463,7 @@ pres.addSection({ title: 'Escalation' });
     const dark = i === 3;
     box(s, x, top, sw, 6.25 - top, dark ? HEX.navy : HEX.wash);
     num(s, x + 0.2, top + 0.2, i + 1, { d: 0.45, size: 16, fill: dark ? 'FFFFFF' : HEX.navy, color: dark ? HEX.navy : HEX.gold });
-    txt(s, st[0], { x: x + 0.75, y: top + 0.18, w: sw - 0.85, h: 0.5, valign: 'middle', fontFace: 'DM Serif Display', fontSize: 18, color: dark ? 'FFFFFF' : HEX.ink, fit: 'shrink' });
+    txt(s, st[0], { x: x + 0.75, y: top + 0.18, w: sw - 0.85, h: 0.5, valign: 'middle', fontFace: 'Cambria', fontSize: 18, color: dark ? 'FFFFFF' : HEX.ink, fit: 'shrink' });
     txt(s, st[1], { x: x + 0.2, y: top + 0.8, w: sw - 0.35, h: 0.3, fontSize: 12, bold: true, color: dark ? HEX.gold : HEX.goldInk });
     chip(s, x + 0.2, top + 1.15, st[2][0][1], st[2][0][0]);
     txt(s, st[2][1] + (st[3] ? '\n\n' + st[3] : ''), { x: x + 0.2, y: top + 1.6, w: sw - 0.4, h: 6.1 - top - 1.65, fontSize: 12.5, color: dark ? 'D6DEE8' : HEX.body });
@@ -491,7 +491,7 @@ And the promise going the other way: every escalation gets a reply within 24 hou
   qs.forEach((q, i) => {
     const y = 2.0 + i * 1.45;
     num(s, 0.6, y + 0.12, i + 1, { d: 0.7, size: 24 });
-    txt(s, q[0], { x: 1.6, y, w: 5.0, h: 0.95, valign: 'middle', fontFace: 'DM Serif Display', fontSize: 28, color: HEX.ink });
+    txt(s, q[0], { x: 1.6, y, w: 5.0, h: 0.95, valign: 'middle', fontFace: 'Cambria', fontSize: 28, color: HEX.ink });
     chip(s, 6.8, y + 0.3, q[2], q[1]);
     txt(s, q[3], { x: 9.0, y, w: 3.7, h: 1.0, valign: 'middle', fontSize: 13.5 });
     if (i < 2) s.addShape(SHAPE.line, { x: 1.6, y: y + 1.2, w: 11.1, h: 0, line: { color: HEX.line, width: 0.75 }, objectName: id('rule') });
@@ -526,7 +526,7 @@ The "twice" rule takes the guesswork out. Site Leaders don't need to escalate ev
   s.addText(ex.flatMap((e, i) => [
     { text: e[0], options: { bold: true, color: HEX.ink } },
     { text: e[1], options: { color: HEX.body, breakLine: i < ex.length - 1 } },
-  ]), { x: 6.65, y: 2.5, w: 5.8, h: 3.7, isTextBox: true, margin: 0, fontFace: 'DM Sans', fontSize: 14.5, valign: 'top', paraSpaceAfter: 12, objectName: id('ex') });
+  ]), { x: 6.65, y: 2.5, w: 5.8, h: 3.7, isTextBox: true, margin: 0, fontFace: 'Calibri', fontSize: 14.5, valign: 'top', paraSpaceAfter: 12, objectName: id('ex') });
   s.addNotes(`The format works in a text, an email, or a hallway conversation.
 
 Point at line 2: "What I already did is the line that turns a complaint into ownership. If you can't fill in line 2, you're probably not ready to escalate yet. Try something first, unless it's safety."
@@ -554,7 +554,7 @@ Point out that the example is exactly the gold bar from the data slide: teacher 
   cards.forEach((c, i) => {
     const x = gx + (i % 4) * (cw + g), y = 1.95 + Math.floor(i / 4) * (ch + g);
     box(s, x, y, cw, ch, 'FFFFFF', { line: { color: HEX.line, width: 1 } });
-    txt(s, c[0], { x: x + 0.18, y: y + 0.12, w: 0.5, h: 0.45, fontFace: 'DM Serif Display', fontSize: 22, color: HEX.goldInk });
+    txt(s, c[0], { x: x + 0.18, y: y + 0.12, w: 0.5, h: 0.45, fontFace: 'Cambria', fontSize: 22, color: HEX.goldInk });
     txt(s, c[1], { x: x + 0.18, y: y + 0.6, w: cw - 0.3, h: ch - 0.7, fontSize: 12, color: HEX.ink });
   });
   s.addNotes(`Hand out the printed Scenario Cards (one set per pair). Give them 7 minutes to sort, then 3 to debrief.
@@ -580,7 +580,7 @@ The full answer key is in the Facilitator Guide.`);
   items.forEach((it, i) => {
     const x = 0.6 + (i % 2) * (cw + g), y = 1.95 + Math.floor(i / 2) * (ch + g);
     box(s, x, y, cw, ch, HEX.wash);
-    txt(s, it[0], { x: x + 0.25, y: y + 0.18, w: 0.5, h: 0.5, fontFace: 'DM Serif Display', fontSize: 26, color: HEX.goldInk });
+    txt(s, it[0], { x: x + 0.25, y: y + 0.18, w: 0.5, h: 0.5, fontFace: 'Cambria', fontSize: 26, color: HEX.goldInk });
     txt(s, it[1], { x: x + 0.8, y: y + 0.2, w: cw - 2.8, h: 0.5, fontSize: 14.5, bold: true, color: HEX.ink, valign: 'middle' });
     const cwid = 0.16 + it[3].length * 0.095;
     chip(s, x + cw - cwid - 0.25, y + 0.29, it[3], it[2]);
