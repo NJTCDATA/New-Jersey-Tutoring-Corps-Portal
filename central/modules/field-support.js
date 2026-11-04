@@ -522,7 +522,7 @@
   // Lowest tutor attendance first, then most open items.
   // ─────────────────────────────────────────────────────────────────────────
   const TUTOR_CHECKIN = { minSessions: 3, minFixes: 3 };
-  const TUTOR_RULE = 'Tutors with a real pattern, year to date: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
+  const TUTOR_RULE = 'Tutors with a real pattern in the last two weeks: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
     '(incomplete sessions, tutor surveys still inside the 7-day window, blank missed reasons, attendance not recorded or mismatched). A quick check-in from the Site Leader or PM usually clears this up.';
   function tutorsToCheckIn(R) {
     const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
@@ -546,7 +546,10 @@
   //   PDF   → Region Weekly Report: the Partner Weekly Report layout
   //           (partner/partner-report.js) for a region, with "Tutors to check
   //           in with" and a per-school tutor view for the Central Team.
-  //   Excel → the Support Report detail tabs, year to date through the week.
+  //   Excel → the Support Report detail tabs for a rolling two-week window
+  //           ending with the chosen week (recent enough for tutors to
+  //           remember and fix). "Full school year to date" keeps the YTD
+  //           view for program-level reporting.
   // ─────────────────────────────────────────────────────────────────────────
   const REGION_NAME = { NE: 'North-East', SW: 'South-West' };
   let _region = 'ALL';
@@ -580,7 +583,7 @@
           </div></div>
           <div style="margin-bottom:.85rem"><label for="fsSchool" style="${lbl};display:block">School (optional)</label>
             <select id="fsSchool" style="${inp}"><option value="">All schools in the region</option></select></div>
-          <div style="margin-bottom:1.1rem"><label for="fsWeek" style="${lbl};display:block">Week</label>
+          <div style="margin-bottom:1.1rem"><label for="fsWeek" style="${lbl};display:block">Week (Support Report covers this week and the week before)</label>
             <select id="fsWeek" style="${inp}" disabled><option value="">Loading Pearl weeks…</option></select></div>
           <div style="display:flex;gap:.6rem">
             <button type="button" id="fsPdfBtn" onclick="njtcFieldSupport.download('pdf')" style="flex:1;padding:.7rem;border:none;border-radius:10px;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;font-weight:700;cursor:pointer">⬇ Weekly Report (PDF)</button>
@@ -658,20 +661,33 @@
     sel.disabled = false;
   }
 
+  const ymdOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function weekEnd(key) {
     if (!key || key === 'ALL') return '';
     const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + 6);
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return ymdOf(d);
+  }
+  // Rolling window: the chosen week plus the week before it (14 days).
+  const WINDOW_WEEKS = 2;
+  function windowStart(key) {
+    if (!key || key === 'ALL') return '';
+    const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() - 7 * (WINDOW_WEEKS - 1));
+    return ymdOf(d);
   }
 
-  // Support Report numbers, year to date through the chosen week
+  // Support Report numbers: rolling two weeks ending with the chosen week,
+  // or the full school year when "Full school year to date" is chosen.
   function currentReport() {
     const input = window.po.getFieldSupportInput(_region);
+    const week = (document.getElementById('fsWeek') || {}).value || 'ALL';
     input.region = _region;
     input.school = (document.getElementById('fsSchool') || {}).value || '';
-    input.from = '';
-    input.to = weekEnd((document.getElementById('fsWeek') || {}).value || 'ALL');
+    input.from = windowStart(week);
+    input.to = weekEnd(week);
     return computeFieldSupport(input);
+  }
+  function windowText(R) {
+    return R.from ? 'last two weeks, ' + R.from + ' to ' + R.to : 'school year to date';
   }
   function scopeText(R) {
     return R.school || (R.region === 'ALL' ? 'All Regions' : R.region + ' Region');
@@ -697,7 +713,8 @@
       const schoolExtra = {};
       R.schools.forEach(c => { schoolExtra[c.school] = { tutorAttendance: c.tutorAttendance, support: c.support }; });
       const out = await window.NJTCPartnerReport.generatePDF(regionBundle(), { district: 'ALL', school: school || 'ALL', week }, {
-        internal: { preparedFor: 'NJTC Central Team (internal)', tutors: tutorsToCheckIn(R), tutorRule: TUTOR_RULE, schoolExtra },
+        internal: { preparedFor: 'NJTC Central Team (internal)', tutors: tutorsToCheckIn(R), schoolExtra, supportWindow: windowText(R),
+          tutorRule: R.from ? TUTOR_RULE : TUTOR_RULE.replace('in the last two weeks', 'year to date') },
       });
       status('Downloaded ' + out.name);
     } catch (e) {

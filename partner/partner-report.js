@@ -980,7 +980,7 @@
     if (m.schools.length > 1) {
       section(internal ? 'Schools at a glance' : 'Your schools');
       font('normal', 8); setText(C.text2);
-      doc.text(pdfText('Year to date' + (m.weekly ? ' through this week' : '') + ', lowest attendance first.' + (internal ? ' Tutor attendance and the support level come from the Pearl Operations Support Report.' : '')), M, y, { maxWidth: CW });
+      doc.text(pdfText('Year to date' + (m.weekly ? ' through this week' : '') + ', lowest attendance first.' + (internal ? ' Tutor attendance and the support level come from the Pearl Operations Support Report' + (internal.supportWindow ? ' (' + internal.supportWindow + ')' : '') + '.' : '')), M, y, { maxWidth: CW });
       y += 12;
       const extra = (internal && internal.schoolExtra) || {};
       const head = ['School', 'Attendance', 'Scholars', 'To check in', 'Kept in class', 'Loving sessions'];
