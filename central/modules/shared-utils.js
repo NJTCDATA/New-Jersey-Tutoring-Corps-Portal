@@ -6948,6 +6948,8 @@
           { icon: '👩‍🏫', label: 'Instructor Session Count', desc: 'Total sessions delivered per instructor for the current SY. Pulled from the Pearl Instructor Attendance tab.', live: true },
           { icon: '🎓', label: 'Scholar Session Engagement', desc: 'Student-level session counts pulled from the Pearl Student Sessions tab. Tracks dosage per scholar.', live: true },
           { icon: '🚩', label: 'HIT Compliance Flags', desc: 'High-Impact Tutoring threshold monitoring. Flags scholars or sites not meeting minimum session dosage requirements.', live: true },
+          { icon: '🧭', label: 'Support Report', desc: 'NE / SW Weekly Report → ⬇ Support Detail (Excel). Tutor data-entry fixes (incomplete sessions, blank or mismatched missed reasons, missing surveys) and Site Leader follow-ups for the chosen week plus the week before, so every flag is recent enough to fix. "Full school year to date" gives the year view. Home, PIE and Site Leader Flags use the same window and the same numbers.', live: true },
+          { icon: '🔴', label: 'Site Leader Flags', desc: 'Glowing button in Pearl Operations (Programming and Data). Scholars logged Scholar Unavailable or with no reason 2+ times, whole-group misses that should have been cancelled, cancellations with no reason (FYI — Pearl locks the reason once cancelled) and reason-mix checks, by school.', live: true },
         ],
         mission: 'High-dosage tutoring effectiveness depends on session consistency. Pearl Operations gives the Programming and PEI teams real-time visibility into whether we are delivering on our dosage commitments to partner schools and scholars.'
       },
@@ -6972,6 +6974,7 @@
           { icon: '👤', label: 'Data Entry Owner', desc: 'Programming Department owns all Pearl data entry (session records, instructor assignments, student rostering). PEI owns the reporting, flagging, and analytics layer.', badge: 'Programming' },
           { icon: '🚩', label: 'Flag Reports', desc: 'HIT compliance and attendance flag reports are generated and sent to regional teams every Monday by EOD. Onsite teams receive site-specific summaries.', badge: 'Monday EOD' },
           { icon: '🔄', label: 'Data Quality', desc: 'Inactive instructor records in Pearl must be archived to prevent data skew. PEI conducts monthly Pearl audits against the HR Master List to flag mismatches.', badge: 'Monthly' },
+          { icon: '🧭', label: 'Support Report Window', desc: 'Rolling two weeks: the chosen (or latest) Monday–Sunday week plus the week before. Tutors fix their own entries; Site Leaders own the Site Leader Follow-up list. Missed reasons: tutors pick "Scholar Unavailable; Out of the Classroom" when they don\'t know why rather than guessing, and SLs follow up only on repeats.', badge: '2 weeks' },
         ],
         timeline: [
           { label: 'Weekly: Monday EOD', desc: 'Flag reports sent to regional program teams. Session attendance updated in portal.' },
@@ -6994,7 +6997,7 @@
           { icon: '🔐', label: 'Pearl Platform Access', desc: 'Pearl platform credentials are managed by the Programming team. The portal connects to Pearl via published Google Sheet (2PACX link) — no Pearl login is required for portal users.' },
           { icon: '📊', label: 'ADP Suite Integration', desc: 'Pearl attendance data feeds directly into the ADP Suite Employee Profile Dashboard for rehire decision scoring. Data quality in Pearl directly impacts automated rehire recommendations.' },
         ],
-        pii: '⚠️ Pearl contains scholar names and session records protected under FERPA. The portal displays aggregated instructor-level and site-level data only. Individual scholar records are never surfaced in the Central Team Portal. Access to raw Pearl export data is restricted to PEI and Programming leadership.'
+        pii: '⚠️ Pearl contains scholar names and session records protected under FERPA. Pages show aggregated instructor-level and site-level data. Scholar names and Pearl IDs appear only where a follow-up needs them — school and tutor drill-downs, the Support Detail Excel and Site Leader Flags — for internal Central Team use only; never share them with partners or outside NJTC. Access to raw Pearl export data is restricted to PEI and Programming leadership.'
       }
     },
 
@@ -8086,7 +8089,7 @@
 
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
-    'Support Report': ['Who needs support?',                    "Who didn't complete their tutor surveys?",    'Which tutors have blank missed reasons?', 'Show incomplete sessions', 'Where are teacher pull-outs happening?', 'Missing scholar surveys by tutor'],
+    'Support Report': ['What should Site Leaders follow up on?', 'Which scholars are repeatedly unavailable?', 'Which missed reason should a tutor pick?', 'Reason-mix check', 'Who needs support?',                    "Who didn't complete their tutor surveys?",    'Which tutors have blank missed reasons?', 'Show incomplete sessions', 'Where are teacher pull-outs happening?', 'Missing scholar surveys by tutor'],
     'Overview':     ['How are we doing overall?',               'What should I know today?',                   'Give me a flash summary PDF'],
     'Attendance':   ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',            'Which district has the lowest attendance?'],
     'KPIs':         ['Which goals have not been met?',          'Which goal area is the weakest?',             'What does the weighted score mean?'],
@@ -9925,9 +9928,23 @@
   }
 
   // ── PIE: Field Support answers ───────────────────────────────────────────
+  // Which missed reason a tutor should pick — the one-page reason guide.
+  var _PIE_REASON_GUIDE = '**Which missed reason should a tutor pick?** (scholar rows in Pearl)\n\n'
+    + '1. **The whole group can\'t meet** (assembly, school event, schedule change, closure, drill, half day) → tell the Site Leader right away. The SL **cancels** the session in Pearl and picks a Canceled Reason — tutors can\'t cancel. A school reason logged as a missed reason for the whole group is flagged "should be a cancellation".\n'
+    + '2. **Tutor out and nobody covered** → **Tutor Absent**.\n'
+    + '3. **Scholar is there but refuses** → **Scholar declined attending tutoring session**. **Leaves partway** → **Scholar Left Early**.\n'
+    + '4. **Teacher keeps the scholar in class** → **Classroom Teacher Requested to Keep Scholar in Class**.\n'
+    + '5. **Known school testing** → **School-administered Testing**. **Known absent from school** → **Absent (from school)**.\n'
+    + '6. **Don\'t know why** → **Scholar Unavailable; Out of the Classroom**. Don\'t guess and don\'t interrupt instruction to ask. The Site Leader follows up only when the same scholar is unavailable (or has no reason) 2+ times in the two-week window — those show on **🚩 Site Leader Flags**.\n\n'
+    + '_Absent, Declined, Left Early, Unavailable and Teacher kept in class all count the same against Scholar Attendance %. School-administered Testing, Tutor Absent and cancellations don\'t. So the choices that change the numbers are: whole group (cancel), testing, and tutor absent._';
+
   function _pieFieldSupport(q) {
     var t = String(q || '').toLowerCase();
+    if (/which (missed )?reason.{0,25}(should|do|to|pick|use|choose)|what (missed )?reason should|(don'?t|do not|doesn'?t|does not) know why.{0,40}(scholar|student|kid|missing|absent|out)|reason unknown|unknown reason|how (do|should|does) (a )?(tutors?|i|we|sls?|site leaders?) (pick|choose|log|enter|select).{0,25}reason|reason guide|missed.?reason guide/.test(t)) return _PIE_REASON_GUIDE;
     var kind =
+      /site leader.{0,30}(flag|follow|own|fix|to.?do|list|check)|\bsls?\b.{0,20}(flag|follow)|(flag|follow.?up)s?.{0,25}(site leader|\bsls?\b)|what should (site leaders|sls) (do|follow|fix|check)/.test(t) ? 'slflags' :
+      /unavailable|out of the classroom|repeat(ed(ly)?)?.{0,20}(absen|miss|unknown|no reason)|(no|unknown|blank) reason.{0,30}(again|repeat|twice|2\+|multiple)/.test(t) ? 'unavailable' :
+      /reason.?mix|(random|default|same|one).{0,15}reasons?\b.{0,30}(tutor|every|always|pick|use)|misus.{0,20}reason|reasons?.{0,20}misus|overus.{0,20}reason|(picking|choosing|selecting).{0,25}reasons?.{0,15}(random|wrong|default)/.test(t) ? 'mix' :
       /incomplete|never (been )?completed|still scheduled|not (been )?(closed|completed)/.test(t) ? 'incomplete' :
       /(teacher|classroom).{0,25}(pull|kept|keep)|pull.?outs?\b|kept in class|dosage/.test(t) ? 'pullouts' :
       /(blank|no|missing|wrong|incorrect|bad|empty).{0,20}(missed.{0,3})?(reason|categor)|reason.{0,20}(blank|missing|wrong|incorrect)|miscategor|wrong categor/.test(t) ? 'reasons' :
@@ -9953,13 +9970,43 @@
     });
     input.region = /\bne\b|north.?east/.test(t) ? 'NE' : /\bsw\b|south.?west/.test(t) ? 'SW' : 'ALL';
     input.school = school;
-    var R = window.njtcFieldSupport.computeFieldSupport(input);
-    var where = school || (input.region === 'ALL' ? 'all regions' : input.region + ' Region');
+    // Same window as the Support Report: the latest week plus the week
+    // before. "Year to date" / "this school year" asks for the full year.
+    var FS = window.njtcFieldSupport;
+    var ytd = /year.?to.?date|\bytd\b|this (school )?year|school year|all year|whole year|since (august|september|the start)/.test(t);
+    var R = typeof FS.reportFor === 'function' ? FS.reportFor(input, { region: input.region, school: school, ytd: ytd }) : FS.computeFieldSupport(input);
+    var span = R.from && typeof FS.windowLabel === 'function' ? FS.windowLabel(R) : 'school year to date';
+    var where = (school || (input.region === 'ALL' ? 'all regions' : input.region + ' Region')) + ' · ' + span;
     var _reg = input.region !== 'ALL' ? input.region : (school ? input.regionOf(school, '') : '');
-    var foot = '\n\n_Full list with Session IDs: Pearl Operations → **' + (_reg ? _reg + ' Support Report' : 'NE / SW Support Report') + '** → Download Excel._';
+    var foot = '\n\n_' + (R.from ? 'Window: the latest week plus the week before (ask "…year to date" for the full year). ' : '') + 'Full list with Session IDs: Pearl Operations → **' + (_reg ? _reg + ' Weekly Report' : 'NE / SW Weekly Report') + '** → **⬇ Support Detail (Excel)**._';
+    if (kind === 'slflags' || kind === 'unavailable' || kind === 'mix') foot += _pieGoBtn({ open: 'Open Site Leader Flags', go: function(){ FS.openFlags(input.region); } });
     var top = function(arr, n) { return arr.slice(0, n || 10); };
     var lines = [];
-    if (kind === 'incomplete') {
+    if (kind === 'slflags') {
+      var sl = R.slFollowUp || [];
+      if (!sl.length) return '✅ Nothing for Site Leaders to follow up on for **' + where + '** — no repeat unavailable scholars, no sessions that should have been cancelled, no cancellations without a reason and no reason-mix checks.' + foot;
+      var bySc = {};
+      sl.forEach(function(x){ (bySc[x.school] = bySc[x.school] || []).push(x); });
+      lines.push('**🚩 ' + sl.length + ' Site Leader follow-up' + (sl.length !== 1 ? 's' : '') + '** for ' + where + ':\n');
+      lines.push('• ' + R.totals.scholarsUnavailableRepeat + ' scholar' + (R.totals.scholarsUnavailableRepeat !== 1 ? 's' : '') + ' unavailable / no reason ' + FS.REPEAT_UNAVAILABLE + '+ times · ' + R.totals.cancelFixes + ' should be a cancellation · ' + R.totals.cancelNoReasonFYI + ' cancelled with no reason (FYI) · ' + R.totals.reasonOutliers + ' reason-mix check' + (R.totals.reasonOutliers !== 1 ? 's' : '') + '\n');
+      Object.keys(bySc).sort(function(a,b){ return bySc[b].length - bySc[a].length; }).slice(0, 8).forEach(function(sc){
+        lines.push('**' + sc + '** — ' + bySc[sc].length);
+        bySc[sc].slice(0, 4).forEach(function(x){ lines.push('  • ' + x.item + (x.who && x.who !== x.tutor ? ' — ' + x.who : '') + (x.tutor ? ' (' + x.tutor + ')' : '')); });
+        if (bySc[sc].length > 4) lines.push('  • +' + (bySc[sc].length - 4) + ' more');
+      });
+    } else if (kind === 'unavailable') {
+      var ur = R.unavailableRepeat || [];
+      if (!ur.length) return '✅ No scholar was logged "Scholar Unavailable; Out of the Classroom" or left without a reason ' + FS.REPEAT_UNAVAILABLE + '+ times for **' + where + '**. A single unexplained miss doesn\'t need follow-up.' + foot;
+      lines.push('**' + ur.length + ' scholar' + (ur.length !== 1 ? 's' : '') + ' unavailable or with no reason ' + FS.REPEAT_UNAVAILABLE + '+ times** for ' + where + ' — the Site Leader checks school attendance or asks the teacher at a natural break, then updates the reason in Pearl if known:\n');
+      top(ur).forEach(function(x){ lines.push('• **' + x.scholar + '** (' + x.school + ') — ' + x.times + ' times (' + x.unavailable + ' unavailable, ' + x.blank + ' blank) · ' + x.dates + (x.tutors ? ' · ' + x.tutors : '')); });
+    } else if (kind === 'mix') {
+      var mo = R.reasonOutliers || [];
+      var rule = 'a tutor with ' + FS.REASON_MIX.minTutorMisses + '+ missed rows who uses one reason on ' + FS.REASON_MIX.minShare + '%+ of them, ' + FS.REASON_MIX.minGap + '+ points more than the other tutors at the same school';
+      if (!mo.length) return '✅ No reason-mix checks for **' + where + '** (rule: ' + rule + ').' + foot;
+      lines.push('**' + mo.length + ' reason-mix check' + (mo.length !== 1 ? 's' : '') + '** for ' + where + ' — ' + rule + '. A prompt to review the reason guide in the next huddle, not proof the reason was wrong:\n');
+      top(mo).forEach(function(x){ lines.push('• **' + x.tutor + '** (' + x.school + ') — "' + x.topReason + '" on ' + x.tutorShare + '% of ' + x.misses + ' misses · other tutors there: ' + x.siteShare + '%'); });
+      lines.push('\nAsk me "which missed reason should a tutor pick?" for the guide.');
+    } else if (kind === 'incomplete') {
       if (!R.incompletes.length) return '✅ No incomplete sessions for **' + where + '** — every past session has been completed or cancelled.';
       var byT = {};
       R.incompletes.forEach(function(i){ var k = i.tutor + '|' + i.school; byT[k] = byT[k] || { tutor: i.tutor, school: i.school, n: 0, last: '' }; byT[k].n++; if (i.date > byT[k].last) byT[k].last = i.date; });
@@ -9989,6 +10036,8 @@
         if (x.notRecorded) parts.push(x.notRecorded + ' not recorded');
         lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + parts.join(', '));
       });
+      if (R.totals.reasonOutliers) lines.push('\n🔁 ' + R.totals.reasonOutliers + ' tutor' + (R.totals.reasonOutliers !== 1 ? 's use' : ' uses') + ' one reason far more than other tutors at the school — ask "reason-mix check" for the list.');
+      if (R.totals.scholarsUnavailableRepeat) lines.push('❔ ' + R.totals.scholarsUnavailableRepeat + ' scholar' + (R.totals.scholarsUnavailableRepeat !== 1 ? 's were' : ' was') + ' unavailable or had no reason ' + FS.REPEAT_UNAVAILABLE + '+ times — Site Leader follow-up.');
       if (R.totals.wholeGroupReview) lines.push('\n🔎 ' + R.totals.wholeGroupReview + ' whole-group teacher pull-out' + (R.totals.wholeGroupReview !== 1 ? 's were' : ' was') + ' logged as tutor Missed — listed for review, not counted against the tutor.');
     } else if (kind === 'pullouts') {
       var ps = R.schools.filter(function(x){ return x.teacherPullouts > 0; }).sort(function(a,b){ return b.teacherPullouts - a.teacherPullouts; });
@@ -10012,6 +10061,7 @@
         lines.push('• **' + x.tutor + '** (' + x.school + ') — ' + (parts.join(', ') || 'review'));
       });
       lines.push('\nTotals: ' + R.totals.incomplete + ' incomplete · ' + R.totals.missingTutorSurveys + ' missing tutor surveys · ' + R.totals.blankReasons + ' blank reasons · ' + R.totals.teacherPullouts + ' teacher pull-outs');
+      if (R.totals.slFollowUp) lines.push('🚩 ' + R.totals.slFollowUp + ' Site Leader follow-up' + (R.totals.slFollowUp !== 1 ? 's' : '') + ' — ask "what should Site Leaders follow up on?"');
     }
     return lines.join('\n') + foot;
   }
@@ -10030,6 +10080,7 @@
     { id: 'dol',     item: /DOL numbers are complete/i,    q: "Are last month's DOL numbers ready?",                 kw: /dol.{0,20}(ready|complete|done)|last month.{0,15}dol/, depts: ['hr'], none: 'Last month\'s DOL numbers show up here during the first 10 days of each month — open the DOL Report any time for the latest.' },
     { id: 'inc',     item: /Incomplete Pearl session/i,    q: 'Who has incomplete sessions?',                        kw: null, depts: ['programming', 'data'] },
     { id: 'surv',    item: /Missing tutor survey/i,        q: 'Who is missing tutor surveys?',                       kw: null, depts: ['programming', 'data'] },
+    { id: 'slf',     item: /Site Leader follow-up/i,       q: 'What should Site Leaders follow up on?',              kw: null, depts: ['programming', 'data'] },
     { id: 'blank',   item: /no reason entered/i,           q: 'Which absences have no reason entered?',              kw: null, depts: ['programming', 'data'] },
     { id: 'low',     item: /below the 80%/i,               q: 'Which campuses are below 80% attendance this week?',  kw: /(below|under).{0,10}80.{0,40}(week|7 days)|(campus|school|site)e?s?.{0,25}(below|under).{0,15}(80|target).{0,30}(week|7 days)|low attendance.{0,20}(this|last) week/, depts: ['programming'], none: 'No campus is below the 80% scholar attendance target in the last 7 days.' },
     { id: 'load',    item: /didn't load/i,                 q: 'Did any data fail to load?',                          kw: /(fail|failed|didn.?t|did not).{0,10}load|not loading|data.{0,15}(missing|broken)/, depts: ['data'], none: 'All of the portal\'s data sources loaded correctly.' },
@@ -10440,7 +10491,7 @@
         msg += '🗓️ **' + _n(c.cancelled) + '** cancelled · **' + _n(c.rescheduled) + '** rescheduled — both are removed from sessions offered.\n';
         var reasons = Object.keys(c.byReason || {}).sort(function(a,b){ return c.byReason[b]-c.byReason[a]; });
         if (reasons.length) msg += '\n**By Canceled Reason:**\n' + reasons.map(function(r){ return '• ' + r + ' — ' + _n(c.byReason[r]); }).join('\n') + '\n';
-        if (c.noReason) msg += '\n⚠️ **' + _n(c.noReason) + '** cancelled without a Canceled Reason — Site Leaders should add one (required).';
+        if (c.noReason) msg += '\nℹ️ **' + _n(c.noReason) + '** cancelled without a Canceled Reason — FYI only: Pearl locks the reason once a session is cancelled, so these can\'t be fixed now. Site Leaders should pick a Canceled Reason every time they cancel.';
         if (p.missed && p.missed.shouldCancelSessions) msg += '\n⚠️ **' + _n(p.missed.shouldCancelSessions) + '** session(s) had a school/NJTC reason logged as a missed reason — under the new process these are cancelled in Pearl instead.';
         msg += '\n\nA session is **cancelled** when it should have happened but didn\'t because of a last-minute change; it is **deleted** when it should never have existed. The Pearl Operations panel lists each one.';
         return msg + _navBtn('Open Pearl Operations', 'pearl-ops');
@@ -15607,7 +15658,11 @@
         ['Not Counted Against Attendance (formerly "Service Interruption")', 'A missed scholar session that is not a scholar absence. Grouped as Undelivered Sessions (tutor absent and not covered / vacancy), Session Cancellations (school or NJTC-driven) and Internal Tracking. Never counted against scholar attendance.'],
         ['Undelivered Sessions', 'Tutor absent and not covered, tutor vacancy, or tutor left early with no sub — tutoring could not happen on NJTC\'s side. Not counted against scholar attendance. A talking point for partner conversations, not a to-do. A tutor absence covered by a sub is a delivered session, not an undelivered one.'],
         ['Internal Tracking', 'NJTC Diagnostic Testing and Scholar Archived – Removed from Sessions. NJTC-internal (central team only); not counted against attendance.'],
-        ['Session Cancellation', 'A session that should have happened but did not because of a last-minute school or NJTC change. Site Leaders cancel it in Pearl and must pick a Canceled Reason. A session created by mistake is deleted, not cancelled.'],
+        ['Session Cancellation', 'A session that should have happened but did not because of a last-minute school or NJTC change. Site Leaders cancel it in Pearl (tutors can\'t) and should always pick a Canceled Reason — Pearl locks it once the session is cancelled, so a blank can\'t be fixed later (the Support Report lists blanks as FYI). A session created by mistake is deleted, not cancelled.'],
+        ['Support Report', 'Pearl Operations → NE / SW Weekly Report → ⬇ Support Detail (Excel), plus PIE, Home and 🚩 Site Leader Flags. Covers the chosen week plus the week before, so every flag is recent enough to fix; pick "Full school year to date" for the year view. Partially Attended sessions are not an issue on their own — only a session marked Partially Attended when every scholar attended is flagged.'],
+        ['Site Leader Flags', 'Glowing 🚩 button in Pearl Operations (Programming and Data). What Site Leaders follow up on, by school: scholars unavailable or with no reason 2+ times, whole-group misses that should be cancellations, cancellations with no reason (FYI), and reason-mix checks. Same list as the Excel "Site Leader Follow-up" tab.'],
+        ['Repeat Unavailable', 'A scholar logged "Scholar Unavailable; Out of the Classroom" or with a blank reason 2+ times in the report window. Tutors pick Unavailable when they don\'t know why instead of guessing; the Site Leader checks school attendance or asks the teacher at a natural break.'],
+        ['Reason-Mix Check', 'A tutor with 5+ missed rows who uses one reason on 70%+ of them, at least 30 points more than the other tutors at the same school (5+ rows). A prompt to review the reason guide, not proof the reason was wrong.'],
         ['Covered Tutor Absence', 'A tutor absence covered by a substitute (Site Leader Drops the session and Edits in the sub in Pearl). The session counts as delivered; the absence still counts toward the tutor\'s own attendance. Coverage comes from Pearl\'s Instructor Substitutions tab, checked against the NE / SW Sub Trackers. Official tutor attendance is the recorded rate; Pearl Ops also shows the rate including covered absences.'],
         ['Sessions Offered', 'Every scheduled session except those with a Cancelled or Rescheduled status in Pearl Session Details. Session Cancellations are removed from sessions offered.'],
         ['Tutor Absence Coverage', 'Covered tutor absences ÷ all tutor absences (Pearl Instructor Substitutions + covered-absence reasons).'],

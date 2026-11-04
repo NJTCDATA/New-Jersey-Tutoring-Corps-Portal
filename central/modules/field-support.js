@@ -730,8 +730,12 @@
     if (school) b = Object.assign({}, b, { attendance: PR.scoped(b.attendance, PR.ATT.DISTRICT, PR.ATT.SCHOOL, null, { school }) });
     const prev = sel.value;
     const weeks = PR.allWeeks(b).reverse();
-    sel.innerHTML = weeks.map(w => `<option value="${w.key}">Week of ${escA(PR.weekRangeLabel(w.key))}</option>`).join('') + '<option value="ALL">Full school year to date</option>';
     const want = _wantWeek && PR.weekBucket(_wantWeek.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3/$1'));
+    // Opened from Home / PIE / Site Leader Flags on a week this scope has no
+    // attendance rows for yet (e.g. Monday morning): still offer that week so
+    // the report covers exactly the window the caller showed.
+    if (want && !weeks.some(w => w.key === want.key)) { weeks.push(want); weeks.sort((x, y) => y.key.localeCompare(x.key)); }
+    sel.innerHTML = weeks.map(w => `<option value="${w.key}">Week of ${escA(PR.weekRangeLabel(w.key))}</option>`).join('') + '<option value="ALL">Full school year to date</option>';
     if (want && weeks.some(w => w.key === want.key)) { sel.value = want.key; _wantWeek = ''; }
     else sel.value = weeks.some(w => w.key === prev) || prev === 'ALL' ? prev : (weeks.length ? weeks[0].key : 'ALL');
     sel.disabled = false;
@@ -764,6 +768,133 @@
   }
   function windowText(R) {
     return R.from ? 'last two weeks, ' + R.from + ' to ' + R.to : 'school year to date';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DEFAULT WINDOW — shared by Home, PIE and Site Leader Flags so every place
+  // shows the same numbers as the Support Report opened on the same week:
+  // the Monday–Sunday week of the latest session that has already started,
+  // plus the week before it.
+  // ─────────────────────────────────────────────────────────────────────────
+  function mondayKey(ymd) {
+    const d = new Date(ymd + 'T12:00:00'); if (isNaN(d)) return '';
+    const day = d.getDay(); d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return ymdOf(d);
+  }
+  function latestWeekKey(input) {
+    const now = (input && input.now) || new Date(), today = ymdOf(now);
+    let last = '';
+    ((input && input.sessions) || []).forEach(s => {
+      const y = s && toYMD(s.start);
+      if (y && y <= today && y > last) { const d = new Date(s.start); if (isNaN(d) || d <= now) last = y; }
+    });
+    return mondayKey(last || today);
+  }
+  function defaultWindow(input) {
+    const key = latestWeekKey(input);
+    return { weekKey: key, from: windowStart(key), to: weekEnd(key) };
+  }
+  // The Support Report for a scope. opts.ytd → full school year; otherwise
+  // the default two-week window.
+  function reportFor(input, opts) {
+    opts = opts || {};
+    const w = opts.ytd ? { weekKey: '', from: '', to: '' } : defaultWindow(input);
+    const R = computeFieldSupport(Object.assign({}, input, { region: opts.region || 'ALL', school: opts.school || '', from: w.from, to: w.to }));
+    R.weekKey = w.weekKey;
+    return R;
+  }
+  const shortDate = ymd => { const d = new Date(ymd + 'T12:00:00'); return isNaN(d) ? ymd : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  function windowLabel(R) {
+    return R.from ? shortDate(R.from) + ' – ' + shortDate(R.to) + ', ' + R.to.slice(0, 4) : 'school year to date';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SITE LEADER FLAGS — glowing button in Pearl Operations (Programming +
+  // Data). Same list as the Excel "Site Leader Follow-up" tab, default window.
+  // ─────────────────────────────────────────────────────────────────────────
+  const FLAG_KINDS = [
+    { key: 'unavail', label: 'Scholar unavailable / no reason 2+ times', test: x => /^Scholar unavailable/.test(x.item) },
+    { key: 'cancel',  label: 'Whole group missed - should be a cancellation', test: x => /^Whole group missed/.test(x.item) },
+    { key: 'noreas',  label: 'Cancelled with no reason (FYI)', test: x => /^Cancelled with no reason/.test(x.item) },
+    { key: 'mix',     label: 'Reason-mix check', test: x => /^Reason-mix check/.test(x.item) },
+  ];
+  let _flagsRegion = 'ALL', _btnSig = '';
+  function flagsInput() {
+    if (typeof window === 'undefined' || !window.po || typeof window.po.getFieldSupportInput !== 'function') return null;
+    const input = window.po.getFieldSupportInput('ALL');
+    return input && input.sessions && input.sessions.length ? input : null;
+  }
+  function refreshFlagsButton() {
+    try {
+      const btn = document.getElementById('poSlFlagsBtn'); if (!btn) return;
+      const input = flagsInput(); if (!input) return;
+      const sig = (input.attRows || []).length + '|' + input.sessions.length + '|' + ymdOf(input.now || new Date()) + '|' + (input.hasCancelReasons ? 1 : 0);
+      if (sig === _btnSig) return;
+      _btnSig = sig;
+      const R = reportFor(input, { region: 'ALL' });
+      const n = R.slFollowUp.length;
+      const nEl = document.getElementById('poSlFlagsN'); if (nEl) nEl.textContent = n;
+      btn.classList.toggle('fs-flags-glow', n > 0);
+      btn.classList.toggle('fs-flags-clear', n === 0);
+      btn.title = n > 0
+        ? n + ' Site Leader follow-up' + (n === 1 ? '' : 's') + ' for ' + windowLabel(R) + ' - click to see them by school'
+        : 'No Site Leader follow-ups for ' + windowLabel(R);
+    } catch (e) { console.warn('[SL Flags]', e); }
+  }
+  function openFlags(region) {
+    if (region === 'NE' || region === 'SW' || region === 'ALL') _flagsRegion = region;
+    const input = flagsInput();
+    if (!input) { alert('Pearl Ops data not ready yet - try again in a moment.'); return; }
+    const R = reportFor(input, { region: _flagsRegion });
+    let m = document.getElementById('fsFlagsModal');
+    if (!m) {
+      m = document.createElement('div'); m.id = 'fsFlagsModal';
+      m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:center;justify-content:center;padding:1rem';
+      m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
+      document.body.appendChild(m);
+    }
+    const counts = FLAG_KINDS.map(k => ({ k, n: R.slFollowUp.filter(k.test).length }));
+    const bySchool = {};
+    R.slFollowUp.forEach(x => { (bySchool[x.school] = bySchool[x.school] || []).push(x); });
+    const th = 'text-align:left;padding:.4rem .5rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)';
+    const td = 'padding:.45rem .5rem;font-size:.8rem;vertical-align:top;border-bottom:1px solid var(--border)';
+    const body = Object.keys(bySchool).sort().map(sc => `
+      <div style="margin-top:1rem"><div style="font-weight:700;font-size:.9rem;color:var(--text);margin-bottom:.3rem">${escA(sc)} <span style="font-weight:500;color:var(--muted);font-size:.78rem">· ${bySchool[sc].length}</span></div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Item</th><th style="${th}">Scholar / Session / Tutor</th><th style="${th}">Tutor</th><th style="${th}">Date(s)</th><th style="${th}">Next step</th></tr></thead><tbody>
+      ${bySchool[sc].map(x => `<tr><td style="${td};font-weight:600">${escA(x.item)}</td><td style="${td}">${escA(x.who)}</td><td style="${td}">${escA(x.tutor)}</td><td style="${td};white-space:nowrap">${escA(x.dates)}</td><td style="${td}">${escA(x.step)}</td></tr>`).join('')}
+      </tbody></table></div></div>`).join('');
+    m.innerHTML = `
+      <div role="dialog" aria-modal="true" aria-labelledby="fsFlagsTitle" style="background:var(--surface);border-radius:16px;width:980px;max-width:96vw;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.3)">
+        <div style="background:#0a1628;border-bottom:3px solid #f0a500;padding:1.1rem 1.4rem;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;gap:1rem">
+          <div><div id="fsFlagsTitle" style="color:#fff;font-weight:700">🚩 Site Leader Flags</div>
+          <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.15rem">What Site Leaders follow up on (not tutor data entry) · ${escA(windowLabel(R))} · same list as the Excel "Site Leader Follow-up" tab</div></div>
+          <button type="button" aria-label="Close" onclick="document.getElementById('fsFlagsModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>
+        <div style="padding:1.1rem 1.4rem">
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+            ${['ALL', 'NE', 'SW'].map(r => `<button type="button" aria-pressed="${r === _flagsRegion}" onclick="njtcFieldSupport.openFlags('${r}')" style="padding:.35rem .85rem;font-size:.8rem;font-weight:600;border-radius:8px;cursor:pointer;border:1.5px solid ${r === _flagsRegion ? 'var(--blue-mid)' : 'var(--border)'};background:${r === _flagsRegion ? 'var(--blue-mid)' : 'var(--surface)'};color:${r === _flagsRegion ? '#fff' : 'var(--text)'}">${r === 'ALL' ? 'All Regions' : r + ' Region'}</button>`).join('')}
+            <span style="flex:1"></span>
+            <button type="button" onclick="njtcFieldSupport.flagsExcel()" style="padding:.45rem .9rem;border:none;border-radius:8px;background:#166534;color:#fff;font-weight:700;cursor:pointer;font-size:.8rem">⬇ Support Detail (Excel)</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.5rem">
+            ${counts.map(c => `<div style="border:1px solid var(--border);border-radius:10px;padding:.55rem .7rem"><div style="font-size:1.25rem;font-weight:800;color:${c.n ? '#b91c1c' : '#15803d'}">${c.n}</div><div style="font-size:.74rem;color:var(--muted)">${escA(c.k.label)}</div></div>`).join('')}
+          </div>
+          ${R.slFollowUp.length ? body : '<div style="padding:1.5rem 0;text-align:center;color:var(--muted)">✅ Nothing for Site Leaders to follow up on in this window.</div>'}
+          <div style="font-size:.72rem;color:var(--muted);margin-top:1rem;line-height:1.5">
+            <b>Repeat unavailable:</b> a scholar logged "Scholar Unavailable; Out of the Classroom" or with no reason ${REPEAT_UNAVAILABLE}+ times in the window. Tutors choose Unavailable instead of guessing; the SL checks school attendance or asks the teacher at a natural break, then updates the reason in Pearl if known.
+            <b>Should be a cancellation:</b> no scholar attended and a school/NJTC reason was logged as a missed reason; the SL cancels the session in Pearl with that reason.
+            <b>Cancelled with no reason:</b> FYI only - Pearl locks the Canceled Reason once a session is cancelled, so remind whoever cancelled to choose one next time${input.hasCancelReasons ? '' : ' (Canceled Reason is only in the SY 26-27 Pearl data)'}.
+            <b>Reason-mix check:</b> a tutor with ${REASON_MIX.minTutorMisses}+ missed rows who uses one reason on ${REASON_MIX.minShare}%+ of them, ${REASON_MIX.minGap}+ points more than the other tutors at the school (${REASON_MIX.minSiteMisses}+ rows). A prompt to review the reason guide, not proof the reason was wrong.
+          </div>
+        </div>
+      </div>`;
+    m.style.display = 'flex';
+  }
+  function flagsExcel() {
+    const input = flagsInput();
+    if (!input || !window.XLSX) { alert('Excel library or Pearl data not loaded - refresh and try again.'); return; }
+    const R = reportFor(input, { region: _flagsRegion });
+    window.XLSX.writeFile(buildWorkbook(window.XLSX, R), fileStem(R) + '.xlsx');
   }
   function scopeText(R) {
     return R.school || (R.region === 'ALL' ? 'All Regions' : R.region + ' Region');
@@ -799,7 +930,9 @@
     }
   }
 
-  const api = { open, download, computeFieldSupport, buildWorkbook, buildPDF, sheetSpecs, tutorsToCheckIn, TUTOR_RULE };
+  const api = { open, download, computeFieldSupport, buildWorkbook, buildPDF, sheetSpecs, tutorsToCheckIn, TUTOR_RULE,
+    defaultWindow, latestWeekKey, reportFor, windowLabel, openFlags, flagsExcel, refreshFlagsButton,
+    REPEAT_UNAVAILABLE, REASON_MIX, UNAVAILABLE_REASON };
   if (typeof window !== 'undefined') window.njtcFieldSupport = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

@@ -421,6 +421,21 @@
   // ── Q&A RULES ────────────────────────────────────────────────────────────────
 
   var RULES = [
+    // ══ WHICH MISSED REASON TO PICK (reason guide, Nov 2026) ══════════════════
+    // First so broader rules ("who…missing", "why…absent") don't catch it.
+    // Same guide as PIE on the Central Team portal (central/modules/shared-utils.js).
+    { match: /which (missed )?reason.{0,25}(should|do|to|pick|use|choose)|what (missed )?reason (should|do)|(don'?t|do not|doesn'?t|does not) know why.{0,40}(scholar|student|kid|missing|absent|out)|reason unknown|unknown reason|how (do|should) (i|we|tutors?) (pick|choose|log|enter|select).{0,25}reason|reason guide|session (didn'?t|did not|can'?t|cannot) happen|whole (class|group).{0,20}(gone|missing|out|absent|assembly|trip)|(need|have) to cancel/i,
+      respond: function() {
+        return '📋 **Which missed reason should I pick?**\n\n'
+          + '1. **The whole group can\'t meet** (assembly, school event, schedule change, closure, drill, half day) → tell your **Site Leader right away**. Site Leaders cancel the session in Pearl and pick the reason — tutors can\'t cancel, and the reason can\'t be added after.\n'
+          + '2. **Scholar is there but refuses** → **Scholar declined attending tutoring session**. **Leaves partway** → **Scholar Left Early**.\n'
+          + '3. **Teacher keeps the scholar in class** → **Classroom Teacher Requested to Keep Scholar in Class**.\n'
+          + '4. **Known school testing** → **School-administered Testing**. **Known absent from school** → **Absent (from school)**.\n'
+          + '5. **Not sure why** → **Scholar Unavailable; Out of the Classroom**. Don\'t guess, and don\'t interrupt the lesson to ask — your Site Leader follows up if it keeps happening.\n\n'
+          + 'Log it **right away**, while you still remember. If you learn the real reason later, update it in Pearl.';
+      }
+    },
+
 
     // ══ STAFF TENURE / CERT / ROLE TYPE (new — reads the Central Team bridge) ══
     // Answers questions about a named colleague's cycles worked, cert status,

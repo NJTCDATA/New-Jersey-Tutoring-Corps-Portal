@@ -2,7 +2,7 @@
 //  HOME — "Your shortcuts" row + "Needs your attention" (per department view)
 //  Sits at the top of Department Home. Shortcuts open the pages each team uses
 //  every day; "Needs attention" lists only things someone should act on, using
-//  the same rules as the page it opens (Support Log, DOL, Field Support Report),
+//  the same rules as the page it opens (Support Log, DOL, Support Report),
 //  so the counts always match.
 // ══════════════════════════════════════════════════════════════════════════════
 (function () {
@@ -21,11 +21,15 @@
     nav('talent');
     setTimeout(() => { if (typeof window.setTalentTab === 'function') window.setTalentTab(tab); }, 450);
   }
-  function fieldSupport(from, to) {
+  function fieldSupport(weekOf) {
     if (!window.njtcFieldSupport || typeof window.njtcFieldSupport.open !== 'function') { nav('pearl-ops'); return; }
-    // The report runs year to date through a chosen week; open it on the
-    // week that contains `from` (the latest week when none is given).
-    window.njtcFieldSupport.open('ALL', { weekOf: from || '' });
+    // The Support Report covers the chosen week plus the week before. Open it
+    // on `weekOf` (a week's Monday) so it shows the same window as Home.
+    window.njtcFieldSupport.open(_homeRegion, { weekOf: weekOf || '' });
+  }
+  function slFlags() {
+    if (!window.njtcFieldSupport || typeof window.njtcFieldSupport.openFlags !== 'function') { nav('pearl-ops'); return; }
+    window.njtcFieldSupport.openFlags(_homeRegion);
   }
   function execCenter() {
     const el = document.getElementById('execDashboard');
@@ -41,7 +45,7 @@
     fullLog:     { icon: '📋', label: 'Full Concern Log',        go: () => talentTab('log') },
     policies:    { icon: '📚', label: 'Policies',                go: () => nav('policies') },
     pearl:       { icon: '📊', label: 'Pearl Operations',        go: () => nav('pearl-ops') },
-    fieldReport: { icon: '🧭', label: 'Field Support Report',    go: () => fieldSupport() },
+    fieldReport: { icon: '🧭', label: 'Support Report',          go: () => fieldSupport() },
     sites:       { icon: '🗺️', label: 'Site Analytics',          go: () => nav('sy-analytics') },
     partnerSat:  { icon: '📋', label: 'Partner Satisfaction',    go: () => nav('survey-feedback') },
     kpi:         { icon: '🎯', label: 'KPI Targets',             go: () => nav('kpi') },
@@ -195,7 +199,7 @@
     return { items, loading };
   }
 
-  // ── Programming: what needs attention (Field Support Report engine) ───────
+  // ── Programming: what needs attention (Support Report engine, two-week window) ───────
   let _fsCache = null;
   // Region filter on Home (Central Team feedback): Pearl-based attention items
   // for Programming and Data follow the region picked in the box header.
@@ -214,9 +218,13 @@
     const wkFrom = ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6)), wkTo = ymd(today);
     const sig = period + '|' + _homeRegion + '|' + base.attRows.length + '|' + (base.instRows || []).length + '|' + (base.stuRows || []).length + '|' + wkTo;
     if (_fsCache && _fsCache.sig === sig) return _fsCache;
-    const all = fs.computeFieldSupport(Object.assign({}, base, { region: _homeRegion, school: '', from: '', to: '' }));
+    // Action items use the Support Report's two-week window (same as the
+    // report, PIE and Site Leader Flags); the 80% check stays on the last 7 days.
+    const all = typeof fs.reportFor === 'function' ? fs.reportFor(base, { region: _homeRegion })
+      : fs.computeFieldSupport(Object.assign({}, base, { region: _homeRegion, school: '', from: '', to: '' }));
     const week = fs.computeFieldSupport(Object.assign({}, po.getFieldSupportInput('ALL'), { region: _homeRegion, school: '', from: wkFrom, to: wkTo }));
-    _fsCache = { sig, all, week, wkFrom, wkTo };
+    const span = typeof fs.windowLabel === 'function' && all.from ? fs.windowLabel(all) : '';
+    _fsCache = { sig, all, week, wkFrom, wkTo, span };
     return _fsCache;
   }
 
@@ -225,26 +233,33 @@
     const F = fieldSupportResults();
     if (!F) { loading.push('Pearl session data'); return { items, loading }; }
     const R = F.all, T = R.totals;
+    const when = F.span ? ' (' + F.span + ')' : '';
+    const wk = R.weekKey || '';
     const UNIT = { incomplete: ['session', 'sessions'], missingTutorSurveys: ['survey', 'surveys'], blankReasons: ['absence', 'absences'] };
     const tutorRows = key => R.tutors.filter(t => t[key] > 0).sort((a, b) => b[key] - a[key])
       .map(t => ({ n: t.tutor, sub: t.school + ' · ' + t[key] + ' ' + UNIT[key][t[key] === 1 ? 0 : 1],
         profile: (window.HR_EMPS || []).some(e => e.n === t.tutor) }));
     if (T.incomplete) items.push({ icon: '⏳', tone: 'red', count: T.incomplete,
-      text: 'Incomplete Pearl session' + (T.incomplete === 1 ? '' : 's') + ' (still Scheduled — never completed)', rows: tutorRows('incomplete'),
-      open: 'Open Field Support Report', go: () => fieldSupport() });
+      text: 'Incomplete Pearl session' + (T.incomplete === 1 ? '' : 's') + ' (still Scheduled — never completed)' + when, rows: tutorRows('incomplete'),
+      open: 'Open Support Report', go: () => fieldSupport(wk) });
     if (T.missingTutorSurveys) items.push({ icon: '📝', tone: 'amber', count: T.missingTutorSurveys,
-      text: 'Missing tutor survey' + (T.missingTutorSurveys === 1 ? '' : 's'), rows: tutorRows('missingTutorSurveys'),
-      open: 'Open Field Support Report', go: () => fieldSupport() });
+      text: 'Missing tutor survey' + (T.missingTutorSurveys === 1 ? '' : 's') + when, rows: tutorRows('missingTutorSurveys'),
+      open: 'Open Support Report', go: () => fieldSupport(wk) });
     if (T.blankReasons) items.push({ icon: '❔', tone: 'amber', count: T.blankReasons,
-      text: 'Absence' + (T.blankReasons === 1 ? '' : 's') + ' with no reason entered', rows: tutorRows('blankReasons'),
-      open: 'Open Field Support Report', go: () => fieldSupport() });
+      text: 'Absence' + (T.blankReasons === 1 ? '' : 's') + ' with no reason entered' + when, rows: tutorRows('blankReasons'),
+      open: 'Open Support Report', go: () => fieldSupport(wk) });
+    const slf = R.slFollowUp || [];
+    if (slf.length) items.push({ icon: '🚩', tone: 'red', count: slf.length,
+      text: 'Site Leader follow-up' + (slf.length === 1 ? '' : 's') + ' (repeat unavailable scholars, cancellations, reason-mix checks)' + when,
+      rows: slf.map(x => ({ n: x.school, sub: x.item + (x.who && x.who !== x.tutor ? ' · ' + x.who : '') + (x.tutor ? ' · ' + x.tutor : '') })),
+      open: 'Open Site Leader Flags', go: () => slFlags() });
     if (withWeek === false) return { items, loading };
     const low = F.week.schools.filter(s => s.scholarAttendance !== null && s.scholarAttendance < 80)
       .sort((a, b) => a.scholarAttendance - b.scholarAttendance)
       .map(s => ({ n: s.school, sub: s.scholarAttendance + '% scholar attendance · ' + s.delivered + ' sessions' }));
     if (low.length) items.push({ icon: '📉', tone: 'red', count: low.length,
       text: 'Campus' + (low.length === 1 ? '' : 'es') + ' below the 80% scholar attendance target in the last 7 days', rows: low,
-      open: 'Open Field Support Report', go: () => fieldSupport(F.wkFrom, F.wkTo) });
+      open: 'Open Support Report', go: () => fieldSupport(F.wkFrom) });
     return { items, loading };
   }
 
@@ -399,7 +414,7 @@
         text: 'Active ' + plural(rows.length, 'staff member') + ' at a formal HR step in ' + syLabel(curSY) + ' (write-up, PGP or recommended termination)', rows,
         open: 'Open Performance Concerns', go: () => nav('perf') });
     }
-    // Campuses needing high support — Field Support Report rating
+    // Campuses needing high support — Support Report rating, two-week window
     const F = fieldSupportResults();
     if (!F) loading.push('Pearl session data');
     else {
@@ -407,7 +422,7 @@
         sub: [s.scholarAttendance !== null ? s.scholarAttendance + '% scholar attendance' : '', s.tutorAttendance !== null ? s.tutorAttendance + '% tutor attendance' : '',
               s.dataFixes ? s.dataFixes + ' data ' + plural(s.dataFixes, 'fix', 'fixes') : ''].filter(Boolean).join(' · ') }));
       if (rows.length) items.push({ icon: '🏫', tone: 'amber', count: rows.length,
-        text: plural(rows.length, 'Campus', 'Campuses') + ' rated High support on the Field Support Report', rows,
+        text: plural(rows.length, 'Campus', 'Campuses') + ' rated High support on the Support Report' + (F.span ? ' (' + F.span + ')' : ''), rows,
         open: 'Open Pearl Operations', go: () => nav('pearl-ops') });
     }
     const f = otjFlagItem('Open TAP · Apprentices', () => nav('tap-standalone'));
