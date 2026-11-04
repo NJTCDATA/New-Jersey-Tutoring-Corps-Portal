@@ -116,6 +116,64 @@ const rec = COV.reconcileTracker(tracker, subs, '2026-10-18', new Set(['s3']));
 assert.deepStrictEqual(rec.rows.map(r => r.status), ['partial', 'not_in_pearl', 'upcoming', 'unclear']);
 assert(!rec.notOnTracker.some(s => s.sessId === 's3'), 'cancelled-session subs never reported as missing from the tracker');
 
+// ── 3b. Instructor Substitutions — Nov 2026 action-log layout ───────────────
+// One Dropped / Picked Up row per session, no Session ID (cases taken from the
+// real SY 26-27 export).
+{
+  const LH = ['Action Date', 'Action By', 'Action', 'Instructor', 'Scheduled Start Date', 'School', 'District', 'Region'];
+  const L = (ad, by, act, who, d, sch) => [ad, by, act, who, d, sch, 'Dist', 'Reg'];
+  const ev = COV.parseSubstitutions([LH,
+    // real covered absence: tutor-managed swap, 2 sessions
+    L('10/27/2026', 'Vincent Duong', 'Picked Up', 'Vincent Duong', '10/27/2026', 'GLA'),
+    L('10/27/2026', 'Vincent Duong', 'Picked Up', 'Vincent Duong', '10/27/2026', 'GLA'),
+    L('10/27/2026', 'Vincent Duong', 'Dropped', 'Leila Einhorn', '10/27/2026', 'GLA'),
+    L('10/27/2026', 'Vincent Duong', 'Dropped', 'Leila Einhorn', '10/27/2026', 'GLA'),
+    // same person dropped + picked up → no change
+    L('10/20/2026', 'SL', 'Dropped', 'Tohrn Taylor', '10/20/2026', 'FS'),
+    L('10/20/2026', 'SL', 'Picked Up', 'Tohrn Taylor', '10/20/2026', 'FS'),
+    // placeholder seat (no Pearl sessions of its own) → vacancy
+    L('10/23/2026', 'SL', 'Dropped', 'Justina Davis', '10/27/2026', 'FS'),
+    L('10/23/2026', 'SL', 'Picked Up', 'Jessica Miller', '10/27/2026', 'FS'),
+    // nobody picked up → unpaired
+    L('10/21/2026', 'SL', 'Dropped', 'Tohrn Taylor', '10/22/2026', 'FS'),
+    // later cancelled
+    L('10/27/2026', 'SL', 'Dropped', 'Amy Ross', '10/28/2026', 'PG'),
+    L('10/27/2026', 'SL', 'Picked Up', 'Sophia Petronglo', '10/28/2026', 'PG'),
+  ].concat(['10/21/2026', '10/26/2026', '11/16/2026', '12/7/2026', '1/4/2027'].flatMap(d => [
+    // same swap across 3+ months → reassignment
+    L('10/19/2026', 'SL', 'Dropped', 'Miranda Marshall', d, 'PG'),
+    L('10/19/2026', 'SL', 'Picked Up', 'Sophia Petronglo', d, 'PG')])));
+  assert(COV.isActionLog(ev), 'action-log layout detected');
+  assert.strictEqual(ev.length, 21);
+  const S = (id, inst, instId, sch, start, title, status) => ({ id, instructor: inst, instId, school: sch, start, title, status: status || 'Completed' });
+  const sessions = [
+    S('v1', 'Vincent Duong', 'V', 'GLA', '10/27/2026 16:45', '4:45-5:15'), S('v2', 'Vincent Duong', 'V', 'GLA', '10/27/2026 16:15', '4:15-4:45 Leila'),
+    S('l0', 'Leila Einhorn', 'LE', 'GLA', '10/20/2026 16:15', '4:15-4:45 Leila'),
+    S('t1', 'Tohrn Taylor', 'T', 'FS', '10/20/2026 9:00', 'A'), S('j1', 'Jessica Miller', 'J', 'FS', '10/27/2026 9:00', 'B'),
+    S('a0', 'Amy Ross', 'A', 'PG', '10/20/2026 9:00', 'C'), S('p1', 'Sophia Petronglo', 'P', 'PG', '10/28/2026 9:00', 'D', 'Cancelled'),
+    S('m0', 'Miranda Marshall', 'M', 'PG', '10/20/2026 9:00', 'E'),
+  ];
+  const ownL = { 'V|4:45-5:15|2026-10-27': 'attended', 'V|4:15-4:45 Leila|2026-10-27': 'attended' };
+  const r = COV.coveredAbsences(ev, {}, (u, t, d) => ownL[u + '|' + t + '|' + d] || null, '2026-11-04', CAT.isOfferedStatus, { sessions, tracker: [] });
+  const cnt = {}; r.forEach(x => { cnt[x.outcome] = (cnt[x.outcome] || 0) + 1; });
+  assert.deepStrictEqual(cnt, { covered: 2, no_change: 1, vacancy: 1, unpaired: 1, not_offered: 1, reassignment: 5 });
+  const cov = r.filter(x => x.outcome === 'covered');
+  assert(cov.every(x => x.origId === 'LE' && x.deliveredById === 'V' && x.subRowAttended && x.tutorManaged));
+  assert.deepStrictEqual(cov.map(x => x.sessId).sort(), ['v1', 'v2'], 'each drop matched to a distinct substitute session');
+  // Sub Tracker naming the tutor absent overrides the reassignment rule for that day
+  const trk = COV.parseTracker([['Sub', 'Tutor Covering', 'Grades', 'Subjects', 'Date', 'Hours', 'Site Covering'],
+    ['Sophia Petronglo', 'Miranda Marshall', '6', 'Math', '10/26/2026', '', 'PG']], 'SW', 2026);
+  const sessions2 = sessions.concat([S('p2', 'Sophia Petronglo', 'P', 'PG', '10/26/2026 9:00', 'D')]);
+  const r2 = COV.coveredAbsences(ev, {}, () => null, '2026-11-04', CAT.isOfferedStatus, { sessions: sessions2, tracker: trk });
+  const m26 = r2.find(x => x.origName === 'Miranda Marshall' && x.date === '2026-10-26');
+  assert.strictEqual(m26.outcome, 'covered'); assert(m26.confirmed);
+  const nc = COV.parseTracker([['Sub', 'Tutor Covering', 'Grades', 'Subjects', 'Date', 'Hours', 'Site Covering'],
+    ['Laura Guzzo', 'No Coverage ', '1-3', 'Math', '10/26/2026', '', 'Stoy']], 'SW', 2026);
+  assert.strictEqual(COV.reconcileTracker(nc, [], '2026-11-04', new Set()).rows[0].status, 'no_coverage');
+  // the session layout still parses as before
+  assert(!COV.isActionLog(subs));
+}
+
 // ── 4. Free-text Sub Tracker → Pearl roster ─────────────────────────────────
 assert.strictEqual(COV.gradesText('3/5/2026'), '3-5');            // Sheets turned "3-5" into a date
 assert.strictEqual(COV.gradesText('2026-01-03'), '1-3');

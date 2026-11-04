@@ -69,7 +69,30 @@
   }
 
   // ── Pearl Instructor Substitutions ─────────────────────────────────────
+  // Two layouts:
+  //  • Session layout (one row per substitution, with Session Pearl ID and
+  //    original + substitute instructor) — the original report.
+  //  • Action log (Nov 2026: Action Date · Action By · Action · Instructor ·
+  //    Scheduled Start Date · School · District · Region) — one "Dropped" row
+  //    for the tutor taken off a session and one "Picked Up" row for the
+  //    tutor put on it. No Session ID and no time, so drops are paired with
+  //    pick-ups and matched to the substitute's own Session Details rows
+  //    (coveredAbsences → coveredFromLog).
   function parseSubstitutions(rows) {
+    if (rows && rows.length && rows[0].map(normHeader).indexOf('session pearl id') < 0) {
+      const log = rowsToObjects(rows, 'action').map(o => ({
+        log: true,
+        actionDate: toISODate(o['action date']),
+        actionBy:   o['action by'] || '',
+        action:     /^drop/i.test(o['action'] || '') ? 'dropped' : /^pick/i.test(o['action'] || '') ? 'picked' : '',
+        name:       o['instructor'] || '',
+        date:       toISODate(o['scheduled start date'] || o['session start date']),
+        school:     o['school'] || '',
+        district:   o['district'] || '',
+        region:     o['region'] || ''
+      })).filter(e => e.action && e.name && e.school);
+      if (log.length || rows[0].map(normHeader).indexOf('action') >= 0) return log;
+    }
     return rowsToObjects(rows, 'session pearl id').map(o => ({
       origName:      o['original instructor name'] || '',
       origId:        o['original instructor pearl id'] || '',
@@ -105,7 +128,122 @@
   //           'upcoming'         → session is in the future
   //           'undated'          → no session date to place it — listed, not counted
   //           'no_session'       → session not in Session Details (deleted / archived site) — not counted
-  function coveredAbsences(subs, sessById, instRow, todayISO, isOffered) {
+  function isActionLog(subs) { return !!(subs && subs.length && subs[0].log); }
+
+  // ── Action log → covered absences ──────────────────────────────────────
+  // A "Dropped" row is a COVERED ABSENCE only when all of these hold:
+  //  1. Paired: someone ELSE has a "Picked Up" row for the same school,
+  //     session date and action date. The same person dropped and picked up
+  //     in one action is an edit, not a swap ('no_change'); a drop nobody
+  //     picked up is 'unpaired'.
+  //  2. Not a reassignment: the same tutor → same substitute swap at the
+  //     school on REASSIGN.minDates+ dates spanning more than REASSIGN.minSpan
+  //     days is a schedule change ('reassignment'), unless the Sub Tracker
+  //     lists that tutor as absent that day.
+  //  3. Not a vacancy: the dropped name has no Pearl sessions of its own
+  //     (placeholder seat / no longer active), or the Sub Tracker logs the
+  //     substitute covering "Vacant Tutor" that day ('vacancy' — coverage of
+  //     a seat, not a tutor's absence).
+  //  4. A real session: matched to one of the substitute's Session Details
+  //     rows at that school that day (sessions titled with the original
+  //     tutor's name first). Cancelled / Rescheduled → 'not_offered'; after
+  //     today → 'upcoming'; none found → 'no_session'.
+  // ctx: { sessions: [{id, status, title, start, school, district, instId, instructor}],
+  //        tracker: parseTracker() entries (optional) }
+  const REASSIGN = { minDates: 4, minSpan: 21 };
+  function coveredFromLog(events, ctx, instRow, todayISO, isOffered) {
+    ctx = ctx || {};
+    const sessions = ctx.sessions || [], tracker = ctx.tracker || [];
+    // Pearl people by name (from Session Details), per school first
+    const people = {};
+    sessions.forEach(s => { if (s.instId && s.instructor && !people[s.instId]) people[s.instId] = { id: s.instId, name: s.instructor, school: s.school }; });
+    const roster = Object.values(people);
+    const findPerson = (name, school) => {
+      const pick = list => { const hit = list.filter(p => sameName(p.name, name)); return hit.length === 1 ? hit[0] : null; };
+      return pick(roster.filter(p => p.school === school)) || pick(roster);
+    };
+    const daySess = {};   // instId|school|iso → [session]
+    sessions.forEach(s => {
+      const k = s.instId + '|' + s.school + '|' + toISODate(s.start);
+      (daySess[k] = daySess[k] || []).push(s);
+    });
+    const trackerSays = (subName, origName, iso) => {
+      let vacant = false, absent = false;
+      tracker.forEach(e => {
+        if (e.dates.indexOf(iso) < 0 || !looseName(e.sub, subName)) return;
+        if (e.isVacancy) vacant = true;
+        else if (origName && looseName(e.absentTutor, origName)) absent = true;
+      });
+      return { vacant, absent };
+    };
+
+    // 1. Pair drops with pick-ups inside each school · date · action-date group
+    const groups = {};
+    events.forEach(e => {
+      const k = e.school + '|' + e.date + '|' + e.actionDate;
+      const g = groups[k] = groups[k] || { school: e.school, district: e.district, region: e.region, date: e.date, actionDate: e.actionDate, by: e.actionBy, drop: [], pick: [] };
+      (e.action === 'dropped' ? g.drop : g.pick).push(e);
+    });
+    const recs = [];
+    Object.keys(groups).forEach(k => {
+      const g = groups[k];
+      const picks = g.pick.slice();
+      const drops = [];
+      g.drop.forEach(d => {
+        const i = picks.findIndex(p => sameName(p.name, d.name));
+        if (i >= 0) { picks.splice(i, 1); recs.push(mk(g, d.name, d.name, 'no_change')); }
+        else drops.push(d);
+      });
+      drops.forEach(d => {
+        const p = picks.shift();
+        recs.push(mk(g, d.name, p ? p.name : '', p ? 'covered' : 'unpaired', d.actionBy));
+      });
+    });
+    function mk(g, origName, subName, outcome, by) {
+      return { origName, origId: '', subName, subId: '', date: g.date, substitutedOn: g.actionDate, substitutedBy: by || g.by,
+        school: g.school, district: g.district, region: g.region, sessId: '', title: '', outcome,
+        subRowAttended: false, deliveredById: '', deliveredByName: subName, confirmed: false, tutorManaged: false };
+    }
+
+    // 2. Reassignments: same swap repeated across weeks
+    const swaps = {};
+    recs.forEach(r => { if (r.outcome !== 'covered') return; const k = normName(r.origName) + '|' + normName(r.subName) + '|' + r.school; (swaps[k] = swaps[k] || new Set()).add(r.date); });
+    const usedSess = new Set();
+    recs.forEach(r => {
+      if (r.outcome !== 'covered') return;
+      const orig = findPerson(r.origName, r.school), sub = findPerson(r.subName, r.school);
+      r.origId = orig ? orig.id : ''; r.subId = sub ? sub.id : ''; r.deliveredById = r.subId;
+      if (sub && r.substitutedBy && sameName(r.substitutedBy, r.subName)) r.tutorManaged = true;
+      const tk = trackerSays(r.subName, r.origName, r.date);
+      r.confirmed = tk.absent;
+      const ds = [...(swaps[normName(r.origName) + '|' + normName(r.subName) + '|' + r.school] || [])].sort();
+      const span = ds.length ? (new Date(ds[ds.length - 1]) - new Date(ds[0])) / 864e5 : 0;
+      if (!tk.absent && ds.length >= REASSIGN.minDates && span > REASSIGN.minSpan) { r.outcome = 'reassignment'; return; }
+      if (tk.vacant || !orig) { r.outcome = 'vacancy'; return; }
+      if (!r.date) { r.outcome = 'undated'; return; }
+      if (todayISO && r.date > todayISO) { r.outcome = 'upcoming'; return; }
+      // 4. The substitute's session that day (title naming the original tutor first, then offered ones)
+      const first = normName(r.origName).split(' ')[0] || '~';
+      const cands = (sub ? daySess[sub.id + '|' + r.school + '|' + r.date] || [] : []).filter(s => !usedSess.has(s.id))
+        .sort((a, b) => (normName(b.title).indexOf(first) >= 0) - (normName(a.title).indexOf(first) >= 0)
+          || (isOffered(b.status) ? 1 : 0) - (isOffered(a.status) ? 1 : 0) || String(a.start).localeCompare(String(b.start)));
+      const s = cands[0];
+      if (!s) { r.outcome = 'no_session'; return; }
+      usedSess.add(s.id);
+      r.sessId = s.id; r.title = str(s.title); r.district = r.district || s.district || '';
+      if (!isOffered(s.status)) { r.outcome = 'not_offered'; return; }
+      if (r.origId) {
+        const own = instRow(r.origId, r.title, r.date);
+        if (own === 'absent') { r.outcome = 'already_recorded'; return; }
+        if (own === 'attended') { r.outcome = 'tutor_attended'; return; }
+      }
+      r.subRowAttended = instRow(r.subId, r.title, r.date) === 'attended';
+    });
+    return recs;
+  }
+
+  function coveredAbsences(subs, sessById, instRow, todayISO, isOffered, ctx) {
+    if (isActionLog(subs)) return coveredFromLog(subs, ctx, instRow, todayISO, isOffered);
     const bySess = {};
     subs.forEach(s => { (bySess[s.sessId] = bySess[s.sessId] || []).push(s); });
     const out = [];
@@ -276,6 +414,7 @@
         sub: findCol(o, 'sub'),
         absentTutor: covering,
         isVacancy: /vacan/i.test(covering),
+        noCoverage: /no\s*coverage|not\s*covered|uncovered/i.test(covering),
         subjects: findCol(o, 'subjects'),
         grades: gradesText(findCol(o, 'grades')),
         dateRaw, dates: pd.dates, isRange: pd.range,
@@ -290,6 +429,7 @@
   }
 
   // status: 'in_pearl' | 'partial' | 'not_in_pearl' | 'upcoming' | 'unclear'
+  //         | 'no_coverage' (tracker says nobody covered — nothing to find in Pearl)
   // skipSessIds: Pearl sessions to leave out of "not on tracker" (cancelled /
   // rescheduled sessions — nothing was covered).
   // roster (optional): { schools: [name], people: [{id, name, school}],
@@ -302,6 +442,7 @@
       const school = roster ? matchSchool(e.site, roster.schools || []) : null;
       const tutor = roster ? matchPerson(e.absentTutor, roster.people || [], school) : null;
       const base = Object.assign({}, e, { school, tutorMatch: tutor });
+      if (e.noCoverage) return Object.assign(base, { status: 'no_coverage', due: 0, found: 0, matches: [] });
       if (!e.dates.length) return Object.assign(base, { status: 'unclear', due: 0, found: 0, matches: [] });
       let dates = e.dates;
       let rangeChecked = false;
@@ -328,7 +469,7 @@
   }
 
   const API = { toISODate, rowsToObjects, normName, sameName, looseName, matchPerson, matchSchool, gradesText,
-                parseSubstitutions, coveredAbsences, parseTrackerDates, parseTracker, reconcileTracker };
+                parseSubstitutions, coveredAbsences, coveredFromLog, isActionLog, REASSIGN, parseTrackerDates, parseTracker, reconcileTracker };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.NJTC_PEARL_COVERAGE = API;
 })(typeof window !== 'undefined' ? window : this);

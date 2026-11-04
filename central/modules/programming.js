@@ -4271,7 +4271,7 @@
       const today = _todayISO();
       const sessById = {};
       for (const s of Object.values(_sessMap)) sessById[s.id] = { status: s.status, title: s.title, start: s.start, school: s.school, district: s.district };
-      const allCov = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, today, CAT.isOfferedStatus);
+      const allCov = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, today, CAT.isOfferedStatus, _covCtx());
       const scoped = allCov.filter(c => inPlace(c.school, c.district) && inWeekIso(c.date));
       const covered = scoped.filter(c => c.outcome === 'covered');
       const alreadyKeys = new Set(scoped.filter(c => c.outcome === 'already_recorded').map(c => c.origId + '|' + (c.title || '').trim() + '|' + c.date));
@@ -4297,13 +4297,24 @@
         upcoming: scoped.filter(c => c.outcome === 'upcoming').length,
         undated: scoped.filter(c => c.outcome === 'undated').length,
         noSession: scoped.filter(c => c.outcome === 'no_session').length,
+        // Action-log layout only (pearl-coverage.js coveredFromLog): drops that are not a tutor's absence
+        reassignments: scoped.filter(c => c.outcome === 'reassignment'),
+        vacancies: scoped.filter(c => c.outcome === 'vacancy'),
+        unpaired: scoped.filter(c => c.outcome === 'unpaired'),
+        noChange: scoped.filter(c => c.outcome === 'no_change').length,
+        notOffered: scoped.filter(c => c.outcome === 'not_offered').length,
         byDeliverer: covered.reduce((m, c) => { const n = c.deliveredByName || 'Unknown'; m[n] = (m[n] || 0) + 1; return m; }, {}),
         byOriginal: covered.reduce((m, c) => { const k = c.origId || c.origName; if (!m[k]) m[k] = { name: c.origName, school: c.school, n: 0 }; m[k].n++; return m; }, {}),
       };
       // Tracker reconciliation — tracker sites are free text, so it is not
       // narrowed by the school / district / week filters.
       const skip = new Set(allCov.filter(c => c.outcome === 'not_offered').map(c => c.sessId));
-      out.tracker = _covTabs.tracker ? COV.reconcileTracker(_subTracker, _pearlSubs, today, skip, _trackerRoster()) : null;
+      // Action log: reconcile the trackers against real swaps only — not
+      // same-person edits, unpaired drops or permanent reassignments.
+      const trackerSubs = COV.isActionLog && COV.isActionLog(_pearlSubs)
+        ? allCov.filter(c => c.subName && ['no_change', 'unpaired', 'reassignment', 'not_offered'].indexOf(c.outcome) < 0)
+        : _pearlSubs;
+      out.tracker = _covTabs.tracker ? COV.reconcileTracker(_subTracker, trackerSubs, today, skip, _trackerRoster()) : null;
       return out;
     }
 
@@ -4314,12 +4325,26 @@
       if (!CAT || !COV || _activePeriod !== 'sy2627' || !_pearlSubs.length) return null;
       const sessById = {};
       for (const s of Object.values(_sessMap)) sessById[s.id] = { status: s.status, title: s.title, start: s.start, school: s.school, district: s.district };
-      const all = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, _todayISO(), CAT.isOfferedStatus)
+      const all = COV.coveredAbsences(_pearlSubs, sessById, _instRowOutcome, _todayISO(), CAT.isOfferedStatus, _covCtx())
         .filter(c => c.outcome === 'covered');
       return {
         absences: all.filter(c => c.origId === uid),
         asSub: all.filter(c => c.deliveredById === uid && c.subRowAttended).length,
       };
+    }
+
+    // Context for the Instructor Substitutions action log: Session Details rows
+    // (to find the session the substitute taught) and the Sub Trackers
+    // (vacancy / confirmed-absence lines).
+    let _covCtxCache = null, _covCtxSrc = null;
+    function _covCtx() {
+      if (_covCtxSrc === _sessMap && _covCtxCache && _covCtxCache.tracker === _subTracker) return _covCtxCache;
+      _covCtxSrc = _sessMap;
+      _covCtxCache = {
+        sessions: Object.values(_sessMap).map(s => ({ id: s.id, status: s.status, title: s.title, start: s.start, school: s.school, district: s.district, instId: s.instId, instructor: s.instructor })),
+        tracker: _subTracker,
+      };
+      return _covCtxCache;
     }
 
     // Pearl roster for reading the free-text Sub Trackers: schools, instructors
@@ -4397,6 +4422,8 @@
               + (model.covTabs.subs && !_pearlSubs.length ? '<div style="font-size:.7rem;color:var(--muted);padding-top:.2rem">No substitutions recorded in Pearl yet (Drop + Edit creates them)</div>' : '')
               + ((cv.undated + cv.noSession) ? `<div style="font-size:.7rem;color:var(--muted);padding-top:.2rem">${n(cv.undated + cv.noSession)} substitution${cv.undated + cv.noSession === 1 ? '' : 's'} not counted (no session date, or session no longer in Pearl)</div>` : '')
               + (cv.upcoming ? `<div style="font-size:.75rem;padding:.15rem 0;color:var(--muted)">${n(cv.upcoming)} upcoming substitution${cv.upcoming === 1 ? '' : 's'} scheduled</div>` : '')
+              + ((cv.vacancies && cv.vacancies.length) ? `<div style="font-size:.7rem;color:var(--muted);padding-top:.2rem">${n(cv.vacancies.length)} dropped session${cv.vacancies.length === 1 ? '' : 's'} were vacancy coverage — not a tutor absence</div>` : '')
+              + ((cv.reassignments && cv.reassignments.length) ? `<div style="font-size:.7rem;color:var(--muted);padding-top:.2rem">${n(cv.reassignments.length)} dropped session${cv.reassignments.length === 1 ? '' : 's'} were schedule reassignments — not counted (see Needs Follow-Up)</div>` : '')
               + (!model.covTabs.subs ? '<div style="font-size:.75rem;color:#b91c1c;padding-top:.25rem">Instructor Substitutions tab did not load — coverage incomplete</div>' : '');
             return card('Tutor Absence Coverage', rate, 'Tutor sessions · covered ÷ all tutor absences', '#0ea5e9', body);
           })() : ''}
@@ -4409,6 +4436,15 @@
         rows: model.canc.noReason.map(x => [x.date, x.school, x.title, names ? x.instructor : '', names ? x.who : '']), cols: ['Date', 'School', 'Session', 'Tutor', 'Canceled By'] });
       if (model.shouldCancel.length) fixes.push({ t: 'School / NJTC reason logged as a missed reason (new process: cancel the session in Pearl)', n: model.shouldCancel.length,
         rows: model.shouldCancel.map(x => [x.date, x.school, x.title, x.reason, x.n + ' scholar' + (x.n === 1 ? '' : 's')]), cols: ['Date', 'School', 'Session', 'Reason', 'Scholars'] });
+      if (model.coverage && model.coverage.reassignments && model.coverage.reassignments.length) {
+        const grp = {};
+        model.coverage.reassignments.forEach(x => { const k = x.origName + '|' + x.subName + '|' + x.school; const g = grp[k] = grp[k] || { x, dates: [] }; g.dates.push(x.date); });
+        fixes.push({ t: 'Review: same tutor swap on many dates — treated as a schedule reassignment, not absences (log real absences on the Sub Tracker)', n: Object.keys(grp).length,
+          rows: Object.values(grp).map(g => { const d = g.dates.sort(); return [d[0] + ' → ' + d[d.length - 1], g.x.school, names ? g.x.origName : '', names ? g.x.subName : '', d.length + ' session' + (d.length === 1 ? '' : 's') + (g.x.substitutedBy && names ? ' · by ' + g.x.substitutedBy : '')]; }),
+          cols: ['Dates', 'School', 'Dropped Tutor', 'Picked Up By', 'Sessions'] });
+      }
+      if (model.coverage && model.coverage.unpaired && model.coverage.unpaired.length) fixes.push({ t: 'Dropped in Pearl but nobody picked the session up — check it was covered or cancelled', n: model.coverage.unpaired.length,
+        rows: model.coverage.unpaired.map(x => [x.date, x.school, names ? x.origName : '', x.substitutedBy && names ? 'by ' + x.substitutedBy : '', x.substitutedOn ? 'action ' + x.substitutedOn : '']), cols: ['Session Date', 'School', 'Dropped Tutor', 'Action By', 'Action Date'] });
       if (model.coverage && model.coverage.conflicts.length) fixes.push({ t: 'Substitution recorded but the original tutor is also marked Attended', n: model.coverage.conflicts.length,
         rows: model.coverage.conflicts.map(x => [x.date, x.school, x.title, names ? x.origName : '', names ? x.deliveredByName : '']), cols: ['Date', 'School', 'Session', 'Original Tutor', 'Substitute'] });
       if (model.tracker) {
@@ -9528,7 +9564,9 @@
                 var cv = mc.coverage;
                 stats.coverage = { covered: cv.pearlCovered + cv.legacyCovered, pearlCovered: cv.pearlCovered, uncovered: cv.uncovered,
                   rate: cv.rate == null ? null : parseFloat(cv.rate.toFixed(1)), upcoming: cv.upcoming,
-                  subsTabLoaded: !!(mc.covTabs && mc.covTabs.subs), pearlSubstitutions: _pearlSubs.length };
+                  subsTabLoaded: !!(mc.covTabs && mc.covTabs.subs), pearlSubstitutions: _pearlSubs.filter(function(x){ return !x.log || x.action === 'dropped'; }).length,
+                  reassignments: (cv.reassignments || []).length, vacancies: (cv.vacancies || []).length,
+                  unpaired: (cv.unpaired || []).length, noChange: cv.noChange || 0, notOffered: cv.notOffered || 0 };
                 var adj = tutorRateWithCovered(instAtt, instAbs, mc);
                 stats.instAttPctInclCovered = adj == null ? null : parseFloat(adj.toFixed(1));
               }
