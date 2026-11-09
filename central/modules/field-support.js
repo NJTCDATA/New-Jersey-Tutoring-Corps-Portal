@@ -601,7 +601,7 @@
   const TUTOR_RULE = 'Tutors with a real pattern in the last two weeks: tutor attendance under 90% across 3+ sessions, or 3+ open Pearl items to fix ' +
     '(incomplete sessions, tutor surveys still inside the 7-day window, blank missed reasons, attendance not recorded or mismatched). A quick check-in from the Site Leader or PM usually clears this up.';
   function tutorsToCheckIn(R) {
-    const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : /(x|s|ch|sh)$/.test(w) ? 'es' : 's');
     return R.tutors.map(t => {
       const lowAtt = t.tutorAttendance !== null && t.tutorSessions >= TUTOR_CHECKIN.minSessions && t.tutorAttendance < TARGET.tutorAtt;
       const fixes = t.totalFixes;
