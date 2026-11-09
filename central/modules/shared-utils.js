@@ -6950,6 +6950,10 @@
           { icon: '🚩', label: 'HIT Compliance Flags', desc: 'High-Impact Tutoring threshold monitoring. Flags scholars or sites not meeting minimum session dosage requirements.', live: true },
           { icon: '🧭', label: 'Support Report', desc: 'NE / SW Weekly Report → ⬇ Support Detail (Excel). Tutor data-entry fixes (incomplete sessions, blank or mismatched missed reasons, missing surveys) and Site Leader follow-ups for the chosen week plus the week before, so every flag is recent enough to fix. "Full school year to date" gives the year view. Home, PIE and Site Leader Flags use the same window and the same numbers.', live: true },
           { icon: '🔴', label: 'Site Leader Flags', desc: 'Glowing button in Pearl Operations (Programming and Data). Scholars logged Scholar Unavailable or with no reason 2+ times, whole-group misses that should have been cancelled, cancellations with no reason (FYI — Pearl locks the reason once cancelled) and reason-mix checks, by school.', live: true },
+          { icon: '📄', label: 'NE / SW Weekly Report', desc: 'Programming and Data. Pick a week: the PDF is the region\'s Weekly Operations Report (attendance, scholars served, sessions, scholars kept in class, surveys, Schools at a Glance, Tutors to check in with). The ⬇ Support Detail Excel has every fix with Session IDs, plus the Site Leader Follow-up and Flagged Comments tabs.', live: true },
+          { icon: '🚩', label: 'Comment Follow-Up', desc: 'Every tutor and scholar survey comment that needs someone to act. Escalate (wellbeing or safety) = check in within 24 hours; Follow up = this week. Each comment keeps a Status (Open, In progress, Resolved, No action needed), an Owner and a note until it is closed. New escalations go to the Regional Directors in the next morning\'s email (once per comment), so the queue, not the inbox, is where they get closed.', live: true },
+          { icon: '🔍', label: 'Needs Review', desc: 'HIT and missed-session flags by school. Programming and Data close a flag with Clear Flag + a reason; the name, date and reason are saved, and the flag warns you if the data changes after it was cleared.', live: true },
+          { icon: '📬', label: 'Tickets (Pearl Ops mailbox)', desc: 'Programming, Data, Leadership and KB. Ask the Data team for context on any flag or number: name, region, school, request, type, urgency and escalation. Each ticket shows as Responded or Pending, so the answer stays with the question.', live: true },
         ],
         mission: 'High-dosage tutoring effectiveness depends on session consistency. Pearl Operations gives the Programming and PEI teams real-time visibility into whether we are delivering on our dosage commitments to partner schools and scholars.'
       },
@@ -6960,6 +6964,14 @@
           { icon: '🟢', label: 'Green (≥90%)', desc: 'Instructor meeting or exceeding the ≥90% program attendance benchmark. No immediate action needed.' },
           { icon: '🟡', label: 'Yellow (80–89%)', desc: 'Attendance below the 90% benchmark. Site coordinator should follow up and document any contextual factors (illness, school events, etc.).' },
           { icon: '🔴', label: 'Red (<80%)', desc: 'Significant attendance concern — well below the 90% benchmark. Regional director escalation required. Documentation of intervention plan needed within 48 hours.' },
+          { icon: '🎯', label: 'Scholar attendance goal: 80%', desc: 'Scholar Attendance = (Attended + Late) ÷ (Attended + Late + scholar absences). Undelivered sessions, cancellations and internal tracking never count against it. Home → Needs your attention lists campuses under 80% in the last 7 days.' },
+        ],
+        title3: 'Closing Out Flags — Who Does What',
+        items3: [
+          { icon: '🔴', label: 'Site Leader Flags & Support Report fixes', desc: 'Closed by fixing the record in Pearl: complete the session, add the missed reason, cancel a whole-group miss with the school reason, or update a scholar\'s reason after checking with the teacher. The flag drops off on the next refresh (every 5 minutes on this page). Cancelled-with-no-reason rows are FYI only and age out of the two-week window.', badge: 'Fix in Pearl' },
+          { icon: '🚩', label: 'Comment Follow-Up', desc: 'Open the comment, set In progress while you work it, then Resolved or No action needed with an Owner and a one-line note of what was done. Escalations: within 24 hours.', badge: 'Status' },
+          { icon: '🔍', label: 'Needs Review', desc: 'Clear Flag → tick the reason (Onsite staff clarification, Discussed in Context to Data, Internal discrepancy, Program Team or Data Department override) → Confirm Clear. Use Restore if it was cleared by mistake.', badge: 'Clear + reason' },
+          { icon: '📬', label: 'Need more context first?', desc: 'Send a Ticket (📬 Tickets → New Request, or the 📬 beside a school) before you close anything you are unsure about. Write the ticket number or answer into your Comment Follow-Up note or WAP.', badge: 'Ask' },
         ],
         title2: 'HIT Compliance Flags',
         items2: [
@@ -6970,7 +6982,8 @@
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'Pearl Sync', desc: 'Pearl data refreshes on panel open with a 2-hour cache. GIDs (tab IDs) are auto-discovered using a 3-pass resolution system and cached for the session. Force refresh via ↺.', badge: '2hr Cache' },
+          { icon: '📆', label: 'Pearl Sync', desc: 'Pearl data loads when you open Pearl Operations and refreshes automatically every 5 minutes while the page is open; ↺ Refresh pulls it right away. Survey summaries can lag by up to 4 hours. GIDs (tab IDs) are auto-discovered and cached for the session.', badge: 'Every 5 min' },
+          { icon: '🚩', label: 'Comment Follow-Up Escalations', desc: 'Escalate comments (scholar wellbeing or safety) should be checked within 24 hours. Each new escalation is emailed once to the Regional Directors (Data team copied) in the morning run; anything already Resolved or No action needed is skipped. Track it to closed in the queue.', badge: '24 hrs' },
           { icon: '👤', label: 'Data Entry Owner', desc: 'Programming Department owns all Pearl data entry (session records, instructor assignments, student rostering). PEI owns the reporting, flagging, and analytics layer.', badge: 'Programming' },
           { icon: '🚩', label: 'Flag Reports', desc: 'HIT compliance and attendance flag reports are generated and sent to regional teams every Monday by EOD. Onsite teams receive site-specific summaries.', badge: 'Monday EOD' },
           { icon: '🔄', label: 'Data Quality', desc: 'Inactive instructor records in Pearl must be archived to prevent data skew. PEI conducts monthly Pearl audits against the HR Master List to flag mismatches.', badge: 'Monthly' },
@@ -7326,6 +7339,13 @@
         html += '<div class="gov-row-body"><div class="gov-row-label">'+item.label+'</div><div class="gov-row-desc">'+item.desc+'</div></div>';
         if (item.badge) html += '<span class="gov-badge">'+item.badge+'</span>';
         html += '</div>';
+      }
+      if (d.items3 && d.items3.length) {
+        html += '<div class="gov-section-title" style="margin-top:1rem">'+d.title3+'</div>';
+        for (var k=0; k<d.items3.length; k++) {
+          var item3 = d.items3[k];
+          html += '<div class="gov-row"><span class="gov-row-icon">'+item3.icon+'</span><div class="gov-row-body"><div class="gov-row-label">'+item3.label+'</div><div class="gov-row-desc">'+item3.desc+'</div></div>'+(item3.badge?'<span class="gov-badge">'+item3.badge+'</span>':'')+'</div>';
+        }
       }
       if (d.items2 && d.items2.length) {
         html += '<div class="gov-section-title" style="margin-top:1rem">'+d.title2+'</div>';
@@ -8090,6 +8110,7 @@
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
     'Support Report': ['What should Site Leaders follow up on?', 'Which scholars are repeatedly unavailable?', 'Which missed reason should a tutor pick?', 'Reason-mix check', 'Who needs support?',                    "Who didn't complete their tutor surveys?",    'Which tutors have blank missed reasons?', 'Show incomplete sessions', 'Where are teacher pull-outs happening?', 'Missing scholar surveys by tutor'],
+    'My WAP':       ['Help me build my WAP for NE', 'Help me build my WAP for SW', 'How do I close out a flag?', 'How do I ask for more context on a flag?', 'What is Comment Follow-Up?', 'What does the compass do?'],
     'Overview':     ['How are we doing overall?',               'What should I know today?',                   'Give me a flash summary PDF'],
     'Attendance':   ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',            'Which district has the lowest attendance?'],
     'KPIs':         ['Which goals have not been met?',          'Which goal area is the weakest?',             'What does the weighted score mean?'],
@@ -8133,11 +8154,11 @@
 
   // ── Dept-specific extras — prepend these category tabs for specific roles ──
   var DEPT_CAT_DEFAULTS = {
-    programming: { extra: ['Support Report', 'My Sites'],                 def: 'Today'  },
+    programming: { extra: ['Support Report', 'My Sites', 'My WAP'],       def: 'Today'  },
     training:    { extra: ['T&D'],                                        def: 'Today'             },
     finance:     { extra: ['Finance'],                                    def: 'Today'         },
     hr:          { extra: ['Workforce'],                                  def: 'Today'       },
-    data:        { extra: ['Support Report','Reports','Demographics'],    def: 'Today'        },
+    data:        { extra: ['Support Report','My WAP','Reports','Demographics'], def: 'Today'  },
     kb:          { extra: ['Grant Reporting','Dept Briefing'],            def: 'Today' },
     leadership:  { extra: ['Grant Reporting','Quarterly','Satisfaction'], def: 'Today' },
   };
@@ -10169,7 +10190,7 @@
       if (live) out.push(tp.q);
     });
     var general = { hr: ['How do I read a full concern?', 'Where do I switch the DOL hire dates?'],
-                    programming: ['How do I read a full concern?', 'How do I search for a school?'],
+                    programming: ['Help me build my WAP', 'How do I close out a flag?'],
                     data: ['Did any data fail to load?', 'How do I share a link to a page?'],
                     training: ['How many apprentices do we have?', 'How do I search for a person?'],
                     finance: ['Which districts are high risk?', 'How do I report a problem?'],
@@ -10178,6 +10199,155 @@
     general.forEach(function(g){ if (out.length < 3 && !_pieAsked[g.toLowerCase()] && out.indexOf(g) < 0) out.push(g); });
     if (!out.length) return '';
     return '\n\n<span class="pie-next">Try next:</span>' + out.map(function(x){ return _pieAskBtn(x); }).join('');
+  }
+
+  // ── Pearl Ops workflow — WAP builder, closing flags, Tickets mailbox,
+  //    Comment Follow-Up, Data Compass, scavenger-hunt hints. Answers come
+  //    from the same Support Report engine as the NE / SW Weekly Report, so
+  //    PIE, Home and the Excel never disagree. ───────────────────────────────
+  function _pieDay(d) { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+  function _pieNextDow(dow, from) {                 // next given weekday (0=Sun), today counts
+    var d = new Date(from || Date.now()); d.setHours(12, 0, 0, 0);
+    while (d.getDay() !== dow) d.setDate(d.getDate() + 1);
+    return d;
+  }
+  function _piePO(fnName, label, arg) {
+    return _pieGoBtn({ open: label, go: function() {
+      if (typeof window.showPanel === 'function') window.showPanel('pearl-ops');
+      setTimeout(function() {
+        try {
+          if (fnName === 'slflags' && window.njtcFieldSupport) window.njtcFieldSupport.openFlags(arg || 'ALL');
+          else if (fnName === 'report' && window.njtcFieldSupport) window.njtcFieldSupport.open(arg || 'NE');
+          else if (fnName === 'followup' && window.njtcCommentFollowUp) window.njtcCommentFollowUp.open();
+          else if (fnName === 'tickets' && window.po) window.po.openTicketsView();
+          else if (fnName === 'newticket' && window.po) window.po.openTicketModal();
+          else if (fnName === 'review' && window.po) window.po.openFlagsModal('critical');
+          else if (fnName === 'compass' && typeof window.govOpen === 'function') window.govOpen();
+        } catch (e) { console.warn('[PIE] could not open', fnName, e); }
+      }, 400);
+    } });
+  }
+  function _piePearlWorkflow(q) {
+    var t = String(q || '').toLowerCase();
+    var region = /\bne\b|north.?east/.test(t) ? 'NE' : /\bsw\b|south.?west/.test(t) ? 'SW' : '';
+
+    // Scavenger hunt — hints, never answers
+    if (/scavenger|treasure hunt/.test(t)) {
+      return '🧩 **Scavenger hunt? I\'ll give hints, not answers.** 😉\n\n' +
+        '• Start with **🎓 Tutorial → Pearl Operations**. It walks every button on the page in order.\n' +
+        '• Stuck on what a number means? Open the **🧭 compass** at the bottom right of Pearl Ops, then look at the **How to Read It** tab.\n' +
+        '• Looking for a person or school? Use **🔍 Search** or press **/**.\n' +
+        '• Need a name or a count? Ask me in plain words, like "who are the tutors to check in with in NE?". I\'ll tell you where I found it, so you can go and confirm it yourself.\n\n' +
+        '_Write down where you found each answer. That\'s the part you\'ll use every week._' +
+        _piePO('tour', 'Open Pearl Operations');
+    }
+
+    // WAP builder
+    if (/\bwap\b|weekly action plan|action plan|action steps?|due dates?.{0,20}(concern|flag)|main concerns?|what should (i|we) tackle|build my plan/.test(t)) {
+      if (!window.po || typeof window.po.getFieldSupportInput !== 'function' || !window.njtcFieldSupport) {
+        return 'I build your WAP from live Pearl data. Open **Pearl Operations** first, give it a few seconds to load, then ask me again: "Help me build my WAP for NE" (or SW).' + _piePO('tour', 'Open Pearl Operations');
+      }
+      if (!region) {
+        return '📝 **Which region is this WAP for?**' + _pieAskBtn('Help me build my WAP for NE', 'NE Region') + _pieAskBtn('Help me build my WAP for SW', 'SW Region');
+      }
+      var FS = window.njtcFieldSupport, input = window.po.getFieldSupportInput();
+      if (!input || !(input.sessions || []).length) {
+        return '⏳ **Pearl session data is still loading**, so I can\'t build an honest WAP yet. Give Pearl Operations a few seconds (the green dot by "Live · Pearl" means it\'s ready), then ask again.' + _pieAskBtn('Help me build my WAP for ' + region, 'Try again');
+      }
+      input.region = region; input.school = '';
+      var R = FS.reportFor(input, { region: region });
+      var now = new Date(), tomorrow = new Date(now.getTime() + 864e5);
+      var wed = _pieNextDow(3, now), fri = _pieNextDow(5, now);
+      var hi = R.schools.filter(function(x){ return x.support === 'High'; });
+      var lowAtt = R.schools.filter(function(x){ return x.scholarAttendance != null && x.scholarAttendance < 80; });
+      var ck = (FS.tutorsToCheckIn ? FS.tutorsToCheckIn(R) : []);
+      var T = R.totals, n = 0, L = [];
+      var name = function(x){ return String(x).replace(/^LEA - iLearn /, 'iLearn '); };
+      L.push('📝 **Draft WAP: ' + region + ' Region** · ' + (FS.windowLabel ? FS.windowLabel(R) : 'last two weeks'));
+      L.push('_Pick your top 3 to 5 concerns from this list, make each step yours, and put the due dates in your WAP. Each step says how it closes in the portal._\n');
+      if (T.commentsEscalate || T.commentsFollowUp) {
+        L.push('**' + (++n) + '. Flagged survey comments**: ' + [T.commentsEscalate ? T.commentsEscalate + ' escalate (wellbeing / safety)' : '', T.commentsFollowUp ? T.commentsFollowUp + ' follow up' : ''].filter(Boolean).join(' · '));
+        L.push('  • Action: ' + (T.commentsEscalate ? 'confirm a Site Leader told the teacher or counselor about each escalation; ' : '') + 'SL asks the tutor what happened and what would help.');
+        L.push('  • Close it: 🚩 Comment Follow-Up → Resolved / No action needed, with Owner + note. (Some may already be closed. The queue shows current status.)');
+        L.push('  • **Due: ' + (T.commentsEscalate ? 'escalations ' + _pieDay(tomorrow) + ' (24 hours) · ' : '') + 'follow-ups ' + _pieDay(wed) + ' EOD**\n');
+      }
+      if (ck.length) {
+        L.push('**' + (++n) + '. Tutors to check in with (' + ck.length + ')**: ' + ck.slice(0, 5).map(function(x){ return x.tutor + ' (' + name(x.school) + ')'; }).join(', ') + (ck.length > 5 ? ', +' + (ck.length - 5) + ' more' : ''));
+        L.push('  • Action: SL or PM check-in. Name the pattern (attendance or open Pearl items) and agree a fix date.');
+        L.push('  • Close it: the tutor drops off the list once attendance recovers or their open items are fixed in Pearl.');
+        L.push('  • **Due: check-ins by ' + _pieDay(wed) + ' EOD**\n');
+      }
+      if (T.incomplete || T.missingTutorSurveysOpen || T.blankReasons) {
+        L.push('**' + (++n) + '. Tutor data entry**: ' + [[T.incomplete, 'incomplete sessions'], [T.missingTutorSurveysOpen, 'tutor surveys still open'], [T.blankReasons, 'blank missed reasons']].filter(function(x){ return x[0]; }).map(function(x){ return x[0] + ' ' + x[1]; }).join(' · '));
+        L.push('  • Action: send each tutor their rows from ⬇ Support Detail (Excel) → Tutor Actions tab, with the Session IDs.');
+        L.push('  • Close it: the tutor completes or fixes it in Pearl. Surveys only count inside the 7-day window, so check the "Editable Until" column.');
+        L.push('  • **Due: ' + _pieDay(wed) + ' EOD** (open surveys before they expire)\n');
+      }
+      if (T.slFollowUp) {
+        L.push('**' + (++n) + '. Site Leader Flags (' + T.slFollowUp + ')**: ' + [[T.scholarsUnavailableRepeat, 'repeat-unavailable scholars'], [T.reasonOutliers, 'reason-mix checks'], [T.cancelFixes, 'should be cancelled'], [T.cancelNoReasonFYI, 'cancelled with no reason (FYI)']].filter(function(x){ return x[0]; }).map(function(x){ return x[0] + ' ' + x[1]; }).join(' · '));
+        L.push('  • Action: SLs check school attendance or ask the teacher, then update the reason; review the reason guide in the next huddle.');
+        L.push('  • Close it: fix in Pearl, and the flag clears on refresh.');
+        L.push('  • **Due: ' + _pieDay(fri) + '**\n');
+      }
+      if (hi.length || lowAtt.length) {
+        L.push('**' + (++n) + '. Campus support**: ' + (hi.length ? 'High support: ' + hi.map(function(x){ return name(x.school); }).join(', ') : '') + (hi.length && lowAtt.length ? ' · ' : '') + (lowAtt.length ? 'under 80% scholar attendance: ' + lowAtt.map(function(x){ return name(x.school) + ' ' + x.scholarAttendance + '%'; }).join(', ') : ''));
+        L.push('  • Action: a 15-minute call with each Site Leader. Look at missed reasons and teacher pull-outs together, then agree one change.');
+        L.push('  • Close it: the support level drops on next week\'s Weekly Report.');
+        L.push('  • **Due: calls by ' + _pieDay(wed) + ' EOD · recheck ' + _pieDay(fri) + '**\n');
+      }
+      if (T.teacherPullouts) {
+        L.push('**' + (++n) + '. Teacher pull-outs (' + T.teacherPullouts + ')**: scholars kept in class count as absences.');
+        L.push('  • Action: SL raises the schedule with the classroom teacher or principal for scholars pulled 3+ times.');
+        L.push('  • **Due: ' + _pieDay(fri) + '**\n');
+      }
+      if (!n) L.push('✅ Nothing open for ' + region + ' in this window. Your WAP can focus on growth goals this week.\n');
+      L.push('**Unsure about a flag?** Send a 📬 Ticket for context **before** you close it, and note the answer in your WAP.');
+      return L.join('\n') + _piePO('report', region + ' Weekly Report', region) + _piePO('slflags', 'Site Leader Flags', region) + _piePO('followup', 'Comment Follow-Up') + _piePO('tickets', 'Tickets');
+    }
+    // Data Compass
+    if (/compass|governance beacon|what does (the|that) (🧭|compass)/.test(t)) {
+      return '🧭 **Data Compass**: the round compass button at the bottom right of data pages (Pearl Ops, Site Analytics, KPI Targets, Talent and more).\n\n' +
+        '• **What**: every number on that page, in plain language, plus the tools on it.\n' +
+        '• **How to Read It**: the colour thresholds and, on Pearl Ops, **Closing Out Flags: Who Does What**.\n' +
+        '• **Cadence & Ownership**: how often it refreshes (Pearl Ops: every 5 minutes) and who owns the data.\n' +
+        '• **Access & PII**: who can see scholar names, and what never goes to partners.' +
+        _piePO('compass', 'Open the Pearl Ops compass');
+    }
+
+    // Tickets / mailbox / ask for more context
+    if (/ticket|mailbox|inbox|data request|(ask|get|need|request).{0,25}(more )?(context|clarif)|who do i ask|reach out.{0,30}(data|context|flag)|send.{0,15}(a )?(question|request).{0,20}data/.test(t)) {
+      return '📬 **Tickets: the Pearl Ops mailbox** (Pearl Operations → **📬 Tickets**)\n\n' +
+        '1. **📬 New Request** (or the 📬 next to a school in the drill-down, which fills the school in for you).\n' +
+        '2. Fill in your name, **Region**, district and school, then **describe what you need**. Paste the Session ID or scholar/tutor name from the flag so the Data team can find it fast.\n' +
+        '3. Pick a **Type**: Data Question, Meeting Request, Clarification, Concern or Other. Set **Urgency**, and **Needs Escalation = Yes** only if it can\'t wait.\n' +
+        '4. Check back in **📬 Tickets**: each one shows **Responded** or **Pending**, with the answer under it.\n\n' +
+        '_Close the loop: once you have the answer, fix it in Pearl or set the Comment Follow-Up / Needs Review flag, and note the answer in your WAP._' +
+        _piePO('tickets', 'Open Tickets') + _piePO('newticket', 'New Request');
+    }
+
+    // Comment Follow-Up / escalations
+    if (/comment follow|follow.?up queue|escalat(e|ion)s?\b(?!.{0,10}ticket)|flagged comments?|wellbeing|scholar (distress|safety)/.test(t) && !/\bwap\b|action plan/.test(t)) {
+      var R0 = null;
+      try { if (window.po && window.po.getFieldSupportInput && window.njtcFieldSupport) { var in0 = window.po.getFieldSupportInput(); if (in0 && (in0.sessions || []).length) { in0.region = region || 'ALL'; R0 = window.njtcFieldSupport.reportFor(in0, { region: in0.region }); } } } catch (e) {}
+      var live = R0 ? '\n\nRight now (' + (region ? region + ' Region' : 'all regions') + ', last two weeks): **' + R0.totals.commentsEscalate + ' escalate** · **' + R0.totals.commentsFollowUp + ' follow up**. Statuses live in the queue.' : '';
+      return '🚩 **Comment Follow-Up** (Pearl Operations → **🚩 Comment Follow-Up**)\n\n' +
+        '• **Escalate** (red): scholar wellbeing or safety, like distress, grief, injury or peer conflict. Someone checks in **within 24 hours**. New ones are emailed to the Regional Directors the next morning.\n' +
+        '• **Follow up** (orange): very low ratings or behaviour stopping learning. Handle it **this week**.\n\n' +
+        '**To close one:** click the row → **Status** = In progress while you work it → **Resolved** (done) or **No action needed** → set an **Owner** and a one-line **note** (who you spoke to and what was agreed) → Save.' + live +
+        _piePO('followup', 'Open Comment Follow-Up');
+    }
+
+    // Closing out flags
+    if (/(close|clear|resolve|closing|clearing|resolving|fix|get rid of|turn.{0,10}green).{0,25}flags?|flags?.{0,25}(close|clear|resolv|go away|disappear|green)/.test(t)) {
+      return '✅ **Closing out flags: each kind closes a different way**\n\n' +
+        '**1. 🚩 Site Leader Flags & Support Report fixes: fix the record in Pearl.** There\'s no "clear" button, because the flag is the data itself. Complete the incomplete session, add the missed reason, cancel a whole-group miss with the school reason, or update a scholar\'s reason after checking with the teacher. It drops off on the next refresh (Pearl Ops refreshes every 5 minutes), and the button turns green when the list is clear. _Cancelled with no reason_ rows are FYI only: Pearl locks them, so just remind whoever cancelled.\n\n' +
+        '**2. 🚩 Comment Follow-Up: set the status.** In progress → **Resolved** or **No action needed**, with an Owner and a note.\n\n' +
+        '**3. 🔍 Needs Review: Clear Flag + reason.** Tick the reason (Onsite staff clarification, Discussed in Context to Data, Internal discrepancy, or Program Team / Data Department override) → **Confirm Clear**. Your name and date are saved. **Restore** undoes it.\n\n' +
+        '**Not sure it should close?** Send a **📬 Ticket** first and close it once you have the answer.' +
+        _piePO('slflags', 'Site Leader Flags', region || 'ALL') + _piePO('followup', 'Comment Follow-Up') + _piePO('review', 'Needs Review');
+    }
+
+    return null;
   }
 
   // ── "Where do I find / how do I…" — portal navigation for everyday tasks ──
@@ -10375,6 +10545,12 @@
         lines.push('- "Give me a full KB executive briefing"');
         lines.push('- "What does leadership need to know today?"');
         lines.push('- "Catch me up"');
+        lines.push('\n### 🚩 Pearl Ops Workflow');
+        lines.push('- "Help me build my WAP for NE" (or SW)');
+        lines.push('- "How do I close out a flag?"');
+        lines.push('- "How do I ask for more context on a flag?"');
+        lines.push('- "What is Comment Follow-Up?"');
+        lines.push('- "What does the compass do?"');
         lines.push('\n### 🧭 Where do I find it?');
         lines.push('- "How do I read a full concern?"');
         lines.push('- "How do I see last year on a profile?"');
@@ -15169,6 +15345,10 @@
       var ctxAns = _resolveCtxFollowup(qt, _ctxTop());
       if (ctxAns) return ctxAns;
     }
+
+    // 0.85. Pearl Ops workflow — WAP, closing flags, Tickets, Comment Follow-Up, Compass
+    var _pw = _piePearlWorkflow(qt);
+    if (_pw) return _pw;
 
     // 0.9. How-to / where-to-find questions (navigation help for everyday tasks)
     var _how = _pieHowTo(qt);
