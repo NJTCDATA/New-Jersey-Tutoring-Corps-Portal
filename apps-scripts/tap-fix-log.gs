@@ -21,7 +21,7 @@
  * ║          the OTJ log (same rule as recalculateTotals)                    ║
  * ║        • Apprentice wage-milestone labels match their hours              ║
  * ║        • nightly workbook + Knowtion syncs ran in the last 36 hours      ║
- * ║        • Knowtion has new completions since last week                    ║
+ * ║        • Knowtion data was refreshed since last week (manual export)     ║
  * ║        • milestone email test mode on/off                                ║
  * ║                                                                          ║
  * ║  Every run is written to the "OJT Fix Log" tab (history) and to the      ║
@@ -167,8 +167,10 @@ function _fixLogAudit(ss, props) {
   var kn = _fixLogSheetObjects(ss.getSheetByName('RTI — Knowtion'));
   var items = kn.reduce(function(s, r) { return s + (Number(r['Items Completed']) || 0); }, 0);
   var prev = props[FIX_LOG.KN_PROP] ? Number(props[FIX_LOG.KN_PROP]) : null;
-  checks.push({ ok: prev === null || items !== prev, label: 'Knowtion has new completions since the last report',
-    detail: kn.length + ' learners · ' + items.toLocaleString() + ' items' + (prev === null ? ' (first report — compared from next week)' : items === prev ? ' — unchanged since last week; check the Knowtion export is updating' : ' (was ' + prev.toLocaleString() + ')') });
+  // The Knowtion source sheet is refreshed by hand (export from Knowtion, paste
+  // into the Knowtion workbook), so "unchanged" usually means it's due.
+  checks.push({ ok: prev === null || items !== prev, label: 'Knowtion data refreshed since the last report',
+    detail: kn.length + ' learners · ' + items.toLocaleString() + ' items' + (prev === null ? ' (first report — compared from next week)' : items === prev ? ' — unchanged since last week. The Knowtion workbook is updated manually: paste the latest Knowtion export, then run Sync now ▸ Knowtion training hours (RTI).' : ' (was ' + prev.toLocaleString() + ')') });
   checks.push({ ok: !test, label: 'Milestone emails are live', detail: test ? 'TEST MODE is on — milestone emails go only to ' + _milestoneTestAddress() : 'Live — finance is emailed automatically' });
   return { checks: checks, knItems: items };
 }
