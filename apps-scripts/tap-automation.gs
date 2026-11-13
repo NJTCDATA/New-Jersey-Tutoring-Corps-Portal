@@ -21,12 +21,14 @@
  * ║     1st ~7am       Last month's OJT Wage Report + Wage Summary/Projection ║
  * ║                    rebuilt, PDF emailed for review                        ║
  * ║     Monday ~7am    Weekly TAP status digest emailed                       ║
+ * ║     Monday ~8am    Weekly OJT Fix Log + data audit (tap-fix-log.gs)       ║
  * ║     The portal reads the sheet live through the web app (doGet), so every ║
  * ║     refresh above shows up in the portal on its next load.                ║
  * ║                                                                            ║
  * ║  3. RECIPIENTS (Script Properties — optional overrides)                   ║
  * ║     WAGE_REPORT_TO  default: ADMIN_EMAIL + FINANCE_EMAIL_1                ║
  * ║     DIGEST_TO       default: ADMIN_EMAIL                                  ║
+ * ║     FIX_LOG_TO      default: ADMIN_EMAIL  (menu: Fix Log: Set recipients) ║
  * ║     (comma-separated lists)                                               ║
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
@@ -46,6 +48,7 @@ var AUTO = {
     autoMonthlyWageReport:      { label: 'Monthly wage report + email (1st)', make: function(b) { return b.onMonthDay(1).atHour(7); } },
     autoWeeklyDigest:           { label: 'Weekly status digest (Monday)',     make: function(b) { return b.onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7); } },
     syncKnowtionRTI:            { label: 'Nightly Knowtion training hours (RTI)', make: function(b) { return b.everyDays(1).atHour(4); } },
+    autoWeeklyFixLog:           { label: 'Weekly OJT Fix Log + data audit (Monday)', make: function(b) { return b.onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8); } },
   },
 };
 
@@ -357,7 +360,7 @@ function autoWeeklyDigest() {
 
     lines.push('');
     lines.push('SCHEDULED JOBS — last successful run');
-    ['syncSY2627', 'rtiKnowtion', 'resync', 'wageReport', 'digest'].forEach(function(k) {
+    ['syncSY2627', 'rtiKnowtion', 'resync', 'wageReport', 'digest', 'fixLog'].forEach(function(k) {
       var v = PropertiesService.getScriptProperties().getProperty(AUTO.LAST_RUN_PREFIX + k);
       lines.push('  ' + k + ': ' + (v ? Utilities.formatDate(new Date(v), tz, 'EEE M/d h:mm a') : 'not yet'));
     });
@@ -401,7 +404,7 @@ function automationStatus() {
     return (have[fn] ? '✓ ' : '✗ MISSING  ') + AUTO.HANDLERS[fn].label;
   });
   lines.push('');
-  ['syncSY2627', 'rtiKnowtion', 'resync', 'wageReport', 'digest'].forEach(function(k) {
+  ['syncSY2627', 'rtiKnowtion', 'resync', 'wageReport', 'digest', 'fixLog'].forEach(function(k) {
     var v = p.getProperty(AUTO.LAST_RUN_PREFIX + k);
     lines.push('Last ' + k + ': ' + (v ? Utilities.formatDate(new Date(v), tz, 'EEE M/d/yyyy h:mm a') : 'not yet'));
   });

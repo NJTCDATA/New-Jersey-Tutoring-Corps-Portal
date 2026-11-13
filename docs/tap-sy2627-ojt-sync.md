@@ -121,6 +121,52 @@ The 7 extra activities (Beg-Prof C, N, Q · Instr B, O · Env G · Plan A) are a
 
 **Tested offline:** the real script files run in Node against Tohrn's workbook and the export #60 OTJ log. Result: 20 → 13 activities, 7 Summer Import rows removed and backed up, no one else touched, and the Completed Program and no-link safeguards hold.
 
+## Weekly OJT Fix Log + data audit (`apps-scripts/tap-fix-log.gs`, Nov 2026)
+
+**What it is.** Every Monday around 8 am (after the digest) one email goes out with a simplified table of what needs fixing in the OJT workbooks: the same layout T&D saw on 11/3.
+- **Where the table comes from:** the nightly sync's *Needs Review* and *Workbook Progress* tabs.
+- **How rows are grouped:** Apprentices → Pre-apprentices → Completed Program → not in TAP, with each person's site leader.
+- **How items are described:** each unreadable date quotes the cell exactly as typed (for example "Oct 6", "3/31 per JLC" or "3/17/26, 4/15/26"), because item letters differ between checklists.
+- **Status on each item:** New, or Still open (since …).
+- **Fixed items:** anything fixed since the last report is listed as Fixed.
+
+**Audit checks run every week**, independently of the sync:
+- every active person's OJT hours equal 50 × unique activities in the OTJ log
+- each Apprentice's wage-milestone label matches their hours
+- the nightly workbook and Knowtion syncs ran in the last 36 hours
+- Knowtion shows new completions since last week
+- whether milestone test mode is on or off
+
+**Where each run is recorded:**
+- one row per item on the "OJT Fix Log" tab, so every report's history is kept
+- an `OJT_FIX_LOG` line in the Notifications Log, as the record that an audit ran
+
+**Recipients:** the Script Property `FIX_LOG_TO`, set from the menu with *Reports & emails ▸ Weekly OJT Fix Log — recipients…*. It defaults to ADMIN_EMAIL. While milestone test mode is on, the email goes only to the test address.
+
+**Schedule:** installed by *Automation ▸ Install ALL scheduled jobs* (now 7 jobs).
+
+**Tested** offline on export #63 across two runs:
+- run 1: 27 open items for 23 people; hours check 101/101; the milestone check flags Katrina Valentin and Jazmin Garcia
+- run 2: 1 item shown as Fixed after a simulated fix
+
+## Workbook menu (v13.6)
+
+The menu is grouped into Sync now · View · Reports & emails · Data checks · Milestone emails · Automation · Admin & setup.
+
+**Removed from the menu** (the functions are still in the code):
+
+| Item | Why |
+|---|---|
+| Old *Full Resync* | No time limit, so it can hit the 6-minute cap. Use *Sync now ▸ Full resync*, which runs in chunks. |
+| *Delete Bad RTI Entry* | It deleted **all** RTI rows for a person, and RTI is managed in a separate tracker. |
+| *Process Existing Intake Rows* | For the old intake form, which the Registration Form replaced. |
+| *Install Registration Form Trigger* | It added a duplicate trigger on every run. *Install form triggers* replaces it safely. |
+| *Generate This Month's Wage Report* | Mid-month it covers only a partial month. Use *Wage report for a month…*. |
+| Debug and one-time items | Debug: Print Registration Headers, Remove OJT — Checklist Tabs, and Bootstrap Narrative + Career Tabs were one-time setup steps that are already done. |
+| Summer Import steps 0–2, debug items and the Summer top-up | The summer import is finished, and the OJT Audit now checks every Summer and SY 26-27 checklist. |
+
+**Fix:** *OJT report (PDF)* listed every Master Roster row, including inactive people and about 50 non-TAP tutors. It now lists active TAP participants only.
+
 ## RTI / training hours from Knowtion (`apps-scripts/tap-rti-knowtion.gs`)
 
 - **Source:** the Knowtion workbook `1a4FTtODGfvO1FsQUp_MpQbePAjTF3Ire6uAHhL-EXFI`. The script reads three tabs by GID: tutors 267261099, site leaders 172053344, and site leader preparation 713859468. It opens the workbook directly, so no published link is needed.
