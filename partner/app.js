@@ -41,8 +41,8 @@
   const BASE = '/New-Jersey-Tutoring-Corps-Portal';
 
   const ATT  = { USER:0, ROLE:1, SESSION:2, SESS_STATUS:3, PLAN_START:4, SESS_DATE:5, ATT_STATUS:6, MISS_REASON:7, GRADE:8, SEX:9, RACE:10, SCHOOL:11, DISTRICT:12, USER_ID:13, WEEK:26 };
-  const INST = { FILLED_BY:0, FILLED_FOR:1, ENGAGEMENT:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT_ADMIN:6, COMMENT_SELF:7, DATE:8, SCHOOL:9, DISTRICT:10 };
-  const STU  = { FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT:6, DATE:7, SCHOOL:8, DISTRICT:9, REGION:10 };
+  const INST = { FILLED_BY:0, FILLED_FOR:1, ENGAGEMENT:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT_ADMIN:6, COMMENT_SELF:7, DATE:8, SCHOOL:9, DISTRICT:10, SESS_ID:11, FILLED_BY_ID:12 };
+  const STU  = { FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT:6, DATE:7, SCHOOL:8, DISTRICT:9, REGION:10, SESS_ID:11, FILLED_BY_ID:12, FILLED_FOR_ID:13 };
   // Session Details — durations only. DUR_MINS is computed server-side
   // (scripts/build-partner-data.js) from Pearl's Actual/Scheduled Duration
   // text, not a real Pearl column. Absent entirely from older cached
@@ -203,9 +203,10 @@
   }
   function setArchiveChrome(on) {
     ['tutor', 'profiles'].forEach(v => { const t = document.querySelector(`.pt-tab[data-view="${v}"]`); if (t) t.hidden = on; });
+    syncProgramTabs(on);
     const pdf = document.getElementById('pdfBtn'); if (pdf) pdf.style.display = on ? 'none' : '';
     const active = document.querySelector('.pt-tab.active');
-    if (on && active && (active.dataset.view === 'tutor' || active.dataset.view === 'profiles')) goTab('summary');
+    if (on && active && ['tutor', 'profiles', 'tutorAtt', 'tutorProfiles'].includes(active.dataset.view)) goTab('summary');
   }
   function switchSeason(season) {
     if (!CURRENT_BUNDLE) return;
@@ -523,8 +524,30 @@
     return (id.schools || []).join(', ') || id.district || '—';
   }
 
+  // ── Program Team view (Admin + Regional logins) ──────────────────────
+  // NJTC staff use these logins for regular data collection: they get the
+  // tutor-side pages (Tutor Attendance Tracking, tutor summary row, staff
+  // tiles, survey comment tables). Partner logins never see them.
+  // Tutor Profiles is built behind TUTOR_PROFILES_READY (not released yet).
+  const TUTOR_PROFILES_READY = false;
+  function isProgramView() {
+    const l = (CURRENT_BUNDLE && CURRENT_BUNDLE.identity && CURRENT_BUNDLE.identity.level) || '';
+    return l === 'Admin' || l === 'Regional';
+  }
+  function syncProgramTabs(archive) {
+    const prog = isProgramView();
+    document.querySelectorAll('.pt-tab[data-program-label]').forEach(t => {
+      if (!t.dataset.partnerLabel) t.dataset.partnerLabel = t.textContent;
+      t.textContent = prog ? t.dataset.programLabel : t.dataset.partnerLabel;
+    });
+    document.querySelectorAll('.pt-tab[data-program-only]').forEach(t => {
+      t.hidden = !prog || !!archive || (t.hasAttribute('data-not-ready') && !TUTOR_PROFILES_READY);
+    });
+  }
+
   function personalize() {
     const id = BUNDLE.identity;
+    syncProgramTabs(false);
     $('#idName').textContent = id.name;
     $('#idRole').textContent = id.level + (id.district && id.level !== 'Admin' ? ' · ' + id.district : '');
     $('#idAvatar').textContent = initials(id.name);
@@ -663,14 +686,35 @@
       const sess = (r[ATT.SESSION] || '').trim();
       const name = (r[ATT.USER] || '').trim();
       if (!sess || !name) return;
-      if (!map[sess]) map[sess] = new Set();
-      map[sess].add(name);
+      const k = sess + '|' + (r[ATT.SCHOOL] || '').trim();
+      if (!map[k]) map[k] = new Set();
+      map[k].add(name);
     });
     return map;
   }
 
+  // Scholar → tutors / subjects / grades, from the Pearl sessions this
+  // scholar was actually rostered on in the current view (this school year,
+  // current drill-down). Cancelled / rescheduled sessions don't count.
+  function scholarSessionIndex() {
+    const idx = {};
+    if (!hasSessionData()) return null;
+    scopedSessions().forEach(r => {
+      const st = (r[SESS.STATUS] || '').trim();
+      if (st === 'Cancelled' || st === 'Rescheduled') return;
+      const tutor = (r[SESS.INSTRUCTOR] || '').trim(), subj = (r[SESS.SUBJECT] || '').trim(), grade = (r[SESS.GRADE] || '').trim();
+      (r[SESS.STU_IDS] || '').split(',').map(x => x.trim()).filter(Boolean).forEach(u => {
+        const e = idx[u] = idx[u] || { tutors: new Set(), subjects: new Set(), grades: new Set() };
+        if (tutor) e.tutors.add(tutor); if (subj) e.subjects.add(subj); if (grade) e.grades.add(grade);
+      });
+    });
+    return idx;
+  }
+  const gradeSort = (a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0) || a.localeCompare(b);
+
   function scholarProfiles(attAll, surveys, durMap) {
     const tutorMap = sessionTutorMap(attAll);
+    const sessIdx = scholarSessionIndex();
     const byScholar = {};
     attAll.filter(isScholarRow).forEach(r => {
       const uid = (r[ATT.USER_ID] || '').trim();
@@ -685,7 +729,7 @@
       }
       const s = byScholar[uid];
       const sess = (r[ATT.SESSION] || '').trim();
-      if (sess) s.sessions.add(sess);
+      if (sess) s.sessions.add(sess + '|' + (r[ATT.SCHOOL] || '').trim());
       const c = classifyAtt(r);
       const reason = (r[ATT.MISS_REASON] || '').trim();
       if (c === 'attended') {
@@ -722,7 +766,10 @@
     return profiles.map(s => {
       const total = s.attended + s.absences;
       const staleFlag = !!(datasetMaxDate && s.lastAttendedSort && (datasetMaxDate - s.lastAttendedSort) / 86400000 > STALE_DAYS);
-      const tutors = [...new Set([...s.sessions].flatMap(sess => [...(tutorMap[sess] || [])]))].sort();
+      const si = sessIdx && sessIdx[s.uid];
+      const tutors = si ? [...si.tutors].sort() : [...new Set([...s.sessions].flatMap(sess => [...(tutorMap[sess] || [])]))].sort();
+      const subjects = si ? [...si.subjects].sort() : [];
+      const grades = si ? [...si.grades].sort(gradeSort) : [];
       const weekly = {};
       s.weeklyRows.forEach(w => {
         if (!weekly[w.key]) weekly[w.key] = { label: w.label, attended: 0, absent: 0 };
@@ -730,9 +777,11 @@
       });
       const weeklyKeys = Object.keys(weekly).sort();
       const mySurveys = surveysByScholar[s.uid] || [];
+      const overallVals = mySurveys.map(r => parseFloat(r[STU.OVERALL])).filter(v => !isNaN(v));
       const minutes = durMap ? [...s.attendedSessions].reduce((sum, sid) => sum + (durMap[sid] || 0), 0) : 0;
       return {
-        ...s, total, rate: pct(s.attended, total), staleFlag, tutors, minutes,
+        ...s, total, rate: pct(s.attended, total), staleFlag, tutors, subjects, grades, minutes,
+        overallAvg: overallVals.length ? Math.round(overallVals.reduce((a, b) => a + b, 0) / overallVals.length * 10) / 10 : null,
         weekly: weeklyKeys.map(k => ({ label: weekly[k].label, rate: pct(weekly[k].attended, weekly[k].attended + weekly[k].absent) })),
         surveys: mySurveys, surveyCount: mySurveys.length,
       };
@@ -867,6 +916,7 @@
     return `<button class="pt-profile-card" data-uid="${esc(s.uid)}" type="button">
       <div class="pt-profile-card-name">${esc(s.name)}</div>
       <div class="pt-profile-card-id">${esc(s.uid)}${s.school ? ' · ' + esc(s.school) : ''}</div>
+      ${s.subjects.length || s.grades.length ? `<div class="pt-profile-card-id">${esc([s.subjects.join(' / '), s.grades.join(', ')].filter(Boolean).join(' · '))}</div>` : ''}
       <div class="pt-profile-card-foot">
         <span class="pt-pill ${cls}">${s.rate == null ? '—' : s.rate + '%'} attended</span>
         <span style="font-size:.72rem;color:var(--muted)">${s.total} session${s.total === 1 ? '' : 's'}</span>
@@ -894,9 +944,12 @@
       <div class="pt-scholar-section">
         <div class="pt-scholar-section-title">Identity</div>
         <p style="font-size:.85rem;color:var(--text-2)">Pearl ID <b>${esc(s.uid)}</b> · ${esc(s.school || s.district || 'School not recorded')}</p>
+        <p style="font-size:.85rem;color:var(--text-2);margin-top:.3rem">Content: <b>${esc(s.subjects.join(', ') || '—')}</b> · Grade level: <b>${esc(s.grades.join(', ') || '—')}</b></p>
+        <p style="font-size:.85rem;color:var(--text-2);margin-top:.3rem">Overall survey rating: <b style="color:${s.overallAvg == null ? 'inherit' : s.overallAvg >= 4 ? BRAND.pos : s.overallAvg >= 3 ? '#b45309' : BRAND.neg}">${s.overallAvg == null ? '—' : s.overallAvg.toFixed(1) + ' / 5'}</b>${s.surveyCount ? ` <span style="color:var(--muted)">(${s.surveyCount} survey${s.surveyCount === 1 ? '' : 's'}, based on the filters selected)</span>` : ''}</p>
       </div>
       <div class="pt-scholar-section">
         <div class="pt-scholar-section-title">Tutors</div>
+        <p style="font-size:.75rem;color:var(--muted);margin-bottom:.4rem">All tutors and substitute tutors who have supported this scholar this school year (based on the filters selected).</p>
         ${s.tutors.length ? s.tutors.map(t => `<span class="pt-tutor-chip">${esc(t)}</span>`).join('') : `<p style="font-size:.85rem;color:var(--muted)">No tutor on record for these sessions.</p>`}
       </div>
       <div class="pt-scholar-section">
@@ -929,6 +982,274 @@
       </div>`;
 
     document.getElementById('scholarModal').classList.add('open');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  PROGRAM TEAM VIEW — tutor-side pages (Admin + Regional logins only)
+  //  Same drill-down filters (district / school / week) as every other page.
+  // ══════════════════════════════════════════════════════════════════════
+  const TUTOR_TARGET = 90;        // tutor attendance goal (same as Pearl Ops)
+  const TUTOR_CHECKIN_MIN = 3;    // sessions before a tutor's rate is judged
+  const isTutorRow = r => (r[ATT.ROLE] || '').trim() === 'Instructor';
+  const dayOnly = v => { const t = String(v || '').trim(); const sp = t.indexOf(' '); return sp < 0 ? t : t.slice(0, sp); };
+  const avg1 = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length * 10) / 10 : null;
+  const tutorColor = r => r == null ? '#7d8fa1' : r >= TUTOR_TARGET ? BRAND.pos : r >= 80 ? '#b45309' : BRAND.neg;
+  const ratingColor = v => v == null ? '#7d8fa1' : v >= 4 ? BRAND.pos : v >= 3 ? '#b45309' : BRAND.neg;
+
+  function tutorStatsOf(attRows) {
+    let attended = 0, absent = 0, excused = 0;
+    attRows.forEach(r => {
+      if (!isTutorRow(r)) return;
+      const c = classifyAtt(r);
+      if (c === 'attended') attended++; else if (c === 'absent') absent++; else if (c === 'si') excused++;
+    });
+    return { attended, absent, excused, rate: pct(attended, attended + absent) };
+  }
+
+  // A session is "incomplete" when Pearl still shows it as Scheduled after
+  // its date — attendance was never taken. Counted once per Pearl session.
+  function asOfDay() { const d = BUNDLE && BUNDLE.generatedAt ? new Date(BUNDLE.generatedAt) : new Date(); d.setHours(0, 0, 0, 0); return d; }
+  function incompleteSessions() {
+    if (!hasSessionData()) return [];
+    const today = asOfDay(), seen = new Set();
+    return scopedSessions().filter(r => {
+      if ((r[SESS.STATUS] || '').trim() !== 'Scheduled') return false;
+      const d = parseDate(dayOnly(r[SESS.START]));
+      if (!d || d >= today) return false;
+      const id = (r[SESS.SESS_ID] || '').trim() || [r[SESS.TITLE], r[SESS.SCHOOL], r[SESS.START]].join('|');
+      if (seen.has(id)) return false;
+      seen.add(id); return true;
+    });
+  }
+
+  // One record per tutor (Pearl instructor) in the current view.
+  function tutorRoster() {
+    const T = {};
+    const get = (id, name) => {
+      const k = id || ('name:' + name.toLowerCase());
+      if (!T[k]) T[k] = { id: id || '', name, schools: {}, attended: 0, absent: 0, excused: 0, missed: [], lastAttended: '', lastSort: null,
+        scholars: new Set(), incomplete: 0, incompleteRows: [], blankMissed: 0, subjects: new Set(), grades: new Set(), stuPos: 0, stuN: 0, selfRatings: [] };
+      return T[k];
+    };
+    const find = (id, name) => T[id] || T['name:' + String(name || '').toLowerCase()] || null;
+    scopedAttendance().forEach(r => {
+      if (!isTutorRow(r)) return;
+      const name = (r[ATT.USER] || '').trim(); if (!name) return;
+      const t = get((r[ATT.USER_ID] || '').trim(), name);
+      const sc = (r[ATT.SCHOOL] || '').trim(); if (sc) t.schools[sc] = (t.schools[sc] || 0) + 1;
+      const c = classifyAtt(r), reason = (r[ATT.MISS_REASON] || '').trim();
+      if (c === 'attended') {
+        t.attended++;
+        const d = parseDate(dayOnly(r[ATT.SESS_DATE]));
+        if (d && (!t.lastSort || d > t.lastSort)) { t.lastSort = d; t.lastAttended = (r[ATT.SESS_DATE] || '').trim(); }
+      } else if (c === 'absent') {
+        t.absent++;
+        t.missed.push({ date: (r[ATT.SESS_DATE] || '').trim(), reason: reason || 'Not specified', session: (r[ATT.SESSION] || '').trim() });
+      } else if (c === 'si') {
+        t.excused++;
+        if ((r[ATT.ATT_STATUS] || '').trim() === 'Missed' && !reason) t.blankMissed++;
+      }
+    });
+    if (hasSessionData()) {
+      scopedSessions().forEach(r => {
+        const name = (r[SESS.INSTRUCTOR] || '').trim(); if (!name) return;
+        const st = (r[SESS.STATUS] || '').trim(); if (st === 'Cancelled' || st === 'Rescheduled') return;
+        const t = get((r[SESS.INST_ID] || '').trim(), name);
+        const sc = (r[SESS.SCHOOL] || '').trim(); if (sc && !(sc in t.schools)) t.schools[sc] = 0;
+        (r[SESS.STU_IDS] || '').split(',').map(x => x.trim()).filter(Boolean).forEach(u => t.scholars.add(u));
+        if ((r[SESS.SUBJECT] || '').trim()) t.subjects.add(r[SESS.SUBJECT].trim());
+        if ((r[SESS.GRADE] || '').trim()) t.grades.add(r[SESS.GRADE].trim());
+      });
+      incompleteSessions().forEach(r => {
+        const name = (r[SESS.INSTRUCTOR] || '').trim(); if (!name) return;
+        const t = get((r[SESS.INST_ID] || '').trim(), name);
+        t.incomplete++; t.incompleteRows.push(r);
+      });
+    }
+    // Scholar surveys about the tutor (FILLED_FOR) → "scholars loving sessions"
+    scopedScholarSurveys().forEach(r => {
+      const v = parseFloat(r[STU.OVERALL]); if (isNaN(v)) return;
+      const t = find((r[STU.FILLED_FOR_ID] || '').trim(), (r[STU.FILLED_FOR] || '').trim()); if (!t) return;
+      t.stuN++; if (v >= 4) t.stuPos++;
+    });
+    // Tutor's own post-session ratings
+    scopedTutorSurveys().forEach(r => {
+      const v = parseFloat(r[INST.OVERALL]); if (isNaN(v)) return;
+      const t = find((r[INST.FILLED_BY_ID] || '').trim(), (r[INST.FILLED_BY] || '').trim()); if (t) t.selfRatings.push(v);
+    });
+    return Object.values(T).map(t => {
+      const schoolList = Object.entries(t.schools).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+      return Object.assign(t, { schoolList, school: schoolList[0] || '', rate: pct(t.attended, t.attended + t.absent),
+        sessions: t.attended + t.absent, scholarCount: t.scholars.size, loving: t.stuN ? pct(t.stuPos, t.stuN) : null, selfAvg: avg1(t.selfRatings) });
+    });
+  }
+
+  // Summary — second KPI row (tutor side)
+  function tutorKpiRowHtml(attAll, tutorSurveys) {
+    const st = tutorStatsOf(attAll);
+    const locations = new Set();
+    attAll.forEach(r => { const sc = (r[ATT.SCHOOL] || '').trim(); if (sc) locations.add(sc); });
+    const staff = tutorRoster().filter(t => t.sessions > 0 || t.scholarCount > 0).length;
+    const inc = incompleteSessions().length;
+    let pos = 0, n = 0;
+    tutorSurveys.forEach(r => { const v = parseFloat(r[INST.OVERALL]); if (isNaN(v)) return; n++; if (v >= 4) pos++; });
+    return `<div class="pt-grid pt-grid-5" style="margin-bottom:1.1rem" id="tutorKpis">
+        ${kpiCard(ICONS.check, BRAND.pos, st.rate == null ? '—' : st.rate + '%', 'Tutor Attendance', { view: 'tutorAtt' })}
+        ${kpiCard(ICONS.school, BRAND.blue, locations.size.toLocaleString(), 'Number of Locations', { view: 'summary', anchor: 'tourSchools' })}
+        ${kpiCard(ICONS.users, BRAND.gold, staff.toLocaleString(), 'Tutors &amp; Site Leaders', { view: 'summary', anchor: 'staffTiles' })}
+        ${kpiCard(ICONS.roster, BRAND.neg, inc.toLocaleString(), 'Incomplete Sessions', { view: 'tutorAtt', anchor: 'tutorIncompletes', note: inc ? 'Pearl clean-up' : '' })}
+        ${kpiCard(ICONS.heart, '#c0367a', n ? pct(pos, n) + '%' : '—', 'Tutors Loving Their Sessions', { view: 'tutor' })}
+      </div>`;
+  }
+
+  // Summary — "Your Staff" tiles, lowest tutor attendance first
+  function staffTilesHtml() {
+    const list = tutorRoster().filter(t => t.sessions > 0 || t.scholarCount > 0)
+      .sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101) || a.name.localeCompare(b.name));
+    if (!list.length) return '';
+    const SHOW = 12;
+    const tile = x => `<div class="pt-school-tile" style="--tile-c:${tutorColor(x.rate)};cursor:default">
+        <div class="pt-school-name">${esc(x.name)}</div>
+        <div class="pt-staff-meta">${esc(x.school || '—')}${x.schoolList.length > 1 ? ' +' + (x.schoolList.length - 1) + ' more' : ''}</div>
+        <div class="pt-school-rate">${x.rate == null ? '—' : x.rate + '%'}<span>attendance</span></div>
+        <div class="pt-school-stats">
+          <div><b>${x.scholarCount.toLocaleString()}</b> scholars</div>
+          <div><b>${x.sessions.toLocaleString()}</b> sessions</div>
+          <div><b>${x.loving == null ? '—' : x.loving + '%'}</b> scholars loving</div>
+          <div><b>${x.incomplete}</b> incomplete</div>
+        </div>
+      </div>`;
+    return `<div class="pt-card" style="margin-bottom:1.1rem" id="staffTiles">
+      <div class="pt-card-title">${ICONS.users} Your Staff<span class="pt-card-title-note">${list.length} tutors &amp; site leaders · lowest tutor attendance first</span></div>
+      <div class="pt-schools">${list.slice(0, SHOW).map(tile).join('')}</div>
+      ${list.length > SHOW ? `<details style="margin-top:.75rem"><summary class="pt-more">Show all ${list.length}</summary><div class="pt-schools" style="margin-top:.75rem">${list.slice(SHOW).map(tile).join('')}</div></details>` : ''}
+      <p style="font-size:.72rem;color:var(--muted);margin-top:.7rem">Attendance = the tutor's own attendance. Scholars loving = scholar surveys about this tutor rated 4–5 overall. Incomplete = sessions still open in Pearl.</p>
+    </div>`;
+  }
+
+  // Tutor Attendance Tracking page
+  function renderTutorAttendance() {
+    const el = document.getElementById('view-tutorAtt'); if (!el) return;
+    const rows = scopedAttendance().filter(isTutorRow);
+    const inc = incompleteSessions();
+    if (!rows.length && !inc.length) { el.innerHTML = noDataCard(); return; }
+    const st = tutorStatsOf(rows);
+    const wk = {};
+    rows.forEach(r => {
+      const c = classifyAtt(r); if (c !== 'attended' && c !== 'absent') return;
+      const b = weekBucket(r[ATT.SESS_DATE]); if (!b) return;
+      const w = wk[b.key] = wk[b.key] || { label: b.label, a: 0, m: 0 };
+      if (c === 'attended') w.a++; else w.m++;
+    });
+    const keys = Object.keys(wk).sort();
+    const roster = tutorRoster();
+    const checkIns = roster.filter(t => t.rate != null && t.sessions >= TUTOR_CHECKIN_MIN && t.rate < TUTOR_TARGET).sort((a, b) => a.rate - b.rate || a.name.localeCompare(b.name));
+    const reasons = {};
+    rows.forEach(r => { if (classifyAtt(r) !== 'absent') return; const k = (r[ATT.MISS_REASON] || '').trim() || 'Not specified'; reasons[k] = (reasons[k] || 0) + 1; });
+    const reasonList = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+    const reasonTotal = reasonList.reduce((a, [, n]) => a + n, 0);
+    const blank = roster.reduce((a, t) => a + t.blankMissed, 0);
+    const table = roster.filter(t => t.sessions > 0 || t.incomplete > 0).sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101) || b.incomplete - a.incomplete || a.name.localeCompare(b.name));
+    const incByTutor = roster.filter(t => t.incomplete).sort((a, b) => b.incomplete - a.incomplete || a.name.localeCompare(b.name));
+    const incRows = inc.slice().sort((a, b) => (parseDate(dayOnly(a[SESS.START])) || 0) - (parseDate(dayOnly(b[SESS.START])) || 0));
+    const pill = r => `<span class="pt-pill ${r == null ? '' : r >= TUTOR_TARGET ? 'pt-pill-good' : r >= 80 ? 'pt-pill-warn' : 'pt-pill-bad'}">${r == null ? '—' : r + '%'}</span>`;
+
+    el.innerHTML = `
+      <div class="pt-grid pt-grid-main-side" style="margin-bottom:1.1rem">
+        <div class="pt-card">
+          <div class="pt-card-title">${ICONS.trend} Weekly Tutor Attendance Rate</div>
+          <div class="pt-chart-wrap"><canvas id="chartTutorWeekly"></canvas></div>
+        </div>
+        <div class="pt-card">
+          <div class="pt-card-title">Tutor Attendance Rate</div>
+          <div class="pt-kpi-val pt-kpi-val-lg">${st.rate == null ? '—' : st.rate + '%'}</div>
+          <div style="margin-top:1rem">
+            ${quickBar('Attended', st.attended, st.attended + st.absent, BRAND.pos)}
+            ${quickBar('Missed', st.absent, st.attended + st.absent, BRAND.neg)}
+          </div>
+          <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">Tutor-side misses only (absent, left early). ${st.excused.toLocaleString()} other missed sessions (school events, testing, closures) aren't counted. Goal: ${TUTOR_TARGET}%.</p>
+        </div>
+      </div>
+      <div class="pt-card" style="margin-bottom:1.1rem" id="tutorCheckin">
+        <div class="pt-card-title">${ICONS.handshake} Tutors to Check In With</div>
+        ${checkIns.length ? `<p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">${checkIns.length} tutor${checkIns.length !== 1 ? 's are' : ' is'} under ${TUTOR_TARGET}% attendance across ${TUTOR_CHECKIN_MIN}+ sessions, lowest first. Click a name for the sessions missed.</p>
+          <div id="tutorCkBox">${checkIns.map((t, i) => `
+          <details class="pt-checkin" data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
+            <summary>
+              <span class="pt-checkin-id">${esc(t.id || '—')}</span>
+              <span class="pt-checkin-name">${esc(t.name)} <span style="font-weight:400;color:var(--muted);font-size:.78rem">· ${esc(t.school)}</span></span>
+              <span class="pt-checkin-stat"><span class="pt-pill pt-pill-bad">${t.rate}% attended</span>
+                <span style="color:var(--muted);font-size:.78rem">${t.absent} missed of ${t.sessions} · last attended ${esc(t.lastAttended || 'never')}</span></span>
+            </summary>
+            <div class="pt-checkin-detail"><table><thead><tr><th>Date</th><th>Session</th><th>Reason</th></tr></thead><tbody>
+              ${t.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.session)}</td><td>${esc(m.reason)}</td></tr>`).join('')}
+            </tbody></table></div>
+          </details>`).join('')}
+          ${checkIns.length > CHECKIN_PAGE ? pagerHtml('tutorCkBox', checkIns.length) : ''}</div>`
+        : `<p style="font-size:.85rem;color:var(--text-2)">No tutors are under ${TUTOR_TARGET}% attendance in this view.</p>`}
+      </div>
+      <div class="pt-card" style="margin-bottom:1.1rem" id="tutorIncompletes">
+        <div class="pt-card-title">${ICONS.roster} Total Incompletes<span class="pt-card-title-note">${inc.length.toLocaleString()} session${inc.length !== 1 ? 's' : ''} · Pearl clean-up</span></div>
+        <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">Sessions still marked <b>Scheduled</b> in Pearl after the session date — attendance was never taken, so the session doesn't count anywhere. The tutor (or Site Leader) completes or cancels each one in Pearl.${blank ? ` Also ${blank.toLocaleString()} tutor attendance row${blank !== 1 ? 's are' : ' is'} marked Missed with no reason.` : ''}</p>
+        ${incByTutor.length ? `<div class="pt-grid pt-grid-2">
+          <div><table class="pt-table"><thead><tr><th>Tutor</th><th>School</th><th style="text-align:right">Incomplete</th></tr></thead><tbody>
+            ${incByTutor.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.school)}</td><td style="text-align:right;font-weight:700">${t.incomplete}</td></tr>`).join('')}
+          </tbody></table></div>
+          <div id="tutorIncBox"><table class="pt-table"><thead><tr><th>Date</th><th>Tutor</th><th>Session</th></tr></thead><tbody>
+            ${incRows.map((r, i) => `<tr data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}><td>${esc(dayOnly(r[SESS.START]))}</td><td>${esc(r[SESS.INSTRUCTOR] || '—')}</td><td>${esc(r[SESS.TITLE] || '')}<div style="font-size:.7rem;color:var(--muted)">${esc(r[SESS.SCHOOL] || '')}</div></td></tr>`).join('')}
+          </tbody></table>${incRows.length > CHECKIN_PAGE ? pagerHtml('tutorIncBox', incRows.length) : ''}</div>
+        </div>` : `<p style="font-size:.85rem;color:var(--text-2)">${hasSessionData() ? 'No incomplete sessions in this view.' : 'Session data is not available yet.'}</p>`}
+      </div>
+      <div class="pt-grid pt-grid-2" style="margin-bottom:1.1rem">
+        <div class="pt-card">
+          <div class="pt-card-title">${ICONS.search} Why Tutors Missed a Session</div>
+          ${reasonList.length ? distRows(reasonList, reasonTotal, BRAND.blue) : `<p style="color:var(--muted);font-size:.85rem">No tutor-side missed sessions logged.</p>`}
+        </div>
+        <div class="pt-card">
+          <div class="pt-card-title">${ICONS.roster} Tutor Attendance</div>
+          <div id="tutorRosterBox"><table class="pt-table"><thead><tr><th>Tutor</th><th>School</th><th>Attendance</th><th style="text-align:right">Sessions</th><th style="text-align:right">Incomplete</th></tr></thead><tbody>
+            ${table.map((t, i) => `<tr data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}><td>${esc(t.name)}</td><td style="font-size:.75rem">${esc(t.school)}</td><td>${pill(t.rate)}</td><td style="text-align:right">${t.sessions}</td><td style="text-align:right">${t.incomplete}</td></tr>`).join('')}
+          </tbody></table>${table.length > CHECKIN_PAGE ? pagerHtml('tutorRosterBox', table.length) : ''}</div>
+        </div>
+      </div>`;
+    drawRateLine('chartTutorWeekly', keys.map(k => wk[k].label), keys.map(k => pct(wk[k].a, wk[k].a + wk[k].m)), BRAND.pos, 'Tutor Attendance Rate');
+  }
+
+  // Survey pages — every comment in the current view, grouped by the person
+  // who wrote it; the number is that person's average Overall rating.
+  function surveyCommentsHtml(kind, rows) {
+    const sch = kind === 'scholar';
+    const C = sch ? { id: STU.FILLED_BY_ID, name: STU.FILLED_BY, text: STU.COMMENT, date: STU.DATE, overall: STU.OVERALL, school: STU.SCHOOL }
+                  : { id: INST.FILLED_BY_ID, name: INST.FILLED_BY, text: INST.COMMENT_ADMIN, date: INST.DATE, overall: INST.OVERALL, school: INST.SCHOOL };
+    const G = {};
+    rows.forEach(r => {
+      const name = (r[C.name] || '').trim(); if (!name) return;
+      const id = (r[C.id] || '').trim(), k = id || name.toLowerCase();
+      const g = G[k] = G[k] || { id, name, school: (r[C.school] || '').trim(), ratings: [], comments: [] };
+      const v = parseFloat(r[C.overall]); if (!isNaN(v)) g.ratings.push(v);
+      const t = (r[C.text] || '').trim();
+      if (t) g.comments.push({ date: dayOnly(r[C.date]), sort: parseDate(dayOnly(r[C.date])) || 0, text: t, rating: isNaN(v) ? '' : v, tutor: sch ? (r[STU.FILLED_FOR] || '').trim() : '' });
+    });
+    const list = Object.values(G).filter(g => g.comments.length).map(g => Object.assign(g, { avg: avg1(g.ratings) }))
+      .sort((a, b) => (a.avg ?? 6) - (b.avg ?? 6) || a.name.localeCompare(b.name));
+    const nComments = list.reduce((a, g) => a + g.comments.length, 0);
+    const box = 'cmtBox-' + kind;
+    const who = sch ? 'scholar' : 'tutor';
+    return `<div class="pt-card" style="margin-top:1.1rem" id="${kind}Comments">
+      <div class="pt-card-title">${ICONS.sparkle} ${sch ? 'Scholar' : 'Tutors’'} Session Comments<span class="pt-card-title-note">${list.length.toLocaleString()} ${who}${list.length !== 1 ? 's' : ''} · ${nComments.toLocaleString()} comment${nComments !== 1 ? 's' : ''}</span></div>
+      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">Each ${who}’s comments per session, based on the filters above. The number is that ${who}’s <b>average Overall rating</b> (1–5) across all their sessions in this view — lowest first.${sch ? '' : ' Shows the "comment for admin" field; tutors’ private notes to themselves are not shown.'}</p>
+      ${list.length ? `<div id="${box}">${list.map((g, i) => `
+        <details class="pt-cmt-group" data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
+          <summary><span class="pt-cmt-id">${esc(g.id || '—')}</span><span class="pt-cmt-name">${esc(g.name)} <span style="font-weight:400;color:var(--muted);font-size:.75rem">· ${esc(g.school)}</span></span>
+            <span class="pt-cmt-n">${g.comments.length} comment${g.comments.length !== 1 ? 's' : ''} · ${g.ratings.length} rated</span>
+            <span class="pt-cmt-avg" style="color:${ratingColor(g.avg)}">${g.avg == null ? '—' : g.avg.toFixed(1)}</span></summary>
+          <table><thead><tr><th>Date</th><th>Rating</th>${sch ? '<th>Tutor</th>' : ''}<th>Comment</th></tr></thead><tbody>
+            ${g.comments.slice().sort((a, b) => b.sort - a.sort).map(c => `<tr><td style="white-space:nowrap">${esc(c.date)}</td><td>${c.rating === '' ? '—' : c.rating}</td>${sch ? `<td>${esc(c.tutor)}</td>` : ''}<td>${esc(c.text)}</td></tr>`).join('')}
+          </tbody></table>
+        </details>`).join('')}
+        ${list.length > CHECKIN_PAGE ? pagerHtml(box, list.length) : ''}</div>`
+      : `<p style="font-size:.85rem;color:var(--muted)">No written comments in this view.</p>`}
+    </div>`;
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1077,9 +1398,12 @@
       <div id="view-attendance" class="pt-view"></div>
       <div id="view-scholar" class="pt-view"></div>
       <div id="view-tutor" class="pt-view"></div>
-      <div id="view-profiles" class="pt-view"></div>`;
+      <div id="view-profiles" class="pt-view"></div>
+      <div id="view-tutorAtt" class="pt-view"></div>
+      <div id="view-tutorProfiles" class="pt-view"></div>`;
     renderSummary();
     renderAttendance();
+    if (isProgramView()) renderTutorAttendance();
     renderSurveyView('scholar', scopedScholarSurveys(), STU,
       { c1: 'CONFIDENCE', c2: 'ENJOYMENT', c3: 'LEARNING' },
       ['How confident scholars felt they understood the material', 'How much scholars enjoyed the session', 'How much scholars felt they learned']);
@@ -1091,7 +1415,8 @@
     // innerHTML wipe above — re-sync the freshly-injected views to whichever
     // tab was already selected (e.g. after a scope-filter change while on
     // the Attendance tab), instead of silently jumping back to Summary.
-    const activeTab = document.querySelector('.pt-tab.active') || document.querySelector('.pt-tab');
+    let activeTab = document.querySelector('.pt-tab.active') || document.querySelector('.pt-tab');
+    if (activeTab.hidden) { activeTab.classList.remove('active'); activeTab = document.querySelector('.pt-tab[data-view="summary"]'); activeTab.classList.add('active'); }
     if (activeTab.dataset.view !== 'summary') {
       document.getElementById('view-summary').classList.remove('active');
       document.getElementById('view-' + activeTab.dataset.view).classList.add('active');
@@ -1189,7 +1514,9 @@
         ${kpiCard(ICONS.school, BRAND.neg, kept.scholars.length.toLocaleString(), 'Scholars Kept in Class', { view: 'attendance', anchor: 'tourKept', note: kept.count ? kept.count.toLocaleString() + ' missed session' + (kept.count !== 1 ? 's' : '') : '' })}
         ${kpiCard(ICONS.heart, '#c0367a', scholarScored ? pct(scholarPos, scholarScored) + '%' : '—', 'Scholars Loving Their Sessions', { view: 'scholar' })}
       </div>
+      ${isProgramView() ? tutorKpiRowHtml(attAll, tutorSurveys) : ''}
       ${district ? schoolTilesHtml(schoolList) : ''}
+      ${isProgramView() ? staffTilesHtml() : ''}
       <div class="pt-grid pt-grid-2">
         <div class="pt-card" id="tourHighlights">
           <div class="pt-card-title">${ICONS.sparkle} Session Highlights${highlights.weekLabel ? `<span class="pt-card-title-note">Week of ${esc(highlights.weekLabel)}</span>` : ''}</div>
@@ -1482,7 +1809,7 @@
         <div class="pt-card"><div class="pt-card-title">${esc(labels[0])}</div>${distRows(ratingEntries(rows, cols[qkeys.c1], qkeys.c1), rows.length, BRAND.blue)}</div>
         <div class="pt-card"><div class="pt-card-title">${esc(labels[1])}</div>${distRows(ratingEntries(rows, cols[qkeys.c2], qkeys.c2), rows.length, BRAND.blue)}</div>
         <div class="pt-card"><div class="pt-card-title">${esc(labels[2])}</div>${distRows(ratingEntries(rows, cols[qkeys.c3], qkeys.c3), rows.length, BRAND.blue)}</div>
-      </div>`;
+      </div>${isProgramView() ? surveyCommentsHtml(kind, rows) : ''}`;
   }
 
   function sentimentRow(label, n, total, color) {
@@ -1544,7 +1871,7 @@
     }
   };
 
-  function drawRateLine(id, labels, data, color) {
+  function drawRateLine(id, labels, data, color, seriesLabel) {
     const canvas = document.getElementById(id);
     if (!canvas) return;
     if (!labels.length || typeof Chart === 'undefined') {
@@ -1554,7 +1881,7 @@
     destroy(id);
     charts[id] = new Chart(canvas, {
       type: 'line',
-      data: { labels, datasets: [{ label: 'Scholar Attendance Rate', data, borderColor: color, backgroundColor: color + '1a', tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: color }] },
+      data: { labels, datasets: [{ label: seriesLabel || 'Scholar Attendance Rate', data, borderColor: color, backgroundColor: color + '1a', tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: color }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         layout: { padding: { top: 18, right: 8 } },

@@ -1253,7 +1253,7 @@
       { name: 'Jenny Irwin',      role: 'Regional Director, Program Management', email: 'jenny@njtutoringcorps.org' },
     ],
     'South-West': [
-      { name: 'Andrea Bowman',      role: 'Regional Director, Program Management', email: 'andrea@njtutoringcorps.org' },
+      { name: 'Andrea Brooks',      role: 'Regional Director, Program Management', email: 'andrea@njtutoringcorps.org' },
       { name: 'Tierney Tittermary', role: 'Regional Director, Program Management', email: 'tierney@njtutoringcorps.org' },
     ],
     data: { name: 'Amir Wallace', role: 'NJTC Data Team', email: 'amir@njtutoringcorps.org' },
