@@ -205,7 +205,7 @@
     'Absent', 'Absent (from school)', 'Scholar declined attending tutoring session',
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support', 'Scholar Left Early',
-    'Scholar Unavailable; Out of the Classroom'
+    'Scholar Unavailable; Out of the Classroom', 'Scholar Unavailable or Out of the Classroom'
   ]);
   const TUTOR_MISS_REASONS = new Set([
     'Absent; Not Covered (Tutor not available)', 'Absent; Covered by Sub Tutor',
@@ -1220,6 +1220,7 @@
     'lawrence township': 'Lawrence Township Schools',
     'leap academy university charter school-camden': 'LEAP Academy Charter School',
     'berlin borough school district': 'Berlin Community School',
+    'vernon township': 'Vernon Township School District',
   };
   function canonDistrict(name) {
     const k = String(name || '').trim().toLowerCase();

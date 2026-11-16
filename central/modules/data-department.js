@@ -4182,7 +4182,7 @@
         'Classroom Teacher Requested to Keep Scholar in Class',
         'HADDON TWP ONLY -- Teacher requested whole group support',
         'Scholar Left Early',
-        'Scholar Unavailable; Out of the Classroom',
+        'Scholar Unavailable; Out of the Classroom', 'Scholar Unavailable or Out of the Classroom',
       ]);
       // Classroom Teacher pull-out reasons (subset of SCHOLAR_MISS_REASONS — tracked separately)
       const CT_PULL_REASONS = new Set([

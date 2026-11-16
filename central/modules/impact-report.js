@@ -59,7 +59,7 @@ var TAXONOMY = {
   'SM-5': { label:'Scholar Left Early', group:'scholar', sub:null,
     raw:['scholar left early'] },
   'SM-6': { label:'Scholar Unavailable; Out of the Classroom', group:'scholar', sub:null,
-    raw:['scholar unavailable; out of the classroom'] }
+    raw:['scholar unavailable; out of the classroom','scholar unavailable or out of the classroom'] }
 };
 
 // Build reverse lookup: lowercase raw string -> canonical ID
@@ -82,15 +82,22 @@ function canonicalize(rawReason) {
 
 // ── Region definitions — exact mirror of programming.js schoolRegion() ────
 // District-level keywords
-var NE_KW_D = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+var NE_KW_D = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey','lyndhurst','vernon','asbury park'];
 var SW_KW_D = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                'string theory','global leadership academy','global leadership',
                'penns grove','carneys point','haddon township','haddon',
                'hamilton township','pemberton township','gloucester township'];
 // SY 26-27 SW sites checked before NE (iLearn CMO) — mirrors programming.js _SW_PRIORITY
-var SW_PRIORITY = ['pemberton','denbo','crichton','greenwood',
-                   'hamilton township','hamilton twp','lea - hamilton','lea- hamilton',
-                   'global leadership','glaw'];
+var SW_PRIORITY = ['pemberton','denbo','crichton',
+                   'hamilton township','hamilton twp','lea - hamilton','lea- hamilton','greenwood',
+                   'global leadership','glaw',
+                   'haddon','clyde s jennings','stoy elementary','strawbridge','thomas edison','van sciver',
+                   'penns grove','carneys point','field street','carleton',
+                   'berlin',
+                   'gloucester township','gloucester twp','blackwood','erial elementary','lilley','loring flemming',
+                   'lawrence township','lawrence intermediate',
+                   'leap academy',
+                   'string theory'];
 // School-level: SW explicit list (mirrors programming.js SW_SCHOOLS)
 var SW_SCHOOLS_LIST = ['erial','loring flemming','field street','penns grove middle',
                        'van sciver','strawbridge','first philadelphia prep','first philly prep',

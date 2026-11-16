@@ -1815,7 +1815,7 @@
       'Absent (from school)',                       // same reason, Pearl's newer wording (Oct 2026)
       'Scholar declined attending tutoring session', // scholar's own choice
       'Scholar Left Early',                         // scholar left session early — counts as scholar-caused
-      'Scholar Unavailable; Out of the Classroom',  // scholar out of the room (Nov 2026) — counts against attendance
+      'Scholar Unavailable; Out of the Classroom', 'Scholar Unavailable or Out of the Classroom',  // scholar out of the room (Nov 2026) — counts against attendance
       'Classroom Teacher Requested to Keep Scholar in Class',
       'HADDON TWP ONLY -- Teacher requested whole group support',
     ]);
@@ -4350,20 +4350,25 @@
     // Pearl roster for reading the free-text Sub Trackers: schools, instructors
     // (with their school) and the days each school had offered sessions.
     let _rosterCache = null, _rosterSrc = null;
+    const COV_NS = () => window.NJTC_PEARL_COVERAGE;
     function _trackerRoster() {
       if (_rosterSrc === _sessMap && _rosterCache) return _rosterCache;
       const CAT = window.NJTC_PEARL_CATEGORIES;
-      const schools = new Set(), days = {}, people = {};
+      const schools = new Set(), days = {}, people = {}, taught = {};
       for (const s of Object.values(_sessMap)) {
         if (!s.school) continue;
         schools.add(s.school);
         if (s.instId && !people[s.instId]) people[s.instId] = { id: s.instId, name: s.instructor || '', school: s.school };
+        if (s.instructor) { const k = s.school + '|' + _isoDate(s.start); (taught[k] = taught[k] || []).push(s.instructor); }
         if (CAT && !CAT.isOfferedStatus(s.status)) continue;
         const iso = _isoDate(s.start);
         if (iso) (days[s.school] = days[s.school] || new Set()).add(iso);
       }
       _rosterSrc = _sessMap;
-      _rosterCache = { schools: [...schools], people: Object.values(people), sessionDays: sc => days[sc] || null };
+      _rosterCache = { schools: [...schools], people: Object.values(people), sessionDays: sc => days[sc] || null,
+        // the Sub Tracker's sub is the Pearl instructor on a session at that school that day (any session — a
+        // regular tutor who covered will match on their own sessions too, so this is a lead, not proof)
+        taughtOn: (sc, iso, name) => (taught[sc + '|' + iso] || []).some(n => COV_NS().looseName(n, name)) };
       return _rosterCache;
     }
 
@@ -4450,7 +4455,13 @@
       if (model.tracker) {
         const tr = model.tracker;
         const miss = tr.rows.filter(r => r.status === 'not_in_pearl' || r.status === 'partial');
-        if (miss.length) fixes.push({ t: 'On the Sub Tracker but not found as a Pearl substitution (Drop + Edit not done)', n: miss.length,
+        const edited = tr.rows.filter(r => r.status === 'edited_in_pearl' || (r.status === 'partial' && r.edited));
+        if (edited.length) fixes.push({ t: 'On the Sub Tracker — the sub has Pearl sessions at the site that day, but there is no Drop / Pick Up, so the absent tutor is not charged (likely edited in place: Drop the tutor + Pick Up the sub, or log the tutor absent)', n: edited.length,
+          rows: edited.map(r => [r.editedDays.join(', '), r.region + ' · ' + r.site + (r.school && r.school !== r.site ? ' (' + r.school + ')' : ''), names ? r.sub : '',
+            names ? (r.isVacancy ? 'Vacancy' : r.absentTutor + (r.tutorMatch && r.tutorMatch.name !== r.absentTutor.trim() ? ' (' + r.tutorMatch.name + ')' : '')) : '',
+            r.edited + ' of ' + r.due + ' day' + (r.due === 1 ? '' : 's') + ' — sub on a Pearl session there']),
+          cols: ['Date(s)', 'Region · Site', 'Sub', 'Covering For', 'In Pearl'] });
+        if (miss.length) fixes.push({ t: 'On the Sub Tracker but not found in Pearl — no swap, and the sub taught no session at the site that day', n: miss.length,
           rows: miss.map(r => [r.dateRaw, r.region + ' · ' + r.site + (r.school && r.school !== r.site ? ' (' + r.school + ')' : ''), names ? r.sub : '',
             names ? (r.isVacancy ? 'Vacancy' : r.absentTutor + (r.tutorMatch && r.tutorMatch.name !== r.absentTutor.trim() ? ' (' + r.tutorMatch.name + ')' : '')) : '',
             r.found + ' of ' + r.due + ' day' + (r.due === 1 ? '' : 's') + ' found' + (r.isRange ? (r.rangeChecked ? ' (range — only days the site had sessions)' : ' (range — site not matched to a Pearl school, so every weekday is expected)') : '')]),

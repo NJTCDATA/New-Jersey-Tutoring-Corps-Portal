@@ -151,6 +151,10 @@
   // ctx: { sessions: [{id, status, title, start, school, district, instId, instructor}],
   //        tracker: parseTracker() entries (optional) }
   const REASSIGN = { minDates: 4, minSpan: 21 };
+  // Pearl's substitute accounts carry a "- SUB" suffix ("William Lane - SUB",
+  // "Susan Sheerin-SUB"). A class handed to a substitute is the tutor's
+  // (planned) absence however many dates it spans — never a reassignment.
+  function isSubName(n) { return /(?:^|[\s\-\u2013\u2014(])sub\s*\)?\s*$/i.test(str(n)); }
   function coveredFromLog(events, ctx, instRow, todayISO, isOffered) {
     ctx = ctx || {};
     const sessions = ctx.sessions || [], tracker = ctx.tracker || [];
@@ -199,6 +203,16 @@
         recs.push(mk(g, d.name, p ? p.name : '', p ? 'covered' : 'unpaired', d.actionBy));
       });
     });
+    // 1b. A drop nobody picked up in the log, but the Sub Tracker names who
+    //     covered that tutor that day → covered by that sub (step 4 still
+    //     requires the sub's own session at the school that day).
+    recs.forEach(r => {
+      if (r.outcome !== 'unpaired' || !r.date) return;
+      const e = tracker.find(t => !t.isVacancy && !t.noCoverage && t.dates.indexOf(r.date) >= 0 && looseName(t.absentTutor, r.origName));
+      if (!e) return;
+      const p = findPerson(e.sub, r.school);
+      r.subName = p ? p.name : e.sub; r.deliveredByName = r.subName; r.outcome = 'covered'; r.fromTracker = true;
+    });
     function mk(g, origName, subName, outcome, by) {
       return { origName, origId: '', subName, subId: '', date: g.date, substitutedOn: g.actionDate, substitutedBy: by || g.by,
         school: g.school, district: g.district, region: g.region, sessId: '', title: '', outcome,
@@ -218,7 +232,7 @@
       r.confirmed = tk.absent;
       const ds = [...(swaps[normName(r.origName) + '|' + normName(r.subName) + '|' + r.school] || [])].sort();
       const span = ds.length ? (new Date(ds[ds.length - 1]) - new Date(ds[0])) / 864e5 : 0;
-      if (!tk.absent && ds.length >= REASSIGN.minDates && span > REASSIGN.minSpan) { r.outcome = 'reassignment'; return; }
+      if (!tk.absent && !isSubName(r.subName) && ds.length >= REASSIGN.minDates && span > REASSIGN.minSpan) { r.outcome = 'reassignment'; return; }
       if (tk.vacant || !orig) { r.outcome = 'vacancy'; return; }
       if (!r.date) { r.outcome = 'undated'; return; }
       if (todayISO && r.date > todayISO) { r.outcome = 'upcoming'; return; }
@@ -228,7 +242,7 @@
         .sort((a, b) => (normName(b.title).indexOf(first) >= 0) - (normName(a.title).indexOf(first) >= 0)
           || (isOffered(b.status) ? 1 : 0) - (isOffered(a.status) ? 1 : 0) || String(a.start).localeCompare(String(b.start)));
       const s = cands[0];
-      if (!s) { r.outcome = 'no_session'; return; }
+      if (!s) { r.outcome = r.fromTracker ? 'unpaired' : 'no_session'; return; }
       usedSess.add(s.id);
       r.sessId = s.id; r.title = str(s.title); r.district = r.district || s.district || '';
       if (!isOffered(s.status)) { r.outcome = 'not_offered'; return; }
@@ -397,11 +411,22 @@
   }
   // Free-text "Site Covering" (e.g. "Denbo", "Field Street") → the one Pearl
   // school whose name contains every word of it. null if none or ambiguous.
+  // "Paterson ES" vs "LEA - iLearn Paterson ES / MS / Silk City": the level
+  // (ES/MS/HS) is a stop word for matching, so several schools can contain
+  // every word — then the level written on the tracker decides.
+  const LEVEL = { es: 'es', elementary: 'es', ms: 'ms', middle: 'ms', hs: 'hs', high: 'hs' };
+  function siteLevel(v) {
+    const w = str(v).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).map(x => LEVEL[x]).filter(Boolean);
+    return w.length ? w[w.length - 1] : '';
+  }
   function matchSchool(site, schools) {
     const t = siteTokens(site);
     if (!t.length) return null;
     const hit = schools.filter(sc => { const st = siteTokens(sc); return t.every(w => st.indexOf(w) >= 0); });
-    return hit.length === 1 ? hit[0] : null;
+    if (hit.length === 1) return hit[0];
+    const lv = siteLevel(site);
+    if (hit.length > 1 && lv) { const h2 = hit.filter(sc => siteLevel(sc) === lv); if (h2.length === 1) return h2[0]; }
+    return null;
   }
 
   function parseTracker(rows, region, syStartYear) {
@@ -452,14 +477,21 @@
       }
       const due = dates.filter(d => !todayISO || d <= todayISO);
       if (!due.length) return Object.assign(base, { status: dates.length ? 'upcoming' : (rangeChecked ? 'no_sessions' : 'upcoming'), due: 0, found: 0, matches: [], rangeChecked });
-      const matches = [];
+      const matches = [], editedDays = [];
       let found = 0;
       due.forEach(d => {
         const hit = subs.filter(s => s.date === d && looseName(s.subName, e.sub));
         if (hit.length) { found++; hit.forEach(s => { used.add(s); matches.push(s); }); }
+        // No Drop / Pick Up, but the sub is the instructor on a session at that
+        // school that day — most likely edited in place (for a sub who is also
+        // a regular tutor there, it can be their own session: a lead, not proof).
+        else if (school && roster.taughtOn && roster.taughtOn(school, d, e.sub)) editedDays.push(d);
       });
-      const status = found === due.length ? 'in_pearl' : found ? 'partial' : 'not_in_pearl';
-      return Object.assign(base, { status, due: due.length, found, matches, rangeChecked });
+      const edited = editedDays.length;
+      const status = found === due.length ? 'in_pearl'
+        : (edited && found + edited === due.length) ? 'edited_in_pearl'
+        : found || edited ? 'partial' : 'not_in_pearl';
+      return Object.assign(base, { status, due: due.length, found, edited, editedDays, matches, rangeChecked });
     });
     // Pearl substitutions (already happened) with no tracker line for that sub + date.
     const notOnTracker = subs.filter(s => !used.has(s) && s.date && (!todayISO || s.date <= todayISO) &&
@@ -469,7 +501,7 @@
   }
 
   const API = { toISODate, rowsToObjects, normName, sameName, looseName, matchPerson, matchSchool, gradesText,
-                parseSubstitutions, coveredAbsences, coveredFromLog, isActionLog, REASSIGN, parseTrackerDates, parseTracker, reconcileTracker };
+                parseSubstitutions, coveredAbsences, coveredFromLog, isActionLog, isSubName, REASSIGN, parseTrackerDates, parseTracker, reconcileTracker };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.NJTC_PEARL_COVERAGE = API;
 })(typeof window !== 'undefined' ? window : this);
