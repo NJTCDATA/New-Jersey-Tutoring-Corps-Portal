@@ -138,6 +138,17 @@
   .pt-empty h3{font-family:'DM Serif Display',serif;font-weight:400;color:var(--text-2);font-size:1.3rem;margin-bottom:.5rem}
   .pt-empty p{font-size:.88rem;max-width:440px;margin:0 auto}
 
+  .pt-staff-meta{font-size:.72rem;color:var(--muted);margin:.15rem 0 .4rem}
+  .pt-cmt-group{border:1px solid var(--border-2);border-radius:10px;margin-bottom:.55rem;overflow:hidden}
+  .pt-cmt-group>summary{display:flex;align-items:center;gap:.8rem;padding:.65rem .9rem;cursor:pointer;list-style:none}
+  .pt-cmt-group>summary::-webkit-details-marker{display:none}
+  .pt-cmt-group>summary .pt-cmt-id{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted);min-width:4.5rem}
+  .pt-cmt-group>summary .pt-cmt-name{font-weight:700;color:var(--text);flex:1}
+  .pt-cmt-group>summary .pt-cmt-avg{font-weight:800;font-size:1rem}
+  .pt-cmt-group>summary .pt-cmt-n{font-size:.72rem;color:var(--muted)}
+  .pt-cmt-group table{width:100%;border-collapse:collapse;font-size:.8rem}
+  .pt-cmt-group td,.pt-cmt-group th{padding:.4rem .9rem;border-top:1px solid var(--border-2);text-align:left;vertical-align:top}
+  .pt-cmt-group th{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
   .pt-quote{background:var(--surface-2);border-left:3px solid var(--gold);border-radius:8px;padding:.9rem 1.1rem;margin-bottom:.7rem;font-size:.86rem;color:var(--text-2);font-style:italic}
   .pt-quote-meta{margin-top:.4rem;font-size:.72rem;color:var(--muted);font-style:normal;font-weight:600}
 
@@ -354,10 +365,13 @@
 
 <div class="pt-tabs" id="ptTabs">
   <div class="pt-tab active" data-view="summary">Summary</div>
-  <div class="pt-tab" data-view="attendance">Attendance Tracking</div>
+  <div class="pt-tab" data-view="attendance" data-program-label="Scholar Attendance Tracking">Attendance Tracking</div>
+  <!-- Program Team (Admin / Regional) only — revealed by app.js -->
+  <div class="pt-tab" data-view="tutorAtt" data-program-only hidden>Tutor Attendance Tracking</div>
   <div class="pt-tab" data-view="scholar">Scholar Survey Details</div>
   <div class="pt-tab" data-view="tutor">Tutor Survey Details</div>
   <div class="pt-tab" data-view="profiles">Scholar Profiles</div>
+  <div class="pt-tab" data-view="tutorProfiles" data-program-only data-not-ready hidden>Tutor Profiles</div>
 </div>
 
 <div class="pt-scope-bar" id="seasonBar" style="position:static" hidden>
@@ -389,7 +403,7 @@
 <script src="../auth/auth.js?v=1"></script>
 <script src="../auth/partner-guard.js?v=1"></script>
 <script src="./partner-report.js?v=10"></script>
-<script src="./app.js?v=9"></script>
+<script src="./app.js?v=10"></script>
 <script src="./pie-bot.js?v=8"></script>
 <script src="./tour.js?v=5"></script>
 </body>
