@@ -1432,6 +1432,8 @@
     if (s.includes('lawrence'))                              return 'Lawrence Township';
     if (s.includes('leap'))                                  return 'LEAP Academy';
     if (s.includes('pemberton'))                             return 'Pemberton Township';
+    if (s.includes('berlin'))                                return 'Berlin Borough';
+    if (s.includes('string theory') || s.includes('philadelphia charter')) return 'String Theory Schools';
     return 'Other';
   };
   const ap_inferNetwork = ap_deriveNetwork; // alias
@@ -1439,7 +1441,7 @@
   const ap_deriveRegion = (site, district) => {
     const net = ap_deriveNetwork(site, district);
     if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep','Lyndhurst','Vernon'].includes(net)) return 'NE';
-    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy','Pemberton Township','Global Leadership Academy'].includes(net)) return 'SW';
+    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove','Lawrence Township','LEAP Academy','Pemberton Township','Global Leadership Academy','Berlin Borough','String Theory Schools'].includes(net)) return 'SW';
     return 'Unassigned';
   };
 

@@ -8733,7 +8733,7 @@
     'Classroom Teacher Requested to Keep Scholar in Class',
     'HADDON TWP ONLY -- Teacher requested whole group support',
     'Scholar Left Early',
-    'Scholar Unavailable; Out of the Classroom'
+    'Scholar Unavailable; Out of the Classroom', 'Scholar Unavailable or Out of the Classroom'
   ];
   var _TUTOR_MISS_REASONS = [
     'Absent; Not Covered (Tutor not available)',

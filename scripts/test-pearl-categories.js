@@ -205,4 +205,48 @@ assert.strictEqual(rec2.rows[0].due, 2); assert(rec2.rows[0].rangeChecked);
 assert.strictEqual(rec2.rows[0].tutorMatch.name, 'Nicholas Hoover'); assert.strictEqual(rec2.rows[0].grades, '3-5');
 assert.strictEqual(rec2.rows[1].due, 4); assert(!rec2.rows[1].rangeChecked);   // site not matched → every weekday
 
+// ── 5. Nov 2026 fixes (Mysti's attendance follow-up) ───────────────────────
+{
+  // Tracker site with a level picks the right iLearn campus
+  const il = ['LEA - iLearn Paterson ES', 'LEA - iLearn Paterson MS', 'LEA - iLearn Paterson Silk City', 'LEA - iLearn Clifton MS'];
+  assert.strictEqual(COV.matchSchool('Paterson ES', il), il[0]);
+  assert.strictEqual(COV.matchSchool('Paterson MS', il), il[1]);
+  assert.strictEqual(COV.matchSchool('Paterson', il), null);           // still no guess without a level
+  assert(COV.isSubName('William Lane - SUB') && COV.isSubName('Susan Sheerin-SUB') && !COV.isSubName('Vicki Toffler'));
+  const LH = ['Action Date', 'Action By', 'Action', 'Instructor', 'Scheduled Start Date', 'School', 'District', 'Region'];
+  const L = (ad, act, who, d, sch) => [ad, 'SL', act, who, d, sch, 'Dist', 'Reg'];
+  const ev = COV.parseSubstitutions([LH,
+    // drop with no Picked Up row; the Sub Tracker says Vicki covered → covered
+    L('11/2/2026', 'Dropped', 'Carlos Jacho', '11/5/2026', 'PES'),
+    L('11/2/2026', 'Dropped', 'Carlos Jacho', '11/5/2026', 'PES'),
+    // drop with no pick-up and nothing on the tracker → still unpaired
+    L('11/4/2026', 'Dropped', 'Dametris Osbourne', '11/6/2026', 'CHS'),
+  ].concat(['11/23/2026', '12/7/2026', '12/14/2026', '1/4/2027', '1/11/2027'].flatMap(d => [
+    // same swap on 5 dates over 7 weeks, but to a SUB → planned absence, not a reassignment
+    L('11/3/2026', 'Dropped', 'Mushana Dunham', d, 'CMS'), L('11/3/2026', 'Picked Up', 'William Lane - SUB', d, 'CMS')])));
+  const S = (id, inst, instId, sch, start, title) => ({ id, instructor: inst, instId, school: sch, start, title, status: 'Completed' });
+  const sessions = [S('c0', 'Carlos Jacho', 'C', 'PES', '11/4/2026 8:55', '3A Math'),
+    S('v1', 'Vicki Toffler', 'VT', 'PES', '11/5/2026 8:55', '3A Math'), S('v2', 'Vicki Toffler', 'VT', 'PES', '11/5/2026 10:15', '3C Math'),
+    S('d0', 'Dametris Osbourne', 'D', 'CHS', '11/6/2026 9:00', 'G1'),
+    S('m0', 'Mushana Dunham', 'MD', 'CMS', '11/2/2026 9:00', 'M'), S('w0', 'William Lane - SUB', 'W', 'CMS', '10/27/2026 9:00', 'M')];
+  const trk = COV.parseTracker([['Sub', 'Tutor Covering', 'Grades', 'Subjects', 'Date', 'Hours', 'Site Covering'],
+    ['Vicki Toffler', 'Carlos Jacho', '3', 'Math/ELA', '11/5, 11/6, 11/9', '', 'Paterson ES']], 'NE', 2026);
+  const r = COV.coveredAbsences(ev, {}, () => null, '2026-11-16', CAT.isOfferedStatus, { sessions, tracker: trk });
+  const carlos = r.filter(x => x.origName === 'Carlos Jacho');
+  assert.deepStrictEqual(carlos.map(x => x.outcome), ['covered', 'covered']);
+  assert(carlos.every(x => x.fromTracker && x.subName === 'Vicki Toffler' && x.deliveredById === 'VT'));
+  assert.deepStrictEqual(carlos.map(x => x.sessId).sort(), ['v1', 'v2']);
+  assert.strictEqual(r.find(x => x.origName === 'Dametris Osbourne').outcome, 'unpaired');
+  assert(r.filter(x => x.origName === 'Mushana Dunham').every(x => x.outcome === 'upcoming'), 'SUB swaps are absences, not reassignments');
+  // Tracker line with no swap: the sub taught at the site that day → edited directly
+  const roster = { schools: ['LEA - iLearn Paterson ES'], people: [], sessionDays: () => null,
+    taughtOn: (sc, iso, name) => sc === 'LEA - iLearn Paterson ES' && iso === '2026-11-09' && COV.looseName(name, 'Vicki Toffler') };
+  const trk2 = COV.parseTracker([['Sub', 'Tutor Covering', 'Grades', 'Subjects', 'Date', 'Hours', 'Site Covering'],
+    ['Vicki Toffler', 'Carlos Jacho', '3', 'Math', '11/9/2026', '', 'Paterson ES'],
+    ['Lilia Quintero', 'Katie Rose Davis', '4', 'Math', '11/9/2026', '', 'Paterson ES']], 'NE', 2026);
+  const rr = COV.reconcileTracker(trk2, [], '2026-11-16', new Set(), roster).rows;
+  assert.strictEqual(rr[0].status, 'edited_in_pearl'); assert.deepStrictEqual(rr[0].editedDays, ['2026-11-09']);
+  assert.strictEqual(rr[1].status, 'not_in_pearl');
+}
+
 console.log('pearl categories + coverage: all checks passed');
