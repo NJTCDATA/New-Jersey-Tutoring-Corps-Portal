@@ -292,14 +292,40 @@
     return 'other';
   }
 
+  // Scholar roster (Pearl "Student Attendance" tab) — the only source of a
+  // scholar's grade level (shared/pearl-roster.js). Cached like the other
+  // tabs; fails soft (grades then fall back to the attendance tab).
+  async function fetchRosterGrades() {
+    const R = (typeof window !== 'undefined') && window.NJTC_PEARL_ROSTER;
+    if (!R || !SRC.PEARL_SHEET_ID) return null;
+    const key = 'njtc_od_roster_v1';
+    const cached = getCached(key);
+    if (cached) return R.rosterGradeMap(cached);
+    for (const url of R.rosterUrls(SRC.PEARL_SHEET_ID)) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 25000);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) continue;
+        const text = await res.text();
+        if (text.trim().startsWith('<')) continue;
+        const rows = parseCSV(text);
+        const map = R.rosterGradeMap(rows);
+        if (Object.keys(map).length) { setCache(key, rows); return map; }
+      } catch (e) { /* next url */ } finally { clearTimeout(timer); }
+    }
+    return null;
+  }
+
   async function fetchUserData(pearlUserId) {
     // All four GIDs confirmed published: att, inst, stu, sess.
     // Run in parallel — each has 3-attempt retry with 30s timeout per attempt.
-    const [attRes, instRes, stuRes, sessRes] = await Promise.allSettled([
+    const [attRes, instRes, stuRes, sessRes, rosterRes] = await Promise.allSettled([
       fetchSheet('att'),
       fetchSheet('inst'),
       fetchSheet('stu'),
-      fetchSheet('sess')
+      fetchSheet('sess'),
+      fetchRosterGrades()
     ]);
 
     if (attRes.status === 'rejected') throw attRes.reason;
@@ -310,6 +336,10 @@
     const zzz = v => /^\s*(z{3}|njtc\s*$)/i.test(v || '');
     const live = (rows, sIdx, dIdx) => rows.filter((r, i) => i === 0 || (!zzz(r[sIdx]) && !zzz(r[dIdx])));
     const attRows  = live(normalizeAttRows(attRes.value), ATT.SCHOOL, ATT.DISTRICT);
+    // Grade = roster grade, never the session's grade on the attendance tab.
+    if (rosterRes.status === 'fulfilled' && rosterRes.value && window.NJTC_PEARL_ROSTER) {
+      window.NJTC_PEARL_ROSTER.applyRosterGrades(attRows, rosterRes.value, { role: ATT.ROLE, grade: ATT.GRADE, id: ATT.USER_ID });
+    }
     const instRows = instRes.status === 'fulfilled' ? live(instRes.value, INST.SCHOOL, INST.DISTRICT) : [];
     const stuRows  = stuRes.status  === 'fulfilled' ? live(stuRes.value, STU.SCHOOL, STU.DISTRICT)   : [];
     const sessRows = sessRes.status === 'fulfilled' ? (function (rows) {

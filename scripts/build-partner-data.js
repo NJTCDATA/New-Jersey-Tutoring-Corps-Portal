@@ -59,8 +59,15 @@ const COLUMNS = { att: ATT, inst: INST, stu: STU, sess: SESS };
 // Attendance columns the partner app never reads (session status, grade,
 // sex, race) are blanked: smaller bundles, and no demographic detail in a
 // partner's browser. Row positions are unchanged.
-const ATT_BLANK = [ATT.SESS_STATUS, ATT.GRADE, ATT.SEX, ATT.RACE];
-function slimAtt(r) { const o = r.slice(0, ATT.USER_ID + 1); ATT_BLANK.forEach(i => { o[i] = ''; }); return o; }
+// GRADE is kept on Student rows only: it is the scholar's ROSTER grade
+// (shared/pearl-roster.js), shown on Scholar Profiles.
+const ATT_BLANK = [ATT.SESS_STATUS, ATT.SEX, ATT.RACE];
+function slimAtt(r) {
+  const o = r.slice(0, ATT.USER_ID + 1); ATT_BLANK.forEach(i => { o[i] = ''; });
+  if ((o[ATT.ROLE] || '').trim() !== 'Student') o[ATT.GRADE] = '';
+  return o;
+}
+const ROSTER = require(path.join(ROOT, 'shared', 'pearl-roster.js'));
 
 // Legacy env overrides — the season label/start now live in SEASONS.
 if (process.env.PARTNER_SY_LABEL && process.env.PARTNER_SY_LABEL !== CURRENT_SEASON) {
@@ -107,6 +114,23 @@ async function loadSeason(season) {
   try { sess = await fetchTab(season, g.sess); }
   catch (e) { console.warn(`  ! [${season}] sessions tab fetch failed (${e.message}) — tutored-minutes omitted.`); }
   const n = R.normalizeSeason(season, { att, inst, stu, sess });
+  // Scholar grade = roster grade (Student Attendance tab), never the
+  // session's grade on the attendance tab. Live (sheet-ID) seasons only.
+  if (SEASONS[season].sheetId) {
+    let applied = false;
+    for (const url of ROSTER.rosterUrls(SEASONS[season].sheetId)) {
+      try {
+        const text = await fetchText(url);
+        if (text.trim().startsWith('<')) continue;
+        const map = ROSTER.rosterGradeMap(R.parseCSV(text));
+        if (!Object.keys(map).length) continue;
+        const changed = ROSTER.applyRosterGrades(n.att, map, { role: ATT.ROLE, grade: ATT.GRADE, id: ATT.USER_ID });
+        console.log(`  [${season}] roster grades: ${Object.keys(map).length} scholars; ${changed} attendance rows corrected from the session grade`);
+        applied = true; break;
+      } catch (e) { /* next url */ }
+    }
+    if (!applied) console.warn(`::warning::[${season}] Student Attendance (roster) tab could not be read — scholar grades fall back to the attendance tab.`);
+  }
   console.log(`  [${season}] attendance ${n.att.length} | tutor surveys ${n.inst.length} | scholar surveys ${n.stu.length} | sessions ${n.sess.length} (zzz-archived rows excluded)`);
   return Object.assign(n, { season });
 }

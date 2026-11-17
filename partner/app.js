@@ -702,10 +702,10 @@
     scopedSessions().forEach(r => {
       const st = (r[SESS.STATUS] || '').trim();
       if (st === 'Cancelled' || st === 'Rescheduled') return;
-      const tutor = (r[SESS.INSTRUCTOR] || '').trim(), subj = (r[SESS.SUBJECT] || '').trim(), grade = (r[SESS.GRADE] || '').trim();
+      const tutor = (r[SESS.INSTRUCTOR] || '').trim(), subj = (r[SESS.SUBJECT] || '').trim();
       (r[SESS.STU_IDS] || '').split(',').map(x => x.trim()).filter(Boolean).forEach(u => {
-        const e = idx[u] = idx[u] || { tutors: new Set(), subjects: new Set(), grades: new Set() };
-        if (tutor) e.tutors.add(tutor); if (subj) e.subjects.add(subj); if (grade) e.grades.add(grade);
+        const e = idx[u] = idx[u] || { tutors: new Set(), subjects: new Set() };
+        if (tutor) e.tutors.add(tutor); if (subj) e.subjects.add(subj);
       });
     });
     return idx;
@@ -724,10 +724,13 @@
           uid, name: (r[ATT.USER] || '').trim() || 'Unknown',
           district: (r[ATT.DISTRICT] || '').trim(), school: (r[ATT.SCHOOL] || '').trim(),
           attended: 0, absences: 0, excused: 0, lastAttended: null, lastAttendedSort: null,
-          missed: [], sessions: new Set(), attendedSessions: new Set(), weeklyRows: [], ctFlag: false
+          missed: [], sessions: new Set(), attendedSessions: new Set(), weeklyRows: [], ctFlag: false, rosterGrade: ''
         };
       }
       const s = byScholar[uid];
+      // Grade = roster grade (the build writes it onto the scholar's rows);
+      // never the session's grade.
+      if (!s.rosterGrade && (r[ATT.GRADE] || '').trim()) s.rosterGrade = r[ATT.GRADE].trim();
       const sess = (r[ATT.SESSION] || '').trim();
       if (sess) s.sessions.add(sess + '|' + (r[ATT.SCHOOL] || '').trim());
       const c = classifyAtt(r);
@@ -769,7 +772,7 @@
       const si = sessIdx && sessIdx[s.uid];
       const tutors = si ? [...si.tutors].sort() : [...new Set([...s.sessions].flatMap(sess => [...(tutorMap[sess] || [])]))].sort();
       const subjects = si ? [...si.subjects].sort() : [];
-      const grades = si ? [...si.grades].sort(gradeSort) : [];
+      const grades = s.rosterGrade ? [s.rosterGrade] : [];
       const weekly = {};
       s.weeklyRows.forEach(w => {
         if (!weekly[w.key]) weekly[w.key] = { label: w.label, attended: 0, absent: 0 };
@@ -1058,7 +1061,7 @@
         const sc = (r[SESS.SCHOOL] || '').trim(); if (sc && !(sc in t.schools)) t.schools[sc] = 0;
         (r[SESS.STU_IDS] || '').split(',').map(x => x.trim()).filter(Boolean).forEach(u => t.scholars.add(u));
         if ((r[SESS.SUBJECT] || '').trim()) t.subjects.add(r[SESS.SUBJECT].trim());
-        if ((r[SESS.GRADE] || '').trim()) t.grades.add(r[SESS.GRADE].trim());
+        // grade levels come from these scholars' roster grades (below)
       });
       incompleteSessions().forEach(r => {
         const name = (r[SESS.INSTRUCTOR] || '').trim(); if (!name) return;
@@ -1066,6 +1069,10 @@
         t.incomplete++; t.incompleteRows.push(r);
       });
     }
+    // Tutor grade levels = the roster grades of the scholars they teach.
+    const rosterGrade = {};
+    scopedAttendance().forEach(r => { if (isScholarRow(r) && (r[ATT.GRADE] || '').trim()) rosterGrade[(r[ATT.USER_ID] || '').trim()] = r[ATT.GRADE].trim(); });
+    Object.values(T).forEach(t => t.scholars.forEach(u => { if (rosterGrade[u]) t.grades.add(rosterGrade[u]); }));
     // Scholar surveys about the tutor (FILLED_FOR) → "scholars loving sessions"
     scopedScholarSurveys().forEach(r => {
       const v = parseFloat(r[STU.OVERALL]); if (isNaN(v)) return;

@@ -1517,7 +1517,7 @@
       // v2 = Session Details mapped by header (v1 caches hold rows mis-mapped
       // after Pearl inserted the Canceled By / Canceled Reason columns)
       summer2026: { cacheKey: 'njtc_pearl_summer_v2', gids: SUMMER_GIDS, label: 'Summer' },
-      sy2627:     { cacheKey: 'njtc_pearl_2627_v2',   gids: SY2627_GIDS, label: 'SY26-27' },
+      sy2627:     { cacheKey: 'njtc_pearl_2627_v3',   gids: SY2627_GIDS, label: 'SY26-27' },
     };
     try { NJTC_CACHE.bust('njtc_pearl_summer_v1'); NJTC_CACHE.bust('njtc_pearl_2627_v1'); } catch(e) {}
     const PERIOD_EYEBROW = {
@@ -2995,7 +2995,21 @@
         // Coverage tabs (SY 26-27 only) fail soft — the rest of Pearl Ops
         // never waits on or breaks because of them.
         const _skip = Promise.resolve('');
-        const [attResult, sessResult, instResult, stuResult, subsResult, subNEResult, subSWResult] = await Promise.allSettled([
+        // Scholar roster (Student Attendance tab) — the ONLY source of a
+        // scholar's grade (shared/pearl-roster.js). Fails soft.
+        const ROSTER = window.NJTC_PEARL_ROSTER;
+        const _rosterFetch = (isSY && ROSTER) ? (async () => {
+          for (const u of ROSTER.rosterUrls(SY2627_SHEET_ID)) {
+            try {
+              const res = await fetch(u + (bust || ''), { signal: AbortSignal.timeout(25000) });
+              if (!res.ok) continue;
+              const t = await res.text();
+              if (!/^\s*<(!doctype|html)/i.test(t)) return t;
+            } catch (e) { /* try next url */ }
+          }
+          throw new Error('roster tab unavailable');
+        })() : _skip;
+        const [attResult, sessResult, instResult, stuResult, subsResult, subNEResult, subSWResult, rosterResult] = await Promise.allSettled([
           fetchTab(cfg.gids.att,  bust, 30000, 'att'),
           fetchTab(cfg.gids.sess, bust, 30000, 'sess'),
           fetchTab(cfg.gids.inst, bust, 25000, 'inst'),
@@ -3003,6 +3017,7 @@
           cfg.gids.subs  ? fetchTab(cfg.gids.subs,  bust, 20000, 'subs')  : _skip,
           cfg.gids.subNE ? fetchTab(cfg.gids.subNE, bust, 20000, 'subNE') : _skip,
           cfg.gids.subSW ? fetchTab(cfg.gids.subSW, bust, 20000, 'subSW') : _skip,
+          _rosterFetch,
         ]);
         if (_periodChangedDuring(_startPeriod)) { if (btn) btn.disabled = false; return; }
 
@@ -3026,6 +3041,13 @@
         const attRows = attRaw.filter(r => r && (r[ATT.USER] || r[ATT.USER_ID]));
         for (const r of attRows) {
           if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) r[ATT.WEEK] = weekFn(r[ATT.SESS_DATE]);
+        }
+        // Grade = roster grade, not the session's grade (column I).
+        if (isSY && ROSTER) {
+          if (rosterResult.status === 'fulfilled' && rosterResult.value) {
+            const n = ROSTER.applyRosterGrades(attRows, ROSTER.rosterGradeMap(parseCSV(rosterResult.value)), { role: ATT.ROLE, grade: ATT.GRADE, id: ATT.USER_ID });
+            console.log(tag, 'roster grades applied —', n, 'attendance rows corrected from the session grade');
+          } else console.warn(tag, 'Student Attendance (roster) tab failed — scholar grades fall back to the attendance tab:', rosterResult.reason && rosterResult.reason.message);
         }
 
         const COV = window.NJTC_PEARL_COVERAGE;
