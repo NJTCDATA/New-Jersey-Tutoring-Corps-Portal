@@ -58,6 +58,17 @@
       "pearlStatus": "ready"
     },
     {
+      "id": "admin-anne-lee",
+      "name": "Anne Lee",
+      "title": "Administrator",
+      "level": "Admin",
+      "scopeType": "all",
+      "district": "ALL",
+      "schools": [],
+      "region": "ALL",
+      "pearlStatus": "ready"
+    },
+    {
       "id": "regional-taneisha-clemons",
       "name": "Taneisha Clemons",
       "title": "Regional Director",
