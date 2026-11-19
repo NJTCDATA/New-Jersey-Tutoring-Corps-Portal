@@ -74,6 +74,7 @@
       "title": "Regional Director",
       "level": "Regional",
       "scopeType": "region",
+      "viewAll": true,
       "district": null,
       "schools": [],
       "region": "North-East",
@@ -85,6 +86,7 @@
       "title": "Regional Director",
       "level": "Regional",
       "scopeType": "region",
+      "viewAll": true,
       "district": null,
       "schools": [],
       "region": "North-East",
@@ -96,6 +98,7 @@
       "title": "Regional Director",
       "level": "Regional",
       "scopeType": "region",
+      "viewAll": true,
       "district": null,
       "schools": [],
       "region": "South-West",
@@ -107,6 +110,7 @@
       "title": "Regional Director",
       "level": "Regional",
       "scopeType": "region",
+      "viewAll": true,
       "district": null,
       "schools": [],
       "region": "South-West",
@@ -461,7 +465,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-lawrence-township-schools-neel-desai",
@@ -474,7 +478,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-leap-academy-charter-school-matthew-steen",
@@ -487,7 +491,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-leap-academy-charter-school-samantha-rodriguez",
@@ -500,7 +504,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-pemberton-twp-schools-ida-smith",
@@ -513,7 +517,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-pemberton-twp-schools-dan-nale",
@@ -526,7 +530,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-penns-grove-carneys-point-regional-school-district-dr-sydonie-maitland",
@@ -617,7 +621,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-hamilton-township-nicole-dickens-simon",
@@ -656,7 +660,7 @@
         "ALL"
       ],
       "region": "South-West",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-lyndhurst-school-district-michael-rizzo",
@@ -669,7 +673,7 @@
         "ALL"
       ],
       "region": "North-East",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-lyndhurst-school-district-alma-morel",
@@ -682,7 +686,7 @@
         "ALL"
       ],
       "region": "North-East",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     },
     {
       "id": "partner-vernon-township-school-district-vinny-gagliostro",
@@ -695,7 +699,7 @@
         "ALL"
       ],
       "region": "North-East",
-      "pearlStatus": "pending"
+      "pearlStatus": "ready"
     }
   ]
 }

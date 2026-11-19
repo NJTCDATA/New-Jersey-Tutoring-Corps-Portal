@@ -133,6 +133,16 @@
   .pt-pill-good{background:var(--pos-bg);color:var(--pos)}
   .pt-pill-warn{background:#fff0e0;color:#c05c00}
   .pt-pill-bad{background:var(--neg-bg);color:var(--neg)}
+  .pt-pill-mid{background:#fef3c7;color:#854d0e}
+  .pt-pill-zero{background:#eceff3;color:#5b6b7b}
+  .pt-band-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.55rem}
+  .pt-band-chip{border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .pt-band-chip b{margin-left:.25rem;color:var(--text)}
+  .pt-band-chip:hover{background:var(--surface-2)}
+  .pt-band-chip.active{background:var(--blue-mid,#0050c8);border-color:var(--blue-mid,#0050c8);color:#fff}
+  .pt-band-chip.active b{color:#fff}
+  .pt-band-legend{display:flex;flex-wrap:wrap;gap:.3rem 1rem;font-size:.72rem;color:var(--muted);margin-bottom:.8rem}
+  .pt-band-legend i{display:inline-block;width:.6rem;height:.6rem;border-radius:50%;margin-right:.3rem;vertical-align:middle}
 
   .pt-empty{padding:3.5rem 2rem;text-align:center;color:var(--muted)}
   .pt-empty h3{font-family:'DM Serif Display',serif;font-weight:400;color:var(--text-2);font-size:1.3rem;margin-bottom:.5rem}
@@ -338,7 +348,7 @@
       <button class="pt-modal-close" id="pdfModalClose" aria-label="Close">&times;</button>
     </div>
     <div class="pt-modal-body">
-      <p style="font-size:.84rem;color:var(--text-2);margin-bottom:.9rem">A printable PDF of attendance, scholars to check in with, survey results and session highlights.</p>
+      <p style="font-size:.84rem;color:var(--text-2);margin-bottom:.9rem">A printable PDF of attendance, scholars below 80%, survey results and session highlights.</p>
       <label for="pdfWeek" style="display:block;font-size:.75rem;font-weight:700;color:var(--text-2);margin-bottom:.3rem">Week</label>
       <select class="pt-select" id="pdfWeek" style="width:100%"></select>
       <p style="font-size:.78rem;color:var(--muted);margin:.7rem 0 1rem">Covers: <strong id="pdfScope" style="color:var(--text-2)"></strong></p>
@@ -371,7 +381,7 @@
   <div class="pt-tab" data-view="scholar">Scholar Survey Details</div>
   <div class="pt-tab" data-view="tutor">Tutor Survey Details</div>
   <div class="pt-tab" data-view="profiles">Scholar Profiles</div>
-  <div class="pt-tab" data-view="tutorProfiles" data-program-only data-not-ready hidden>Tutor Profiles</div>
+  <div class="pt-tab" data-view="tutorProfiles" data-program-only hidden>Tutor Profiles</div>
 </div>
 
 <div class="pt-scope-bar" id="seasonBar" style="position:static" hidden>
@@ -382,6 +392,7 @@
 
 <div class="pt-scope-bar" id="scopeBar" hidden>
   <span class="pt-scope-label">Drill down:</span>
+  <select class="pt-select" id="scopeRegion" aria-label="Region" hidden></select>
   <select class="pt-select" id="scopeDistrict" hidden></select>
   <select class="pt-select" id="scopeSchool" hidden></select>
   <select class="pt-select" id="scopeWeek" hidden></select>
@@ -402,9 +413,9 @@
 
 <script src="../auth/auth.js?v=1"></script>
 <script src="../auth/partner-guard.js?v=1"></script>
-<script src="./partner-report.js?v=11"></script>
-<script src="./app.js?v=11"></script>
-<script src="./pie-bot.js?v=8"></script>
-<script src="./tour.js?v=5"></script>
+<script src="./partner-report.js?v=12"></script>
+<script src="./app.js?v=12"></script>
+<script src="./pie-bot.js?v=9"></script>
+<script src="./tour.js?v=6"></script>
 </body>
 </html>

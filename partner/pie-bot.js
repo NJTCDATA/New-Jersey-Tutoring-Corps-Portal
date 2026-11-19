@@ -78,7 +78,7 @@
     if (!b) return null;
     const scholarRows = (b.attendance || []).filter(r => (r[ATT.ROLE] || '').trim() !== 'Instructor');
     let attended = 0, absent = 0;
-    // Per-scholar tallies — matches partner/app.js's scholarsToCheckIn()
+    // Per-scholar tallies — matches partner-report.js scholarsToCheckIn()
     // exactly: never Pearl's own concern flag, which under-fires and misses
     // real 0%-attendance scholars.
     const byScholar = {};
@@ -92,11 +92,10 @@
       if (c === 'attended') byScholar[uid].attended++;
       else if (c === 'absent') byScholar[uid].absent++;
     });
+    // Below the 80% goal, 0% included — same rounding as the dashboard (1 dp).
     const checkInCount = Object.values(byScholar).filter(s => {
-      if (s.absent === 0) return false;
       const total = s.attended + s.absent;
-      const rate = total ? (s.attended / total) * 100 : 0;
-      return s.attended === 0 || (total >= 3 && rate < 80);
+      return total > 0 && Math.round(s.attended / total * 1000) / 10 < 80;
     }).length;
 
     const total = attended + absent;
@@ -134,6 +133,13 @@
     'Show me around',
     "Who do I contact with questions?"
   ];
+  const QUICK_CHIPS_PROGRAM = [
+    'Which tutors need attention?',
+    'What do the attendance colors mean?',
+    'What is Tutor Profiles?',
+    'How is tutor attendance validated?',
+    'Show me around'
+  ];
   const QUICK_CHIPS_DISTRICT = [
     'Which school needs attention?',
     "What's my attendance rate?",
@@ -151,6 +157,46 @@
     return hits.length ? hits : null;
   }
 
+  // NJTC Program Team (Admin / Regional) questions about the tutor pages.
+  // Uses the same rules as partner/app.js (Instructor rows, tutor goal 90%).
+  function programAnswer(q) {
+    const b = window.NJTC_BUNDLE, CORE = window.NJTCPartnerReport;
+    if (/validat|adp|hire date|cross.?check|onsite/.test(q)) {
+      return `Tutor attendance on these pages comes only from each tutor's own <b>Pearl attendance rows</b> (role Instructor): attended ÷ (attended + tutor-side misses), with school-driven and NJTC-side excused time left out. It is <b>not</b> cross-checked against ADP status or hire dates, and the Onsite Database ↔ ADP census fixes don't flow into these pages. So a tutor showing <b>0%</b> (gray) is worth a data-quality check first: not yet hired/active, rostered to sessions before their start date, or attendance never taken.`;
+    }
+    if (/colou?r|gr[ae]y|yellow|red|green|band/.test(q)) {
+      return `<b>Scholars</b> (goal 80%+): gray 0% (data quality / rostering review, or the program is just starting), red 1–59% (urgent), yellow 60–79% (check in with the teacher), green 80%+.<br><br><b>Tutors</b> (goal 90%+): gray 0%, red 1–69%, yellow 70–89%, green 90%+.`;
+    }
+    if (/incomplete/.test(q)) {
+      return `<b>Tutor Incompletes</b> are sessions still marked Scheduled in Pearl after the session date, so attendance was never taken. They're grouped by tutor on the Tutor Attendance Tracking tab; click a name for each session to complete or cancel in Pearl.`;
+    }
+    if (/apprentic|tap\b/.test(q)) {
+      return `On <b>Tutor Profiles</b>, each tutor shows <b>Is apprentice</b> (Yes/No) and <b>Completed apprenticeship</b> (Yes / In progress / No), from the TAP Tracker Master Roster matched by name.`;
+    }
+    if (/tutor profile/.test(q)) {
+      return `<b>Tutor Profiles</b> has a card for every tutor in your current view: content, grade levels, overall rating (from scholars and the tutor's own surveys), scholars, attendance and apprentice status. Click a card for the full profile.`;
+    }
+    if (/region|all locations|other region/.test(q)) {
+      return `Use the <b>Region</b> drop-down in the drill-down bar (Region → District → School → Week). Regional Directors open on their home region; choose <b>All Regions</b> to see every location.`;
+    }
+    if (/tutor/.test(q) && /attention|lowest|below|check.?in|need|attendance/.test(q) && b && CORE) {
+      const A = CORE.ATT, by = {};
+      (b.attendance || []).forEach(r => {
+        if ((r[A.ROLE] || '').trim() !== 'Instructor') return;
+        const c = CORE.classifyAtt(r); if (c !== 'attended' && c !== 'absent') return;
+        const k = (r[A.USER_ID] || r[A.USER] || '').trim(); if (!k) return;
+        const t = by[k] = by[k] || { name: (r[A.USER] || '').trim(), a: 0, m: 0 };
+        if (c === 'attended') t.a++; else t.m++;
+      });
+      const list = Object.values(by).map(t => ({ ...t, rate: Math.round(t.a / (t.a + t.m) * 1000) / 10 }));
+      const zero = list.filter(t => !t.a).length;
+      const low = list.filter(t => t.a && t.rate < 90).sort((x, y) => x.rate - y.rate);
+      if (!list.length) return `No tutor attendance is logged in this view yet.`;
+      return `${low.length} tutor${low.length === 1 ? ' is' : 's are'} between 1% and 89% attendance in this view${low.length ? ', lowest: ' + low.slice(0, 4).map(t => `<b>${t.name}</b> (${t.rate}%)`).join(', ') : ''}. ${zero ? `${zero} more ${zero === 1 ? 'is' : 'are'} at 0% (gray — check the data first). ` : ''}See <b>Tutor Attendance Detail</b> on the Tutor Attendance Tracking tab.`;
+    }
+    return null;
+  }
+
   function answer(question) {
     const s = stats();
     const q = (question || '').toLowerCase();
@@ -162,6 +208,12 @@
     if (/show me around|tour|walk ?through|guide me/.test(q)) {
       if (window.NJTCTour) { window.NJTCTour.start(); return "You got it — I'll walk you through it now."; }
       return `Click "Guide Me" in the top right and I'll walk you through the dashboard.`;
+    }
+
+    const program = window.NJTCPartnerNav && window.NJTCPartnerNav.isProgramView && window.NJTCPartnerNav.isProgramView();
+    if (program) {
+      const p = programAnswer(q);
+      if (p) return p;
     }
 
     const glossaryHits = glossaryLookup(q);
@@ -189,7 +241,7 @@
         `Excused time — school events, testing days, holidays, weather, NJTC staffing gaps — is never counted against you. The reasons behind your missed sessions are on the Attendance Tracking tab.`;
     }
     if (/attendance rate|how am i doing|missed|absent|check.?in/.test(q)) {
-      return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays, NJTC staffing gaps — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? '' : 's'} could use a check-in — see the "Scholars to Check In With" list on the Attendance Tracking tab.` : `No scholars are currently flagged for a check-in — nice.`}`;
+      return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays, NJTC staffing gaps — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? ' is' : 's are'} below 80% attendance (0% included) — see the Scholar Attendance Detail table on the Attendance Tracking tab.` : `No scholars are below 80% attendance — nice.`}`;
     }
     if (/sentiment|positive|negative|survey|feel|enjoy/.test(q)) {
       const sc = s.scholarSent, tu = s.tutorSent;
@@ -270,7 +322,8 @@
     function renderChips() {
       chips.innerHTML = '';
       const district = window.NJTCPartnerNav && window.NJTCPartnerNav.isDistrictLens();
-      (district ? QUICK_CHIPS_DISTRICT : QUICK_CHIPS_SCHOOL).forEach(q => {
+      const program = window.NJTCPartnerNav && window.NJTCPartnerNav.isProgramView && window.NJTCPartnerNav.isProgramView();
+      (program ? QUICK_CHIPS_PROGRAM : district ? QUICK_CHIPS_DISTRICT : QUICK_CHIPS_SCHOOL).forEach(q => {
         const c = document.createElement('div');
         c.className = 'pie-chip';
         c.textContent = q;

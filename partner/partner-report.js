@@ -252,10 +252,21 @@
   function pct(n, d) { return d > 0 ? Math.round((n / d) * 1000) / 10 : null; }
 
   // ── Scope filter (district / school / week) — same rules as partner/app.js
+  // NJTC region of a Pearl district ('North-East' | 'South-West' | 'Other').
+  const _regionOf = {};
+  function regionOfDistrict(d) {
+    const k = String(d || '').trim();
+    if (!(k in _regionOf)) {
+      const c = canonDistrict(k);
+      _regionOf[k] = Object.keys(REGION_DISTRICTS).find(r => REGION_DISTRICTS[r].some(x => canonDistrict(x) === c)) || 'Other';
+    }
+    return _regionOf[k];
+  }
   function scoped(rows, distIdx, schIdx, dateIdx, scope) {
     scope = scope || {};
-    const district = scope.district || 'ALL', school = scope.school || 'ALL', week = scope.week || 'ALL';
+    const region = scope.region || 'ALL', district = scope.district || 'ALL', school = scope.school || 'ALL', week = scope.week || 'ALL';
     return (rows || []).filter(r => {
+      if (region !== 'ALL' && distIdx != null && regionOfDistrict(r[distIdx]) !== region) return false;
       if (district !== 'ALL' && (r[distIdx] || '').trim() !== district) return false;
       if (school !== 'ALL' && (r[schIdx] || '').trim() !== school) return false;
       if (week !== 'ALL' && dateIdx != null) {
@@ -414,7 +425,7 @@
     const counts = {};
     scholarRows.forEach(r => {
       if (classifyAtt(r) !== 'absent') return;
-      const reason = (r[ATT.MISS_REASON] || '').trim() || 'Not specified';
+      const reason = (r[ATT.MISS_REASON] || '').trim() || 'Reason Unknown';
       counts[reason] = (counts[reason] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -440,13 +451,15 @@
         s.absences++;
         s.missed.push({
           date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded',
-          reason: (r[ATT.MISS_REASON] || '').trim() || 'Not specified'
+          reason: (r[ATT.MISS_REASON] || '').trim() || 'Reason Unknown'
         });
       }
     });
     return Object.values(byScholar)
       .map(s => ({ ...s, total: s.attended + s.absences, rate: pct(s.attended, s.attended + s.absences) }))
-      .filter(s => s.absences > 0 && (s.attended === 0 || (s.total >= 3 && s.rate < 80)))
+      // Below the 80% goal (0% included) — the same set as the dashboard's
+      // Scholar Attendance Detail 0% + 1–79% filters (Mysti, 11/19).
+      .filter(s => s.total > 0 && s.rate < 80)
       .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0) || b.absences - a.absences);
   }
 
@@ -700,8 +713,8 @@
   }
 
   function buildReportModel(bundle, scope, exclusions) {
-    scope = { district: 'ALL', school: 'ALL', week: 'ALL', ...(scope || {}) };
-    const place = { district: scope.district, school: scope.school, week: 'ALL' };
+    scope = { region: 'ALL', district: 'ALL', school: 'ALL', week: 'ALL', ...(scope || {}) };
+    const place = { region: scope.region, district: scope.district, school: scope.school, week: 'ALL' };
     const attPlace = scoped(bundle.attendance, ATT.DISTRICT, ATT.SCHOOL, ATT.SESS_DATE, place);
     const stuPlace = scoped(bundle.scholarSurveys, STU.DISTRICT, STU.SCHOOL, STU.DATE, place);
     const instPlace = scoped(bundle.tutorSurveys, INST.DISTRICT, INST.SCHOOL, INST.DATE, place);
@@ -780,7 +793,9 @@
   function scopeLabel(id, scope) {
     if (scope && scope.school && scope.school !== 'ALL') return scope.school;
     if (scope && scope.district && scope.district !== 'ALL') return scope.district;
+    if (scope && scope.region && scope.region !== 'ALL') return scope.region + ' Region';
     if (!id) return '';
+    if (id.level === 'Regional' && scope && scope.region === 'ALL') return 'All Regions · All Districts';
     if (id.level === 'Admin') return 'All Districts · All Schools';
     if (id.level === 'Regional') return `${id.region} Region`;
     if (id.schools && id.schools[0] === 'ALL') return id.district + ' · All Schools';
@@ -882,7 +897,7 @@
       [m.scholarSurvey.sent.scored ? pct(m.scholarSurvey.sent.pos, m.scholarSurvey.sent.scored) + '%' : '-', 'Loved their session', m.scholarSurvey.sent.scored.toLocaleString() + ' scholar surveys'],
       internal
         ? [internal.tutors.length.toLocaleString(), 'Tutors to check in with', 'Year to date']
-        : [m.checkIns.length.toLocaleString(), 'Scholars to check in with', 'Year to date'],
+        : [m.checkIns.length.toLocaleString(), 'Scholars below 80%', 'Year to date'],
       [m.kept.scholars.length.toLocaleString(), 'Scholars kept in class', m.kept.sessions.toLocaleString() + ' sessions YTD']
     ];
     const gap = 7, tw = (CW - gap * (kpis.length - 1)) / kpis.length, th = 70;
@@ -983,7 +998,7 @@
       doc.text(pdfText('Year to date' + (m.weekly ? ' through this week' : '') + ', lowest attendance first.' + (internal ? ' Tutor attendance and the support level come from the Pearl Operations Support Report' + (internal.supportWindow ? ' (' + internal.supportWindow + ')' : '') + '.' : '')), M, y, { maxWidth: CW });
       y += 12;
       const extra = (internal && internal.schoolExtra) || {};
-      const head = ['School', 'Attendance', 'Scholars', 'To check in', 'Kept in class', 'Loving sessions'];
+      const head = ['School', 'Attendance', 'Scholars', 'Below 80%', 'Kept in class', 'Loving sessions'];
       if (internal) head.push('Tutor att.', 'Support');
       doc.autoTable({
         startY: y, margin: { left: M, right: M },
@@ -1044,9 +1059,9 @@
         font('normal', 8.5); setText(C.pos); doc.text('No tutors are currently flagged for a check-in.', M, y); y += 22;
       }
     } else {
-    section('Scholars to check in with');
+    section('Scholars below 80% attendance');
     font('normal', 8); setText(C.text2);
-    doc.text(pdfText('Scholars with a real pattern of missed sessions (never attended, or under 80% across 3+ sessions), year to date' + (m.weekly ? ' through this week' : '') + '. Only scholar-side reasons count. A quick check-in with the scholar, a teacher, or family often turns this around.'), M, y, { maxWidth: CW });
+    doc.text(pdfText('Scholars under the 80% attendance goal (0% included), lowest first, year to date' + (m.weekly ? ' through this week' : '') + '. Only scholar-side reasons count. 0% is often a rostering check or a program just starting; for others, a quick check-in with the scholar, a teacher, or family often turns this around.'), M, y, { maxWidth: CW });
     y += 26;
     if (m.checkIns.length) {
       const shown = m.checkIns.slice(0, 15);
@@ -1062,12 +1077,12 @@
       y = doc.lastAutoTable.finalY + 8;
       if (m.checkIns.length > shown.length) {
         font('italic', 7.5); setText(C.muted);
-        doc.text(pdfText(`+ ${m.checkIns.length - shown.length} more - see Attendance Tracking in the Partner Dashboard for the full list and each scholar's missed dates.`), M, y + 6);
+        doc.text(pdfText(`+ ${m.checkIns.length - shown.length} more - see Scholar Attendance Detail on the Attendance Tracking tab of the Partner Dashboard for the full list and each scholar's missed dates.`), M, y + 6);
         y += 12;
       }
       y += 16;
     } else {
-      font('normal', 8.5); setText(C.pos); doc.text('No scholars are currently flagged for a check-in.', M, y); y += 22;
+      font('normal', 8.5); setText(C.pos); doc.text('No scholars are below 80% attendance.', M, y); y += 22;
     }
     }
 
@@ -1293,7 +1308,7 @@
 
   window.NJTCPartnerReport = {
     ATT, INST, STU, SESS, SCHOLAR_MISS_REASONS, TUTOR_MISS_REASONS,
-    parseDate, weekBucket, weekRangeLabel, pct, scoped,
+    parseDate, weekBucket, weekRangeLabel, pct, scoped, regionOfDistrict,
     isScholarRow, classifyAtt, scholarStats, scholarWeekly, servedScholars, deliveredSessions, deliveredMinutes,
     schoolDrivenNotDelivered, schoolDrivenLabel, SCHOOL_DRIVEN_LABELS, lovingPct, scholarMissedReasons, scholarsToCheckIn, keptInClass, schoolBreakdown, CT_REASONS: CT_SUMMARY_REASONS,
     curateHighlights, loadExclusions, allWeeks, buildReportModel, scopeLabel,
