@@ -21,7 +21,7 @@
   const SCHOOL_STEPS = [
     { tab: 'summary', target: '.pt-hero', title: 'Welcome to your school view', text: "This is your school's NJTC tutoring data. Your NJTC contacts are on the right; click a name to email them." },
     { tab: 'summary', target: '#tourAttention', title: 'Start here', text: 'The few things worth your attention right now, with a link straight to the detail.' },
-    { tab: 'summary', target: '#tourKpis', title: 'The five numbers that matter most', text: 'Click any of them to see the detail behind it, including who to check in with and who was kept in class. Scholar Attendance Rate leaves out excused time (school events, testing, NJTC staffing gaps), so it is never unfairly pulled down.' },
+    { tab: 'summary', target: '#tourKpis', title: 'The five numbers that matter most', text: 'Click any of them to see the detail behind it, including scholars below 80% and who was kept in class. Scholar Attendance Rate leaves out excused time (school events, testing, NJTC staffing gaps), so it is never unfairly pulled down.' },
     { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Scholar Attendance Detail: every scholar with their school and sessions, lowest first. Use the filters (0% / 1–79% / 80–100% / All) and click a name to see which sessions were missed and why.' },
     { tab: 'attendance', target: '#tourKept', title: 'Kept in class during tutoring', text: 'Scholars a classroom teacher kept in class during tutoring. Each one is a missed tutoring session.' },
     { tab: 'summary', target: '#glossaryBtn', title: 'Not sure what a term means?', text: 'The Glossary explains every number in plain language. You can also ask me any time.' }

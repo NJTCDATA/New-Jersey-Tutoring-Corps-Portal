@@ -78,7 +78,7 @@
     if (!b) return null;
     const scholarRows = (b.attendance || []).filter(r => (r[ATT.ROLE] || '').trim() !== 'Instructor');
     let attended = 0, absent = 0;
-    // Per-scholar tallies — matches partner/app.js's scholarsToCheckIn()
+    // Per-scholar tallies — matches partner-report.js scholarsToCheckIn()
     // exactly: never Pearl's own concern flag, which under-fires and misses
     // real 0%-attendance scholars.
     const byScholar = {};
@@ -92,11 +92,10 @@
       if (c === 'attended') byScholar[uid].attended++;
       else if (c === 'absent') byScholar[uid].absent++;
     });
+    // Below the 80% goal, 0% included — same rounding as the dashboard (1 dp).
     const checkInCount = Object.values(byScholar).filter(s => {
-      if (s.absent === 0) return false;
       const total = s.attended + s.absent;
-      const rate = total ? (s.attended / total) * 100 : 0;
-      return s.attended === 0 || (total >= 3 && rate < 80);
+      return total > 0 && Math.round(s.attended / total * 1000) / 10 < 80;
     }).length;
 
     const total = attended + absent;
@@ -242,7 +241,7 @@
         `Excused time — school events, testing days, holidays, weather, NJTC staffing gaps — is never counted against you. The reasons behind your missed sessions are on the Attendance Tracking tab.`;
     }
     if (/attendance rate|how am i doing|missed|absent|check.?in/.test(q)) {
-      return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays, NJTC staffing gaps — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? '' : 's'} could use a check-in — see the Scholar Attendance Detail table on the Attendance Tracking tab.` : `No scholars are currently flagged for a check-in — nice.`}`;
+      return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays, NJTC staffing gaps — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? ' is' : 's are'} below 80% attendance (0% included) — see the Scholar Attendance Detail table on the Attendance Tracking tab.` : `No scholars are below 80% attendance — nice.`}`;
     }
     if (/sentiment|positive|negative|survey|feel|enjoy/.test(q)) {
       const sc = s.scholarSent, tu = s.tutorSent;
