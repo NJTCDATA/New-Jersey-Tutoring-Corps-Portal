@@ -22,9 +22,23 @@
     { tab: 'summary', target: '.pt-hero', title: 'Welcome to your school view', text: "This is your school's NJTC tutoring data. Your NJTC contacts are on the right; click a name to email them." },
     { tab: 'summary', target: '#tourAttention', title: 'Start here', text: 'The few things worth your attention right now, with a link straight to the detail.' },
     { tab: 'summary', target: '#tourKpis', title: 'The five numbers that matter most', text: 'Click any of them to see the detail behind it, including who to check in with and who was kept in class. Scholar Attendance Rate leaves out excused time (school events, testing, NJTC staffing gaps), so it is never unfairly pulled down.' },
-    { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Lowest attendance first, 10 at a time. Click a name to see which sessions were missed and why.' },
+    { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Scholar Attendance Detail: every scholar with their school and sessions, lowest first. Use the filters (0% / 1–79% / 80–100% / All) and click a name to see which sessions were missed and why.' },
     { tab: 'attendance', target: '#tourKept', title: 'Kept in class during tutoring', text: 'Scholars a classroom teacher kept in class during tutoring. Each one is a missed tutoring session.' },
     { tab: 'summary', target: '#glossaryBtn', title: 'Not sure what a term means?', text: 'The Glossary explains every number in plain language. You can also ask me any time.' }
+  ];
+  // NJTC Program Team (Admin / Regional logins): the partner pages plus the
+  // tutor-side pages. Steps whose element isn't on screen are skipped.
+  const PROGRAM_STEPS = [
+    { tab: 'summary', target: '.pt-hero', title: 'Welcome to the Program Team view', text: 'The partner dashboard plus the tutor-side pages only NJTC staff see: Tutor Attendance Tracking and Tutor Profiles.' },
+    { tab: 'summary', target: '#scopeBar', title: 'Drill down: Region, District, School, Week', text: 'Pick a region, then a district and school. Regional Directors open on their home region; choose All Regions to see every location. Weeks are newest first.' },
+    { tab: 'summary', target: '#tourKpis', title: 'Scholar numbers', text: 'Click any number for the detail behind it.' },
+    { tab: 'summary', target: '#tutorKpis', title: 'Tutor numbers', text: 'Tutor attendance, locations, staff, incomplete sessions and tutors loving their sessions.' },
+    { tab: 'attendance', target: '#tourCheckin', title: 'Scholar Attendance Detail', text: 'Every scholar with their school and sessions. Filter 0% / 1–79% (default) / 80–100% / All. Gray 0% = data or rostering check; red 1–59% urgent; yellow 60–79% check in with the teacher; green 80%+.' },
+    { tab: 'attendance', target: '#tourKept', title: 'Kept in class during tutoring', text: 'Now with the Session Name from Session Details, which is usually the classroom teacher.' },
+    { tab: 'tutorAtt', target: '#tutorCheckin', title: 'Tutor Attendance Detail', text: 'Every tutor, filter 0% / 1–89% (default) / 90–100% / All. Gray 0%; red 1–69%; yellow 70–89%; green 90%+. Click a name for the sessions missed.' },
+    { tab: 'tutorAtt', target: '#tutorIncompletes', title: 'Tutor Incompletes', text: 'Sessions still Scheduled in Pearl after their date, grouped by tutor. Click a name for every incomplete session to clean up.' },
+    { tab: 'tutorProfiles', target: '#tutorProfilesIntro', title: 'Tutor Profiles', text: 'Content, grade levels, overall rating, scholars, attendance and apprentice status (Is apprentice / Completed apprenticeship) for every tutor. Click a card for the full profile.' },
+    { tab: 'summary', target: '#glossaryBtn', title: 'Glossary', text: 'Every term, including the new tutor pages, explained in plain language. You can also ask me.' }
   ];
   let STEPS = SCHOOL_STEPS;
 
@@ -127,7 +141,8 @@
 
   function start() {
     if (active) return;
-    const all = (window.NJTCPartnerNav && window.NJTCPartnerNav.isDistrictLens()) ? DISTRICT_STEPS : SCHOOL_STEPS;
+    const nav = window.NJTCPartnerNav;
+    const all = (nav && nav.isProgramView && nav.isProgramView()) ? PROGRAM_STEPS : (nav && nav.isDistrictLens()) ? DISTRICT_STEPS : SCHOOL_STEPS;
     // Only number the steps this partner can actually see (e.g. a school with
     // no kept-in-class scholars has no #tourKept panel).
     STEPS = all.filter(st => document.querySelector(st.target));

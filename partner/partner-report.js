@@ -414,7 +414,7 @@
     const counts = {};
     scholarRows.forEach(r => {
       if (classifyAtt(r) !== 'absent') return;
-      const reason = (r[ATT.MISS_REASON] || '').trim() || 'Not specified';
+      const reason = (r[ATT.MISS_REASON] || '').trim() || 'Reason Unknown';
       counts[reason] = (counts[reason] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -440,7 +440,7 @@
         s.absences++;
         s.missed.push({
           date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded',
-          reason: (r[ATT.MISS_REASON] || '').trim() || 'Not specified'
+          reason: (r[ATT.MISS_REASON] || '').trim() || 'Reason Unknown'
         });
       }
     });

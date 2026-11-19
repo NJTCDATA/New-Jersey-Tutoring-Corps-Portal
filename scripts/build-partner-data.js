@@ -139,7 +139,10 @@ function sha256(s) { return crypto.createHash('sha256').update(s).digest('hex');
 function hmacToken(s, key) { return crypto.createHmac('sha256', key).update(s).digest('hex').slice(0, 24); }
 
 function scopedBundle(pearl, entry) {
-  const b = R.bundleForEntry(pearl, entry);
+  // viewAll (Regional Directors): the login keeps its home region for
+  // contacts and the default drill-down, but the bundle carries every
+  // location so PMs can look across regions (Mysti, 11/19).
+  const b = R.bundleForEntry(pearl, entry.viewAll ? Object.assign({}, entry, { scopeType: 'all' }) : entry);
   b.attendance = b.attendance.map(slimAtt);
   return b;
 }

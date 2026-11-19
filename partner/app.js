@@ -16,7 +16,7 @@
      (a teacher keeping a scholar in class, a scholar declining, etc.).
      NJTC-internal reasons (tutor vacancy, internal errors — the "si"
      classification below) never surface to a partner in any form.
-   - "Scholars to Check In With" is computed directly from real attendance
+   - "Scholars to Check In With" (Summary count + PDF) is computed directly from real attendance
      records (0 attended and at least one genuine miss, or a meaningfully
      low rate with enough sessions to be a real pattern) — not from Pearl's
      own concern flag, which under-fires and silently misses real 0%-
@@ -55,6 +55,44 @@
   // NJTC-internal service-interruption reasons are never shown to partners.
 
   const BRAND = { pos: '#0d6e3a', neu: '#7d8fa1', neg: '#b91c1c', blue: '#0050c8', gold: '#f0a500' };
+  // A missed session logged with no reason (Mysti, 11/19: was "Not specified").
+  const REASON_UNKNOWN = 'Reason Unknown';
+
+  // ── Attendance bands (Mysti, 11/19) ────────────────────────────────────
+  // Scholar target 80%: 0% gray · 1–59% red · 60–79% yellow · 80%+ green.
+  // Tutor target 90%:   0% gray · 1–69% red · 70–89% yellow · 90%+ green.
+  // 0% = no attended session yet: usually a data-quality / rostering check,
+  // or a program that is just starting.
+  const BANDS = {
+    scholar: { target: 80, red: 60, noun: 'scholar', nounPl: 'scholars' },
+    tutor:   { target: 90, red: 70, noun: 'tutor', nounPl: 'tutors' },
+  };
+  function bandOf(kind, attended, total, rate) {
+    if (!total) return null;
+    if (!attended) return 'zero';
+    return rate >= BANDS[kind].target ? 'met' : 'low';
+  }
+  function bandColor(kind, attended, total, rate) {
+    const B = BANDS[kind];
+    if (!total) return '#7d8fa1';
+    if (!attended) return '#7d8fa1';
+    return rate >= B.target ? BRAND.pos : rate >= B.red ? '#a16207' : BRAND.neg;
+  }
+  function bandPillClass(kind, attended, total, rate) {
+    const B = BANDS[kind];
+    if (!total) return '';
+    if (!attended) return 'pt-pill-zero';
+    return rate >= B.target ? 'pt-pill-good' : rate >= B.red ? 'pt-pill-mid' : 'pt-pill-bad';
+  }
+  function bandLegendHtml(kind) {
+    const B = BANDS[kind];
+    return `<div class="pt-band-legend">
+      <span><i style="background:#7d8fa1"></i>0% · data quality / rostering review, or program just starting</span>
+      <span><i style="background:${BRAND.neg}"></i>1–${B.red - 1}% · urgent</span>
+      <span><i style="background:#ca8a04"></i>${B.red}–${B.target - 1}% · check in${kind === 'scholar' ? ' with the teacher' : ''}</span>
+      <span><i style="background:${BRAND.pos}"></i>${B.target}%+ · at goal</span>
+    </div>`;
+  }
 
   const ICONS = {
     school: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M10 10h4"/></svg>',
@@ -75,7 +113,10 @@
     { term: 'Scholar Attendance Rate', def: 'Attended sessions ÷ (Attended + Missed) sessions, scholars only. Late arrivals still count as Attended. Excused time — school events, testing days, holidays, tutor staffing gaps — is left out of both sides of that math entirely, so it never pulls the rate down. This matches the calculation NJTC uses internally.' },
     { term: 'Missed Session', def: 'A scheduled session the scholar did not attend, for a scholar-side reason (absent, declined the session, left early, out of the classroom, or kept in class by a classroom teacher). Sessions that did not happen because of an NJTC-side issue (a staffing gap, an internal error) are handled separately and never count as a scholar "missing" anything.' },
     { term: 'Excused Time', def: "Sessions that didn't happen for reasons outside anyone's control — a school event, a testing day, a holiday, weather — or an NJTC-side staffing gap. Never counted against the attendance rate." },
-    { term: 'Scholars to Check In With', def: "Scholars with a real pattern of missed sessions: either they've never yet attended, or their attendance rate is below 80% across at least 3 real sessions. Computed directly from session records, counting only scholar-side reasons for a missed session." },
+    { term: 'Scholars to Check In With', def: "The count on the Summary tab and in the weekly PDF: scholars with a real pattern of missed sessions — either they've never yet attended, or their attendance rate is below 80% across at least 3 real sessions. Computed directly from session records, counting only scholar-side reasons for a missed session. Every scholar's detail is in the Scholar Attendance Detail table." },
+    { term: 'Scholar Attendance Detail', def: 'Every scholar in your current view with their school, sessions attended out of total sessions, and attendance rate, lowest first. Filter by 0%, 1–79% (the default), 80–100% or All. Click a name for each missed session: the date, the session name and the reason.' },
+    { term: 'Attendance Colors', def: 'Scholars (goal 80%+): 0% gray — usually a data-quality or rostering check, or a program that is just starting; 1–59% red — urgent; 60–79% yellow — check in with the teacher; 80%+ green — at goal. Tutors (goal 90%+, NJTC Program Team view): 0% gray; 1–69% red; 70–89% yellow; 90%+ green.' },
+    { term: 'Reason Unknown', def: 'A missed session logged in Pearl without a missed-session reason. It still counts as a missed session.' },
     { term: 'Session', def: 'One scheduled tutoring block for one scholar. "Sessions Delivered" counts each unique session that took place, regardless of how many scholars were in it.' },
     { term: 'Sessions Not Delivered (school-driven)', def: 'Unique tutoring sessions that could not take place for a school-side reason — a school event or assembly, school-administered testing, a schedule change, an unscheduled closure, delay or dismissal, a drill, weather, a half day or a scheduled holiday. Counted once per session. These never count against the attendance rate.' },
     { term: 'Overall Rating', def: 'The "Overall, how did this session go?" question on the post-session survey, rated 1 (Poor) to 5 (Excellent). Positive = 4–5, Neutral = 3, Negative = 1–2.' },
@@ -83,9 +124,17 @@
     { term: 'Scholars Kept in Class', def: 'Scholars a classroom teacher kept in class during their tutoring time (Pearl missed reason "Classroom Teacher Requested to Keep Scholar in Class"). The tile counts each scholar once; each time it happens is a missed tutoring session that counts against the attendance rate.' },
     { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' },
     { term: 'Total Session Minutes', def: "Every delivered session's duration, added up once per session — a 40-minute session with 3 scholars in it still counts as 40 minutes here." },
+    // NJTC Program Team (Admin / Regional) only — hidden from partner logins.
+    { program: true, term: 'Tutor Attendance Detail', def: "Every tutor in the current view with their school, sessions attended out of total sessions, and attendance rate, lowest first. Filter by 0%, 1–89% (the default), 90–100% or All; click a name for each missed session. Comes from the tutor's own Pearl attendance rows (role Instructor) only — it is not cross-checked against ADP status or hire dates, so a 0% tutor is worth a data-quality check first." },
+    { program: true, term: 'Tutor Incompletes', def: 'Sessions still marked Scheduled in Pearl after the session date — attendance was never taken. Grouped by tutor, most incompletes first; click a name for every incomplete session (date, session, school). The tutor or Site Leader completes or cancels each one in Pearl.' },
+    { program: true, term: 'Tutor Profiles', def: "One card per tutor in the current view: content (subjects), grade levels (from their scholars' roster grades), overall rating (scholar surveys about the tutor, and the tutor's own post-session rating), scholars, attendance and apprentice status." },
+    { program: true, term: 'Apprentice Status', def: 'From the TAP Tracker Master Roster, matched by name. Is apprentice: Yes if the tutor is on the roster as an Apprentice, Pre-apprentice or Completed Program (and has not left the program); otherwise No. Completed apprenticeship: Yes (Completed Program), In progress (current apprentice) or No.' },
+    { program: true, term: 'Region Drill-Down', def: 'NJTC Program Team logins can filter by Region (North-East / South-West), then District, then School. Regional Directors open on their home region and can switch to All Regions to see every location.' },
     { term: 'Total Scholar-Attended Minutes', def: "Every minute a scholar personally attended, summed across all scholars — the same 40-minute session with 3 scholars who all attended counts as 120 minutes here. This is the total instructional contact time scholars actually received." }
   ];
-  window.NJTC_GLOSSARY = GLOSSARY;
+  // Partner logins never see Program Team terms.
+  function visibleGlossary() { return GLOSSARY.filter(g => !g.program || isProgramView()); }
+  window.NJTC_GLOSSARY = GLOSSARY.filter(g => !g.program);
 
   let BUNDLE = null;
   // Current (live) season bundle + any archived seasons loaded on demand.
@@ -99,7 +148,20 @@
   // Purely a view filter over data already inside this account's own bundle
   // — it can only narrow what's shown, never reach outside the district(s)/
   // school(s) that bundle was built for.
-  const SCOPE = { district: 'ALL', school: 'ALL', week: 'ALL' };
+  const SCOPE = { region: 'ALL', district: 'ALL', school: 'ALL', week: 'ALL' };
+  // Program Team drill-down: a row's NJTC region comes from its district
+  // (REGION_DISTRICTS in partner-report.js). Districts outside both lists
+  // read as 'Other'.
+  let _regionDefaulted = false;
+  const _regionCache = {};
+  function regionOfDistrict(d) {
+    const k = String(d || '').trim();
+    if (k in _regionCache) return _regionCache[k];
+    const c = window.NJTCPartnerReport.canonDistrict(k);
+    const R = window.NJTCPartnerReport.REGION_DISTRICTS;
+    const hit = Object.keys(R).find(r => R[r].some(x => window.NJTCPartnerReport.canonDistrict(x) === c));
+    return (_regionCache[k] = hit || 'Other');
+  }
 
   // Pearl's own "Week" text column is sparse/unreliable in practice — the
   // weekly trend came up permanently empty relying on it. Session date is
@@ -210,7 +272,7 @@
   }
   function switchSeason(season) {
     if (!CURRENT_BUNDLE) return;
-    SCOPE.district = 'ALL'; SCOPE.school = 'ALL'; SCOPE.week = 'ALL';
+    SCOPE.region = 'ALL'; SCOPE.district = 'ALL'; SCOPE.school = 'ALL'; SCOPE.week = 'ALL';
     resetScopeBar();
     if (season === CURRENT_BUNDLE.season) {
       ARCHIVE = null;
@@ -292,7 +354,7 @@
   // Replace the drill-down selects with fresh clones so re-initializing for
   // another season never stacks duplicate change listeners.
   function resetScopeBar() {
-    ['scopeDistrict', 'scopeSchool', 'scopeWeek'].forEach(id => {
+    ['scopeRegion', 'scopeDistrict', 'scopeSchool', 'scopeWeek'].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
       const c = el.cloneNode(false);
@@ -341,6 +403,7 @@
   // their bundle actually spans more than one school) ─────────────────────
   function scoped(rows, distIdx, schIdx, dateIdx) {
     return rows.filter(r => {
+      if (SCOPE.region !== 'ALL' && regionOfDistrict(r[distIdx]) !== SCOPE.region) return false;
       if (SCOPE.district !== 'ALL' && (r[distIdx] || '').trim() !== SCOPE.district) return false;
       if (SCOPE.school !== 'ALL' && (r[schIdx] || '').trim() !== SCOPE.school) return false;
       if (SCOPE.week !== 'ALL' && dateIdx != null) {
@@ -407,6 +470,7 @@
 
   function initScopeFilter() {
     const bar = document.getElementById('scopeBar');
+    const regSel = document.getElementById('scopeRegion');
     const distSel = document.getElementById('scopeDistrict');
     const schSel = document.getElementById('scopeSchool');
     const weekSel = document.getElementById('scopeWeek');
@@ -434,26 +498,50 @@
       const wk = weekBucket(r[ATT.SESS_DATE]);
       if (wk) weekMap.set(wk.key, wk.label);
     });
-    const weeks = [...weekMap.keys()].sort();
+    // Most recent week first (Mysti, 11/19).
+    const weeks = [...weekMap.keys()].sort().reverse();
 
     const hasSchoolDrilldown = districts.length > 1 || allSchools.length > 1;
     if (!hasSchoolDrilldown && !weeks.length) return; // single school, no dated sessions yet — nothing to drill into
 
     bar.hidden = false;
 
+    // Region (Program Team logins only) → District → School.
+    const regions = [...new Set(districts.map(regionOfDistrict))].sort();
+    const inRegion = d => SCOPE.region === 'ALL' || regionOfDistrict(d) === SCOPE.region;
+    function populateDistricts() {
+      const list = districts.filter(inRegion);
+      distSel.innerHTML = `<option value="ALL">All Districts${SCOPE.region !== 'ALL' ? ' in ' + esc(SCOPE.region) : ''}</option>` + list.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+      distSel.value = list.includes(SCOPE.district) ? SCOPE.district : 'ALL';
+    }
     function populateSchools(district) {
       let schools;
-      if (district === 'ALL') schools = allSchools;
+      if (district === 'ALL') schools = SCOPE.region === 'ALL' ? allSchools : districts.filter(inRegion).flatMap(d => [...(schoolsByDistrict[d] || [])]);
       else schools = [...(schoolsByDistrict[district] || [])];
-      schools = schools.sort();
+      schools = [...new Set(schools)].sort();
       schSel.innerHTML = `<option value="ALL">All Schools</option>` + schools.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
     }
 
     if (hasSchoolDrilldown) {
       schSel.hidden = false;
+      if (isProgramView() && regions.length > 1 && regSel) {
+        regSel.hidden = false;
+        regSel.innerHTML = `<option value="ALL">All Regions</option>` + regions.map(r => `<option value="${esc(r)}">${esc(r === 'Other' ? 'Other / unassigned' : r + ' Region')}</option>`).join('');
+        // Regional Directors open on their home region; every location is one pick away.
+        const home = BUNDLE.identity && BUNDLE.identity.level === 'Regional' ? BUNDLE.identity.region : null;
+        if (home && regions.includes(home) && SCOPE.region === 'ALL' && !_regionDefaulted) { SCOPE.region = home; _regionDefaulted = true; }
+        regSel.value = SCOPE.region;
+        regSel.addEventListener('change', () => {
+          SCOPE.region = regSel.value;
+          SCOPE.district = 'ALL'; SCOPE.school = 'ALL';
+          populateDistricts();
+          populateSchools('ALL');
+          applyScopeChange();
+        });
+      }
       if (districts.length > 1) {
         distSel.hidden = false;
-        distSel.innerHTML = `<option value="ALL">All Districts</option>` + districts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+        populateDistricts();
         distSel.addEventListener('change', () => {
           SCOPE.district = distSel.value;
           SCOPE.school = 'ALL';
@@ -461,7 +549,7 @@
           applyScopeChange();
         });
       }
-      populateSchools('ALL');
+      populateSchools(SCOPE.district);
       schSel.addEventListener('change', () => {
         SCOPE.school = schSel.value;
         // Picking a school implicitly fixes its district too, so the two
@@ -469,6 +557,7 @@
         if (SCOPE.school !== 'ALL' && districts.length > 1) {
           const owner = districts.find(d => (schoolsByDistrict[d] || new Set()).has(SCOPE.school));
           if (owner) { SCOPE.district = owner; distSel.value = owner; }
+          if (owner && regSel && !regSel.hidden && SCOPE.region !== 'ALL' && regionOfDistrict(owner) !== SCOPE.region) { SCOPE.region = regionOfDistrict(owner); regSel.value = SCOPE.region; populateDistricts(); }
         }
         applyScopeChange();
       });
@@ -489,13 +578,17 @@
       const parts = [];
       if (SCOPE.school !== 'ALL') parts.push(SCOPE.school);
       else if (SCOPE.district !== 'ALL') parts.push(SCOPE.district);
+      else if (SCOPE.region !== 'ALL') parts.push(SCOPE.region + ' Region');
       if (SCOPE.week !== 'ALL') parts.push('week of ' + esc(weekMap.get(SCOPE.week) || SCOPE.week));
       if (parts.length) { activeBadge.hidden = false; activeBadge.textContent = 'Showing: ' + parts.join(' · '); }
       else activeBadge.hidden = true;
       renderAll();
     }
+    if (SCOPE.region !== 'ALL') {
+      const b = document.getElementById('scopeActive');
+      if (b) { b.hidden = false; b.textContent = 'Showing: ' + SCOPE.region + ' Region'; }
+    }
   }
-
   function hideLoading() {
     const el = document.getElementById('loadingScreen');
     if (!el) return;
@@ -528,8 +621,8 @@
   // NJTC staff use these logins for regular data collection: they get the
   // tutor-side pages (Tutor Attendance Tracking, tutor summary row, staff
   // tiles, survey comment tables). Partner logins never see them.
-  // Tutor Profiles is built behind TUTOR_PROFILES_READY (not released yet).
-  const TUTOR_PROFILES_READY = false;
+  // Tutor Profiles is behind TUTOR_PROFILES_READY (released 11/2026).
+  const TUTOR_PROFILES_READY = true;
   function isProgramView() {
     const l = (CURRENT_BUNDLE && CURRENT_BUNDLE.identity && CURRENT_BUNDLE.identity.level) || '';
     return l === 'Admin' || l === 'Regional';
@@ -547,6 +640,7 @@
 
   function personalize() {
     const id = BUNDLE.identity;
+    window.NJTC_GLOSSARY = visibleGlossary(); // PIE reads this
     syncProgramTabs(false);
     $('#idName').textContent = id.name;
     $('#idRole').textContent = id.level + (id.district && id.level !== 'Admin' ? ' · ' + id.district : '');
@@ -590,12 +684,14 @@
     const glossaryBtn = document.getElementById('glossaryBtn');
     const glossaryModal = document.getElementById('glossaryModal');
     if (glossaryBtn && glossaryModal) {
-      document.getElementById('glossaryBody').innerHTML = GLOSSARY.map(g => `
+      glossaryBtn.addEventListener('click', () => {
+        document.getElementById('glossaryBody').innerHTML = visibleGlossary().map(g => `
         <div class="pt-glossary-item">
           <div class="pt-glossary-term">${esc(g.term)}</div>
           <div class="pt-glossary-def">${esc(g.def)}</div>
         </div>`).join('');
-      glossaryBtn.addEventListener('click', () => glossaryModal.classList.add('open'));
+        glossaryModal.classList.add('open');
+      });
       document.getElementById('glossaryClose').addEventListener('click', () => glossaryModal.classList.remove('open'));
       glossaryModal.addEventListener('click', e => { if (e.target === glossaryModal) glossaryModal.classList.remove('open'); });
     }
@@ -743,7 +839,7 @@
         if (raw && parsed && (!s.lastAttendedSort || parsed > s.lastAttendedSort)) { s.lastAttended = raw; s.lastAttendedSort = parsed; }
       } else if (c === 'absent') {
         s.absences++;
-        s.missed.push({ date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded', reason: reason || 'Not specified' });
+        s.missed.push({ date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded', reason: reason || REASON_UNKNOWN });
         if (CT_REASONS.has(reason)) s.ctFlag = true;
       }
       if (c === 'attended' || c === 'absent') {
@@ -992,11 +1088,10 @@
   //  Same drill-down filters (district / school / week) as every other page.
   // ══════════════════════════════════════════════════════════════════════
   const TUTOR_TARGET = 90;        // tutor attendance goal (same as Pearl Ops)
-  const TUTOR_CHECKIN_MIN = 3;    // sessions before a tutor's rate is judged
   const isTutorRow = r => (r[ATT.ROLE] || '').trim() === 'Instructor';
   const dayOnly = v => { const t = String(v || '').trim(); const sp = t.indexOf(' '); return sp < 0 ? t : t.slice(0, sp); };
   const avg1 = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length * 10) / 10 : null;
-  const tutorColor = r => r == null ? '#7d8fa1' : r >= TUTOR_TARGET ? BRAND.pos : r >= 80 ? '#b45309' : BRAND.neg;
+  const tutorColor = t => bandColor('tutor', t.attended, t.sessions, t.rate);
   const ratingColor = v => v == null ? '#7d8fa1' : v >= 4 ? BRAND.pos : v >= 3 ? '#b45309' : BRAND.neg;
 
   function tutorStatsOf(attRows) {
@@ -1031,7 +1126,7 @@
     const get = (id, name) => {
       const k = id || ('name:' + name.toLowerCase());
       if (!T[k]) T[k] = { id: id || '', name, schools: {}, attended: 0, absent: 0, excused: 0, missed: [], lastAttended: '', lastSort: null,
-        scholars: new Set(), incomplete: 0, incompleteRows: [], blankMissed: 0, subjects: new Set(), grades: new Set(), stuPos: 0, stuN: 0, selfRatings: [] };
+        scholars: new Set(), incomplete: 0, incompleteRows: [], blankMissed: 0, subjects: new Set(), grades: new Set(), stuPos: 0, stuN: 0, stuRatings: [], selfRatings: [] };
       return T[k];
     };
     const find = (id, name) => T[id] || T['name:' + String(name || '').toLowerCase()] || null;
@@ -1047,7 +1142,7 @@
         if (d && (!t.lastSort || d > t.lastSort)) { t.lastSort = d; t.lastAttended = (r[ATT.SESS_DATE] || '').trim(); }
       } else if (c === 'absent') {
         t.absent++;
-        t.missed.push({ date: (r[ATT.SESS_DATE] || '').trim(), reason: reason || 'Not specified', session: (r[ATT.SESSION] || '').trim() });
+        t.missed.push({ date: (r[ATT.SESS_DATE] || '').trim(), reason: reason || REASON_UNKNOWN, session: (r[ATT.SESSION] || '').trim() });
       } else if (c === 'si') {
         t.excused++;
         if ((r[ATT.ATT_STATUS] || '').trim() === 'Missed' && !reason) t.blankMissed++;
@@ -1077,7 +1172,7 @@
     scopedScholarSurveys().forEach(r => {
       const v = parseFloat(r[STU.OVERALL]); if (isNaN(v)) return;
       const t = find((r[STU.FILLED_FOR_ID] || '').trim(), (r[STU.FILLED_FOR] || '').trim()); if (!t) return;
-      t.stuN++; if (v >= 4) t.stuPos++;
+      t.stuN++; if (v >= 4) t.stuPos++; t.stuRatings.push(v);
     });
     // Tutor's own post-session ratings
     scopedTutorSurveys().forEach(r => {
@@ -1087,7 +1182,7 @@
     return Object.values(T).map(t => {
       const schoolList = Object.entries(t.schools).sort((a, b) => b[1] - a[1]).map(e => e[0]);
       return Object.assign(t, { schoolList, school: schoolList[0] || '', rate: pct(t.attended, t.attended + t.absent),
-        sessions: t.attended + t.absent, scholarCount: t.scholars.size, loving: t.stuN ? pct(t.stuPos, t.stuN) : null, selfAvg: avg1(t.selfRatings) });
+        sessions: t.attended + t.absent, scholarCount: t.scholars.size, loving: t.stuN ? pct(t.stuPos, t.stuN) : null, stuAvg: avg1(t.stuRatings), selfAvg: avg1(t.selfRatings) });
     });
   }
 
@@ -1115,7 +1210,7 @@
       .sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101) || a.name.localeCompare(b.name));
     if (!list.length) return '';
     const SHOW = 12;
-    const tile = x => `<div class="pt-school-tile" style="--tile-c:${tutorColor(x.rate)};cursor:default">
+    const tile = x => `<div class="pt-school-tile" style="--tile-c:${tutorColor(x)};cursor:default">
         <div class="pt-school-name">${esc(x.name)}</div>
         <div class="pt-staff-meta">${esc(x.school || '—')}${x.schoolList.length > 1 ? ' +' + (x.schoolList.length - 1) + ' more' : ''}</div>
         <div class="pt-school-rate">${x.rate == null ? '—' : x.rate + '%'}<span>attendance</span></div>
@@ -1150,16 +1245,13 @@
     });
     const keys = Object.keys(wk).sort();
     const roster = tutorRoster();
-    const checkIns = roster.filter(t => t.rate != null && t.sessions >= TUTOR_CHECKIN_MIN && t.rate < TUTOR_TARGET).sort((a, b) => a.rate - b.rate || a.name.localeCompare(b.name));
     const reasons = {};
-    rows.forEach(r => { if (classifyAtt(r) !== 'absent') return; const k = (r[ATT.MISS_REASON] || '').trim() || 'Not specified'; reasons[k] = (reasons[k] || 0) + 1; });
+    rows.forEach(r => { if (classifyAtt(r) !== 'absent') return; const k = (r[ATT.MISS_REASON] || '').trim() || REASON_UNKNOWN; reasons[k] = (reasons[k] || 0) + 1; });
     const reasonList = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
     const reasonTotal = reasonList.reduce((a, [, n]) => a + n, 0);
     const blank = roster.reduce((a, t) => a + t.blankMissed, 0);
-    const table = roster.filter(t => t.sessions > 0 || t.incomplete > 0).sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101) || b.incomplete - a.incomplete || a.name.localeCompare(b.name));
     const incByTutor = roster.filter(t => t.incomplete).sort((a, b) => b.incomplete - a.incomplete || a.name.localeCompare(b.name));
-    const incRows = inc.slice().sort((a, b) => (parseDate(dayOnly(a[SESS.START])) || 0) - (parseDate(dayOnly(b[SESS.START])) || 0));
-    const pill = r => `<span class="pt-pill ${r == null ? '' : r >= TUTOR_TARGET ? 'pt-pill-good' : r >= 80 ? 'pt-pill-warn' : 'pt-pill-bad'}">${r == null ? '—' : r + '%'}</span>`;
+    const byDate = (a, b) => (parseDate(dayOnly(b[SESS.START])) || 0) - (parseDate(dayOnly(a[SESS.START])) || 0); // newest first
 
     el.innerHTML = `
       <div class="pt-grid pt-grid-main-side" style="margin-bottom:1.1rem">
@@ -1177,49 +1269,205 @@
           <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">Tutor-side misses only (absent, left early). ${st.excused.toLocaleString()} other missed sessions (school events, testing, closures) aren't counted. Goal: ${TUTOR_TARGET}%.</p>
         </div>
       </div>
-      <div class="pt-card" style="margin-bottom:1.1rem" id="tutorCheckin">
-        <div class="pt-card-title">${ICONS.handshake} Tutors to Check In With</div>
-        ${checkIns.length ? `<p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">${checkIns.length} tutor${checkIns.length !== 1 ? 's are' : ' is'} under ${TUTOR_TARGET}% attendance across ${TUTOR_CHECKIN_MIN}+ sessions, lowest first. Click a name for the sessions missed.</p>
-          <div id="tutorCkBox">${checkIns.map((t, i) => `
-          <details class="pt-checkin" data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
+      ${attendanceDetailHtml('tutor', tutorDetailList(roster))}
+      <div class="pt-card" style="margin-bottom:1.1rem" id="tutorIncompletes">
+        <div class="pt-card-title">${ICONS.roster} Tutor Incompletes<span class="pt-card-title-note">${inc.length.toLocaleString()} session${inc.length !== 1 ? 's' : ''} · ${incByTutor.length} tutor${incByTutor.length !== 1 ? 's' : ''} · Pearl clean-up</span></div>
+        <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">Sessions still marked <b>Scheduled</b> in Pearl after the session date — attendance was never taken, so the session doesn't count anywhere. The tutor (or Site Leader) completes or cancels each one in Pearl. Most incompletes first; click a name for every incomplete session.${blank ? ` Also ${blank.toLocaleString()} tutor attendance row${blank !== 1 ? 's are' : ' is'} marked Missed with no reason.` : ''}</p>
+        ${incByTutor.length ? `<div id="tutorIncBox">${incByTutor.map((t, i) => {
+          const list = t.incompleteRows.slice().sort(byDate);
+          const oldest = list.length ? dayOnly(list[list.length - 1][SESS.START]) : '';
+          return `<details class="pt-checkin" data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
             <summary>
               <span class="pt-checkin-id">${esc(t.id || '—')}</span>
-              <span class="pt-checkin-name">${esc(t.name)} <span style="font-weight:400;color:var(--muted);font-size:.78rem">· ${esc(t.school)}</span></span>
-              <span class="pt-checkin-stat"><span class="pt-pill pt-pill-bad">${t.rate}% attended</span>
-                <span style="color:var(--muted);font-size:.78rem">${t.absent} missed of ${t.sessions} · last attended ${esc(t.lastAttended || 'never')}</span></span>
+              <span class="pt-checkin-name">${esc(t.name)} <span style="font-weight:400;color:var(--muted);font-size:.78rem">· ${esc(t.school || 'School not recorded')}${t.schoolList.length > 1 ? ' +' + (t.schoolList.length - 1) + ' more' : ''}</span></span>
+              <span class="pt-checkin-stat"><span class="pt-pill pt-pill-bad">${t.incomplete} incomplete</span>
+                <span style="color:var(--muted);font-size:.78rem">oldest ${esc(oldest || '—')}</span></span>
             </summary>
-            <div class="pt-checkin-detail"><table><thead><tr><th>Date</th><th>Session</th><th>Reason</th></tr></thead><tbody>
-              ${t.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.session)}</td><td>${esc(m.reason)}</td></tr>`).join('')}
+            <div class="pt-checkin-detail"><table><thead><tr><th>Date</th><th>Session</th><th>School</th></tr></thead><tbody>
+              ${list.map(r => `<tr><td>${esc(dayOnly(r[SESS.START]))}</td><td>${esc(r[SESS.TITLE] || '—')}</td><td>${esc(r[SESS.SCHOOL] || '—')}</td></tr>`).join('')}
             </tbody></table></div>
-          </details>`).join('')}
-          ${checkIns.length > CHECKIN_PAGE ? pagerHtml('tutorCkBox', checkIns.length) : ''}</div>`
-        : `<p style="font-size:.85rem;color:var(--text-2)">No tutors are under ${TUTOR_TARGET}% attendance in this view.</p>`}
+          </details>`;
+        }).join('')}${incByTutor.length > CHECKIN_PAGE ? pagerHtml('tutorIncBox', incByTutor.length) : ''}</div>`
+        : `<p style="font-size:.85rem;color:var(--text-2)">${hasSessionData() ? 'No incomplete sessions in this view.' : 'Session data is not available yet.'}</p>`}
       </div>
-      <div class="pt-card" style="margin-bottom:1.1rem" id="tutorIncompletes">
-        <div class="pt-card-title">${ICONS.roster} Total Incompletes<span class="pt-card-title-note">${inc.length.toLocaleString()} session${inc.length !== 1 ? 's' : ''} · Pearl clean-up</span></div>
-        <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">Sessions still marked <b>Scheduled</b> in Pearl after the session date — attendance was never taken, so the session doesn't count anywhere. The tutor (or Site Leader) completes or cancels each one in Pearl.${blank ? ` Also ${blank.toLocaleString()} tutor attendance row${blank !== 1 ? 's are' : ' is'} marked Missed with no reason.` : ''}</p>
-        ${incByTutor.length ? `<div class="pt-grid pt-grid-2">
-          <div><table class="pt-table"><thead><tr><th>Tutor</th><th>School</th><th style="text-align:right">Incomplete</th></tr></thead><tbody>
-            ${incByTutor.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.school)}</td><td style="text-align:right;font-weight:700">${t.incomplete}</td></tr>`).join('')}
-          </tbody></table></div>
-          <div id="tutorIncBox"><table class="pt-table"><thead><tr><th>Date</th><th>Tutor</th><th>Session</th></tr></thead><tbody>
-            ${incRows.map((r, i) => `<tr data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}><td>${esc(dayOnly(r[SESS.START]))}</td><td>${esc(r[SESS.INSTRUCTOR] || '—')}</td><td>${esc(r[SESS.TITLE] || '')}<div style="font-size:.7rem;color:var(--muted)">${esc(r[SESS.SCHOOL] || '')}</div></td></tr>`).join('')}
-          </tbody></table>${incRows.length > CHECKIN_PAGE ? pagerHtml('tutorIncBox', incRows.length) : ''}</div>
-        </div>` : `<p style="font-size:.85rem;color:var(--text-2)">${hasSessionData() ? 'No incomplete sessions in this view.' : 'Session data is not available yet.'}</p>`}
-      </div>
-      <div class="pt-grid pt-grid-2" style="margin-bottom:1.1rem">
-        <div class="pt-card">
-          <div class="pt-card-title">${ICONS.search} Why Tutors Missed a Session</div>
-          ${reasonList.length ? distRows(reasonList, reasonTotal, BRAND.blue) : `<p style="color:var(--muted);font-size:.85rem">No tutor-side missed sessions logged.</p>`}
-        </div>
-        <div class="pt-card">
-          <div class="pt-card-title">${ICONS.roster} Tutor Attendance</div>
-          <div id="tutorRosterBox"><table class="pt-table"><thead><tr><th>Tutor</th><th>School</th><th>Attendance</th><th style="text-align:right">Sessions</th><th style="text-align:right">Incomplete</th></tr></thead><tbody>
-            ${table.map((t, i) => `<tr data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}><td>${esc(t.name)}</td><td style="font-size:.75rem">${esc(t.school)}</td><td>${pill(t.rate)}</td><td style="text-align:right">${t.sessions}</td><td style="text-align:right">${t.incomplete}</td></tr>`).join('')}
-          </tbody></table>${table.length > CHECKIN_PAGE ? pagerHtml('tutorRosterBox', table.length) : ''}</div>
-        </div>
+      <div class="pt-card" style="margin-bottom:1.1rem">
+        <div class="pt-card-title">${ICONS.search} Why Tutors Missed a Session</div>
+        ${reasonList.length ? distRows(reasonList, reasonTotal, BRAND.blue) : `<p style="color:var(--muted);font-size:.85rem">No tutor-side missed sessions logged.</p>`}
       </div>`;
     drawRateLine('chartTutorWeekly', keys.map(k => wk[k].label), keys.map(k => pct(wk[k].a, wk[k].a + wk[k].m)), BRAND.pos, 'Tutor Attendance Rate');
+  }
+
+  // ── Tutor Profiles (Program Team only) ────────────────────────────────
+  // One card per tutor in the current view: content, grade levels, overall
+  // rating, scholars, attendance and apprentice status.
+  //
+  // Apprentice status comes from the TAP Tracker Master Roster (the same
+  // sheet Central's TAP pages read), matched by name. Fetched only for
+  // Program Team logins; only status/track are kept in memory.
+  //   Is apprentice:            Yes = on the roster as an Apprentice, Pre-
+  //                             apprentice or Completed Program (and not
+  //                             cancelled/terminated/withdrawn); else No.
+  //   Completed apprenticeship: Yes = Completed Program track or Completed
+  //                             status · In progress = current apprentice ·
+  //                             No = not an apprentice.
+  const TAP_MR_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
+  const MR_COL = { status: 1, first: 2, last: 3, full: 5, track: 99 };
+  const MR_STATUS_RE = /^(active|pending|reinstated|cancelled|canceled|terminated|completed|complete|inactive|on hold|paused|withdrawn)$/i;
+  let TAP_STATUS = null; // null = not loaded · {} map · false = unavailable
+  let _tapLoading = null;
+  const looseName = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\([^)]*\)/g, ' ').replace(/[^a-zA-Z\s'-]/g, ' ').toLowerCase().replace(/\s+/g, ' ').trim();
+  const firstLastKey = v => { const p = looseName(v).split(' ').filter(Boolean); return p.length > 1 ? p[0] + ' ' + p[p.length - 1] : ''; };
+  function apprenticeFromRoster(status, track) {
+    const st = String(status || '').trim(), tr = String(track || '').trim();
+    const role = !tr || /^apprentice/i.test(tr) ? 'Apprentice' : /^pre-apprentice/i.test(tr) ? 'Pre-apprentice' : /^completed/i.test(tr) ? 'Completed Program' : 'Tutor';
+    if (role === 'Tutor') return { is: 'No', done: 'No', note: '' };
+    if (role === 'Completed Program' || /^complete/i.test(st)) return { is: 'Yes', done: 'Yes', note: 'Completed Program' };
+    if (/cancel|terminat|withdrawn|inactive/i.test(st)) return { is: 'No', done: 'No', note: 'Left the program (' + st + ')' };
+    return { is: 'Yes', done: 'In progress', note: role + (st ? ' · ' + st : '') };
+  }
+  function loadTapStatus() {
+    if (TAP_STATUS !== null || _tapLoading) return _tapLoading;
+    _tapLoading = fetch(TAP_MR_URL + '&_=' + Date.now()).then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))).then(text => {
+      if (text.trim().startsWith('<')) throw new Error('roster not shared');
+      const map = {}, rank = { Yes: 3, 'In progress': 2, No: 1 };
+      CORE.parseCSV(text).forEach(r => {
+        const g = i => String(r[i] == null ? '' : r[i]).trim();
+        if (!MR_STATUS_RE.test(g(MR_COL.status))) return;
+        const name = g(MR_COL.full) || (g(MR_COL.first) + ' ' + g(MR_COL.last)).trim();
+        if (name.length < 2) return;
+        const a = apprenticeFromRoster(g(MR_COL.status), g(MR_COL.track));
+        // A person can have more than one roster row (e.g. a cancelled
+        // Summer row and an active SY row) — keep the strongest status.
+        [looseName(name), 'fl:' + firstLastKey(name)].forEach(k => {
+          if (!k || k === 'fl:') return;
+          const cur = map[k];
+          if (!cur || (rank[a.done] || 0) > (rank[cur.done] || 0) || (a.is === 'Yes' && cur.is === 'No')) map[k] = a;
+        });
+      });
+      TAP_STATUS = map;
+    }).catch(e => { console.warn('[Tutor Profiles] TAP roster unavailable:', e.message); TAP_STATUS = false; })
+      .then(() => { _tapLoading = null; if (isProgramView() && document.getElementById('view-tutorProfiles')) renderTutorProfiles(true); });
+    return _tapLoading;
+  }
+  function apprenticeOf(name) {
+    if (TAP_STATUS === null) return { is: '…', done: '…', note: 'Checking the TAP roster…' };
+    if (TAP_STATUS === false) return { is: '—', done: '—', note: 'TAP roster unavailable right now' };
+    return TAP_STATUS[looseName(name)] || TAP_STATUS['fl:' + firstLastKey(name)] || { is: 'No', done: 'No', note: 'Not on the TAP roster' };
+  }
+  const ynClass = v => v === 'Yes' ? 'pt-pill-good' : v === 'In progress' ? 'pt-pill-mid' : v === 'No' ? 'pt-pill-zero' : '';
+
+  let TUTOR_PROFILES = [];
+  const TP = { q: '', page: 1 };
+  function renderTutorProfiles(keepState) {
+    const el = document.getElementById('view-tutorProfiles'); if (!el) return;
+    if (TAP_STATUS === null) loadTapStatus();
+    const nameOf = {};
+    scopedAttendance().forEach(r => { if (isScholarRow(r)) { const u = (r[ATT.USER_ID] || '').trim(); if (u && !nameOf[u]) nameOf[u] = (r[ATT.USER] || '').trim(); } });
+    TUTOR_PROFILES = tutorRoster().filter(t => t.sessions > 0 || t.scholarCount > 0 || t.incomplete > 0)
+      .map(t => Object.assign(t, { tap: apprenticeOf(t.name), scholarNames: [...t.scholars].map(u => ({ uid: u, name: nameOf[u] || '' })).sort((a, b) => (a.name || '~').localeCompare(b.name || '~')) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!keepState) { TP.q = ''; TP.page = 1; }
+    if (!TUTOR_PROFILES.length) {
+      el.innerHTML = `<div class="pt-card pt-empty"><h3>No tutor profiles yet</h3><p>Profiles appear once a tutor has a session in Pearl for this view.</p></div>`;
+      return;
+    }
+    const nApp = TUTOR_PROFILES.filter(t => t.tap.is === 'Yes').length;
+    el.innerHTML = `
+      <div class="pt-card" style="margin-bottom:1rem" id="tutorProfilesIntro">
+        <div class="pt-card-title">${ICONS.users} Tutor Profiles<span class="pt-card-title-note">${TUTOR_PROFILES.length} tutor${TUTOR_PROFILES.length !== 1 ? 's' : ''}${TAP_STATUS ? ' · ' + nApp + ' apprentice' + (nApp !== 1 ? 's' : '') : ''}</span></div>
+        <p style="font-size:.82rem;color:var(--text-2)">Content, grade levels, overall rating, scholars, attendance and apprentice status for every tutor in this view. Click a card for the full profile. Apprentice status comes from the TAP Tracker roster, matched by name.</p>
+      </div>
+      <div class="pt-profile-search-wrap">
+        <input type="text" class="pt-profile-search" id="tutorProfileSearch" placeholder="Search by tutor name, Pearl ID or school…" autocomplete="off" value="${esc(TP.q)}"/>
+      </div>
+      <div class="pt-profile-grid" id="tutorProfileGrid"></div>
+      <div class="pt-profile-pager" id="tutorProfilePager"></div>`;
+    drawTutorGrid();
+    const input = document.getElementById('tutorProfileSearch');
+    input.addEventListener('input', e => { TP.q = e.target.value; TP.page = 1; drawTutorGrid(); });
+    document.getElementById('tutorProfileGrid').addEventListener('click', e => {
+      const card = e.target.closest('.pt-profile-card'); if (card) openTutorDetail(card.dataset.key);
+    });
+  }
+  function tutorKey(t) { return t.id || ('name:' + t.name.toLowerCase()); }
+  function drawTutorGrid() {
+    const grid = document.getElementById('tutorProfileGrid'), pager = document.getElementById('tutorProfilePager');
+    if (!grid) return;
+    const q = TP.q.trim().toLowerCase();
+    const list = q ? TUTOR_PROFILES.filter(t => t.name.toLowerCase().includes(q) || (t.id || '').toLowerCase().includes(q) || t.schoolList.some(sc => sc.toLowerCase().includes(q))) : TUTOR_PROFILES;
+    if (!list.length) { grid.innerHTML = `<p style="color:var(--muted);font-size:.85rem">No tutors match "${esc(TP.q)}".</p>`; pager.innerHTML = ''; return; }
+    const pages = Math.max(1, Math.ceil(list.length / PROFILES_PAGE_SIZE));
+    TP.page = Math.min(Math.max(1, TP.page), pages);
+    const start = (TP.page - 1) * PROFILES_PAGE_SIZE;
+    grid.innerHTML = list.slice(start, start + PROFILES_PAGE_SIZE).map(tutorCardHtml).join('');
+    pager.innerHTML = list.length <= PROFILES_PAGE_SIZE ? '' :
+      `<button type="button" class="pt-profile-pager-btn" ${TP.page === 1 ? 'disabled' : ''} onclick="NJTCPartnerNav.tutorPage(-1)">Prev</button>
+       <span class="pt-profile-pager-count">Page ${TP.page} of ${pages} · ${list.length} tutors</span>
+       <button type="button" class="pt-profile-pager-btn" ${TP.page === pages ? 'disabled' : ''} onclick="NJTCPartnerNav.tutorPage(1)">Next</button>`;
+  }
+  const rating = v => v == null ? '—' : v.toFixed(1) + ' / 5';
+  function tutorCardHtml(t) {
+    const cls = bandPillClass('tutor', t.attended, t.sessions, t.rate);
+    return `<button class="pt-profile-card" data-key="${esc(tutorKey(t))}" type="button">
+      <div class="pt-profile-card-name">${esc(t.name)}</div>
+      <div class="pt-profile-card-id">${esc(t.id || '—')}${t.school ? ' · ' + esc(t.school) : ''}${t.schoolList.length > 1 ? ' +' + (t.schoolList.length - 1) : ''}</div>
+      <div class="pt-profile-card-id">${esc([[...t.subjects].sort().join(' / '), [...t.grades].sort(gradeSort).join(', ') ? 'Gr. ' + [...t.grades].sort(gradeSort).join(', ') : ''].filter(Boolean).join(' · ') || 'Content / grade not recorded')}</div>
+      <div class="pt-profile-card-foot">
+        <span class="pt-pill ${cls}">${t.rate == null ? '—' : t.rate + '%'} attended</span>
+        <span style="font-size:.72rem;color:var(--muted)">${t.scholarCount} scholar${t.scholarCount === 1 ? '' : 's'} · rating ${rating(t.stuAvg)}</span>
+      </div>
+      <div class="pt-flag-row">
+        <span class="pt-pill ${ynClass(t.tap.is)}" style="font-size:.66rem">Apprentice: ${esc(t.tap.is)}</span>
+        <span class="pt-pill ${ynClass(t.tap.done)}" style="font-size:.66rem">Completed: ${esc(t.tap.done)}</span>
+        ${t.incomplete ? `<span class="pt-flag pt-flag-early">${t.incomplete} Incomplete</span>` : ''}
+      </div>
+    </button>`;
+  }
+  function openTutorDetail(key) {
+    const t = TUTOR_PROFILES.find(x => tutorKey(x) === key); if (!t) return;
+    document.getElementById('scholarModalName').textContent = t.name;
+    const subjects = [...t.subjects].sort(), grades = [...t.grades].sort(gradeSort);
+    document.getElementById('scholarModalBody').innerHTML = `
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Identity</div>
+        <p style="font-size:.85rem;color:var(--text-2)">Pearl ID <b>${esc(t.id || '—')}</b> · ${esc(t.schoolList.join(', ') || 'School not recorded')}</p>
+        <p style="font-size:.85rem;color:var(--text-2);margin-top:.3rem">Content: <b>${esc(subjects.join(', ') || '—')}</b> · Grade levels: <b>${esc(grades.join(', ') || '—')}</b></p>
+      </div>
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Apprentice Status</div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+          <div><div class="pt-kpi-sub">Is apprentice</div><span class="pt-pill ${ynClass(t.tap.is)}">${esc(t.tap.is)}</span></div>
+          <div><div class="pt-kpi-sub">Completed apprenticeship</div><span class="pt-pill ${ynClass(t.tap.done)}">${esc(t.tap.done)}</span></div>
+        </div>
+        ${t.tap.note ? `<p style="font-size:.72rem;color:var(--muted);margin-top:.45rem">${esc(t.tap.note)} · from the TAP Tracker roster, matched by name.</p>` : ''}
+      </div>
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Overall Rating</div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+          <div><div class="pt-kpi-val" style="font-size:1.4rem;color:${ratingColor(t.stuAvg)}">${rating(t.stuAvg)}</div><div class="pt-kpi-sub">from scholars (${t.stuN} survey${t.stuN === 1 ? '' : 's'})</div></div>
+          <div><div class="pt-kpi-val" style="font-size:1.4rem;color:${ratingColor(t.selfAvg)}">${rating(t.selfAvg)}</div><div class="pt-kpi-sub">tutor's own post-session (${t.selfRatings.length})</div></div>
+          <div><div class="pt-kpi-val" style="font-size:1.4rem">${t.loving == null ? '—' : t.loving + '%'}</div><div class="pt-kpi-sub">scholars loving sessions</div></div>
+        </div>
+      </div>
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Attendance</div>
+        <div class="pt-kpi-val" style="font-size:1.8rem;color:${bandColor('tutor', t.attended, t.sessions, t.rate)}">${t.rate == null ? '—' : t.rate + '%'}</div>
+        ${quickBar('Attended', t.attended, t.sessions, BRAND.pos)}
+        ${quickBar('Missed', t.absent, t.sessions, BRAND.neg)}
+        <p style="font-size:.78rem;color:var(--text-2);margin-top:.5rem">Last attended: <b>${esc(t.lastAttended || 'never')}</b>${t.excused ? ` · ${t.excused} excused not counted` : ''}${t.incomplete ? ` · <b style="color:${BRAND.neg}">${t.incomplete} incomplete</b> in Pearl` : ''}</p>
+      </div>
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Scholars (${t.scholarCount})</div>
+        <p style="font-size:.75rem;color:var(--muted);margin-bottom:.4rem">Scholars on this tutor's Pearl sessions (based on the filters selected).</p>
+        ${t.scholarNames.length ? t.scholarNames.map(x => `<span class="pt-tutor-chip">${esc(x.name || x.uid)}</span>`).join('') : '<p style="font-size:.85rem;color:var(--muted)">No scholars on record for these sessions.</p>'}
+      </div>
+      ${t.missed.length ? `<div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Missed Sessions</div>
+        <table class="pt-table"><thead><tr><th>Date</th><th>Session</th><th>Reason</th></tr></thead><tbody>
+          ${t.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.session || '—')}</td><td>${esc(m.reason)}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}`;
+    document.getElementById('scholarModal').classList.add('open');
   }
 
   // Survey pages — every comment in the current view, grouped by the person
@@ -1284,7 +1532,7 @@
     const set = new Set();
     (BUNDLE.attendance || []).forEach(r => {
       const d = (r[ATT.DISTRICT] || '').trim(), sc = (r[ATT.SCHOOL] || '').trim();
-      if (sc && (SCOPE.district === 'ALL' || d === SCOPE.district)) set.add(sc);
+      if (sc && (SCOPE.district === 'ALL' || d === SCOPE.district) && (SCOPE.region === 'ALL' || regionOfDistrict(d) === SCOPE.region)) set.add(sc);
     });
     return [...set].sort();
   }
@@ -1300,8 +1548,11 @@
     const byScholar = {};
     rows.forEach(r => {
       const k = (r[ATT.USER_ID] || r[ATT.USER] || '').trim();
-      if (!byScholar[k]) byScholar[k] = { uid: (r[ATT.USER_ID] || '').trim(), name: (r[ATT.USER] || '').trim(), n: 0 };
+      if (!byScholar[k]) byScholar[k] = { uid: (r[ATT.USER_ID] || '').trim(), name: (r[ATT.USER] || '').trim(), n: 0, sessions: {} };
       byScholar[k].n++;
+      // Session Name from Session Details — usually the classroom teacher's name.
+      const sn = (r[ATT.SESSION] || '').trim();
+      if (sn) byScholar[k].sessions[sn] = (byScholar[k].sessions[sn] || 0) + 1;
     });
     return { count: rows.length, scholars: Object.values(byScholar).sort((a, b) => b.n - a.n) };
   }
@@ -1341,7 +1592,7 @@
       el.classList.remove('pt-flash'); void el.offsetWidth; el.classList.add('pt-flash');
     } else window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  window.NJTCPartnerNav = { openSchool, backToAllSchools, goTab, drill, isDistrictLens: () => isDistrictLens() };
+  window.NJTCPartnerNav = { openSchool, backToAllSchools, goTab, drill, isDistrictLens: () => isDistrictLens(), isProgramView: () => isProgramView() };
 
   function contactCardHtml(id) {
     const c = CORE.contactsFor(id);
@@ -1410,7 +1661,7 @@
       <div id="view-tutorProfiles" class="pt-view"></div>`;
     renderSummary();
     renderAttendance();
-    if (isProgramView()) renderTutorAttendance();
+    if (isProgramView()) { renderTutorAttendance(); renderTutorProfiles(); }
     renderSurveyView('scholar', scopedScholarSurveys(), STU,
       { c1: 'CONFIDENCE', c2: 'ENJOYMENT', c3: 'LEARNING' },
       ['How confident scholars felt they understood the material', 'How much scholars enjoyed the session', 'How much scholars felt they learned']);
@@ -1595,7 +1846,6 @@
   //  ATTENDANCE TRACKING — scholar-only throughout
   // ══════════════════════════════════════════════════════════════════════
   function renderAttendance() {
-    _ckPage = 0;
     const attAll = scopedAttendance();
     const el = document.getElementById('view-attendance');
     if (!attAll.length) { el.innerHTML = noDataCard(); return; }
@@ -1606,8 +1856,6 @@
     const weekly = scholarWeeklyRate(stats.rows);
     const reasons = scholarMissedReasons(stats.rows).slice(0, 8);
     const reasonTotal = reasons.reduce((sum, [, n]) => sum + n, 0);
-    const checkIns = scholarsToCheckIn(stats.rows);
-
     const byScholar = {};
     stats.rows.forEach(r => {
       const uid = (r[ATT.USER_ID] || '').trim();
@@ -1620,7 +1868,7 @@
       else if (c === 'absent') byScholar[key].absent++;
     });
     const roster = Object.values(byScholar)
-      .map(s => ({ ...s, rate: pct(s.attended, s.attended + s.absent) }))
+      .map(s => ({ ...s, total: s.attended + s.absent, rate: pct(s.attended, s.attended + s.absent) }))
       .sort((a, b) => (a.rate ?? 100) - (b.rate ?? 100)); // lowest attendance first — most actionable
 
     el.innerHTML = `
@@ -1639,7 +1887,7 @@
           <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">${stats.excused.toLocaleString()} additional sessions were excused (school events, testing, holidays) and aren't counted here.</p>
         </div>
       </div>
-      ${checkinSectionHtml(checkIns)}
+      ${attendanceDetailHtml('scholar', scholarDetailList(stats.rows))}
       ${keptInClassHtml(attAll, stats.absent)}
       <div class="pt-grid pt-grid-2" style="margin-bottom:1.1rem">
         <div class="pt-card">
@@ -1651,7 +1899,7 @@
           <div id="rosterBox">
             <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th>Attendance</th></tr></thead><tbody>
               ${roster.map((s, i) => {
-                const cls = s.rate == null ? '' : s.rate >= 90 ? 'pt-pill-good' : s.rate >= 75 ? 'pt-pill-warn' : 'pt-pill-bad';
+                const cls = bandPillClass('scholar', s.attended, s.total, s.rate);
                 return `<tr data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(s.uid)}</td><td>${esc(s.name)}</td><td><span class="pt-pill ${cls}">${s.rate == null ? '—' : s.rate + '%'}</span></td></tr>`;
               }).join('')}
             </tbody></table>
@@ -1663,52 +1911,96 @@
     drawRateLine('chartWeekly', weekly.weeks, weekly.rates, BRAND.blue);
   }
 
-  function checkinSectionHtml(checkIns) {
-    if (!checkIns.length) {
-      return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourCheckin">
-        <div class="pt-card-title">${ICONS.handshake} Scholars to Check In With</div>
-        <p style="font-size:.85rem;color:var(--text-2)">No scholars are currently flagged for a check-in — attendance looks solid across the board.</p>
-      </div>`;
-    }
-    return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourCheckin">
-      <div class="pt-card-title">${ICONS.handshake} Scholars to Check In With</div>
-      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">${checkIns.length.toLocaleString()} scholar${checkIns.length !== 1 ? 's have' : ' has'} a real pattern of missed sessions, lowest attendance first. A quick check-in with the scholar, a teacher, or family often turns this around. Click a name for the specific sessions missed.</p>
-      ${checkIns.map((s, i) => `
-        <details class="pt-checkin" data-ck-page="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
-          <summary>
-            <span class="pt-checkin-id">${esc(s.uid)}</span>
-            <span class="pt-checkin-name">${esc(s.name)}</span>
-            <span class="pt-checkin-stat">
-              <span class="pt-pill pt-pill-bad">${s.rate == null ? '0%' : s.rate + '%'} attended</span>
-              <span style="color:var(--muted);font-size:.78rem">${s.absences} missed · last attended ${esc(s.lastAttended || 'never')}</span>
-            </span>
-          </summary>
-          <div class="pt-checkin-detail">
-            <table><thead><tr><th>Date</th><th>Reason</th></tr></thead><tbody>
-              ${s.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.reason)}</td></tr>`).join('')}
-            </tbody></table>
-          </div>
-        </details>`).join('')}
-      ${checkIns.length > CHECKIN_PAGE ? `<div class="pt-pager" id="ckPager">
-        <button type="button" onclick="NJTCPartnerNav.checkinPage(-1)" disabled>&larr; Previous</button>
-        <span id="ckPagerLabel">1–${CHECKIN_PAGE} of ${checkIns.length}</span>
-        <button type="button" onclick="NJTCPartnerNav.checkinPage(1)">Next &rarr;</button>
-      </div>` : ''}
+  // ── Attendance Detail (scholar + tutor) ─────────────────────────────
+  // Every person in the current view, one accordion row each, filterable by
+  // band: 0% / below goal (default) / at goal / All. Click a name for the
+  // missed sessions (date, session, reason).
+  function scholarDetailList(scholarRows) {
+    const by = {};
+    scholarRows.forEach(r => {
+      const uid = (r[ATT.USER_ID] || '').trim(), name = (r[ATT.USER] || '').trim();
+      if (!uid && !name) return;
+      const k = uid || ('name:' + name.toLowerCase());
+      const p = by[k] = by[k] || { id: uid, name: name || 'Unknown', schools: {}, attended: 0, absent: 0, excused: 0, missed: [], lastAttended: '', lastSort: null };
+      const sc = (r[ATT.SCHOOL] || '').trim(); if (sc) p.schools[sc] = (p.schools[sc] || 0) + 1;
+      const c = classifyAtt(r);
+      if (c === 'attended') {
+        p.attended++;
+        const d = parseDate((r[ATT.SESS_DATE] || '').trim());
+        if (d && (!p.lastSort || d > p.lastSort)) { p.lastSort = d; p.lastAttended = (r[ATT.SESS_DATE] || '').trim(); }
+      } else if (c === 'absent') {
+        p.absent++;
+        p.missed.push({ date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded', session: (r[ATT.SESSION] || '').trim(), reason: (r[ATT.MISS_REASON] || '').trim() || REASON_UNKNOWN });
+      } else if (c === 'si') p.excused++;
+    });
+    return Object.values(by).map(p => {
+      const schoolList = Object.entries(p.schools).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+      const total = p.attended + p.absent;
+      return Object.assign(p, { schoolList, school: schoolList[0] || '', total, rate: pct(p.attended, total) });
+    }).filter(p => p.total > 0);
+  }
+  function tutorDetailList(roster) {
+    return roster.filter(t => t.sessions > 0).map(t => Object.assign({}, t, { total: t.sessions }));
+  }
+
+  const DETAIL = { scholar: { list: [], band: 'low' }, tutor: { list: [], band: 'low' } };
+  const DETAIL_META = {
+    scholar: { id: 'tourCheckin', box: 'scholarDetailBox', title: 'Scholar Attendance Detail' },
+    tutor:   { id: 'tutorCheckin', box: 'tutorDetailBox', title: 'Tutor Attendance Detail' },
+  };
+  function attendanceDetailHtml(kind, list) {
+    const B = BANDS[kind], M = DETAIL_META[kind];
+    list = list.slice().sort((a, b) => (a.rate ?? -1) - (b.rate ?? -1) || b.absent - a.absent || a.name.localeCompare(b.name));
+    DETAIL[kind].list = list;
+    DETAIL[kind].band = 'low'; // default: 1% up to just under goal
+    const n = band => band === 'all' ? list.length : list.filter(p => bandOf(kind, p.attended, p.total, p.rate) === band).length;
+    const chips = [['zero', '0%'], ['low', `1–${B.target - 1}%`], ['met', `${B.target}–100%`], ['all', 'All']];
+    return `<div class="pt-card" style="margin-bottom:1.1rem" id="${M.id}">
+      <div class="pt-card-title">${ICONS.handshake} ${M.title}<span class="pt-card-title-note">Goal: ${B.target}%+ attendance</span></div>
+      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.7rem">Every ${B.noun} in this view, lowest attendance first. Click a name for the sessions missed${kind === 'scholar' ? ', the session name and the reason' : ' and the reason'}.</p>
+      <div class="pt-band-chips" role="group" aria-label="Filter by attendance">
+        ${chips.map(([b, l]) => `<button type="button" class="pt-band-chip${b === 'low' ? ' active' : ''}" data-band="${b}" onclick="NJTCPartnerNav.detailBand('${kind}','${b}')">${l} <b>${n(b).toLocaleString()}</b></button>`).join('')}
+      </div>
+      ${bandLegendHtml(kind)}
+      <div id="${M.box}">${detailRowsHtml(kind)}</div>
     </div>`;
   }
-  const CHECKIN_PAGE = 10;
-  let _ckPage = 0;
-  NJTCPartnerNav.checkinPage = function (delta) {
-    const rows = [...document.querySelectorAll('#tourCheckin [data-ck-page]')];
-    const pages = Math.ceil(rows.length / CHECKIN_PAGE);
-    _ckPage = Math.max(0, Math.min(pages - 1, _ckPage + delta));
-    rows.forEach(r => { r.hidden = Number(r.dataset.ckPage) !== _ckPage; });
-    const lbl = document.getElementById('ckPagerLabel');
-    if (lbl) lbl.textContent = (_ckPage * CHECKIN_PAGE + 1) + '–' + Math.min(rows.length, (_ckPage + 1) * CHECKIN_PAGE) + ' of ' + rows.length;
-    const btns = document.querySelectorAll('#ckPager button');
-    if (btns.length === 2) { btns[0].disabled = _ckPage === 0; btns[1].disabled = _ckPage >= pages - 1; }
+  function detailRowsHtml(kind) {
+    const B = BANDS[kind], M = DETAIL_META[kind], band = DETAIL[kind].band;
+    const rows = DETAIL[kind].list.filter(p => band === 'all' || bandOf(kind, p.attended, p.total, p.rate) === band);
+    if (!rows.length) {
+      const what = band === 'zero' ? 'at 0%' : band === 'low' ? `between 1% and ${B.target - 1}%` : band === 'met' ? `at ${B.target}% or higher` : 'with attendance logged';
+      return `<p style="font-size:.85rem;color:var(--text-2);padding:.4rem 0">No ${B.nounPl} ${what} in this view.</p>`;
+    }
+    return rows.map((p, i) => `
+      <details class="pt-checkin" data-pg="${Math.floor(i / CHECKIN_PAGE)}"${i >= CHECKIN_PAGE ? ' hidden' : ''}>
+        <summary>
+          <span class="pt-checkin-id">${esc(p.id || '—')}</span>
+          <span class="pt-checkin-name">${esc(p.name)} <span style="font-weight:400;color:var(--muted);font-size:.78rem">· ${esc(p.school || 'School not recorded')}${p.schoolList && p.schoolList.length > 1 ? ' +' + (p.schoolList.length - 1) + ' more' : ''}</span></span>
+          <span class="pt-checkin-stat">
+            <span class="pt-pill ${bandPillClass(kind, p.attended, p.total, p.rate)}">${p.rate == null ? '—' : p.rate + '%'} attended</span>
+            <span style="color:var(--muted);font-size:.78rem">${p.attended} of ${p.total} session${p.total === 1 ? '' : 's'} · ${p.absent} missed · last attended ${esc(p.lastAttended || 'never')}</span>
+          </span>
+        </summary>
+        <div class="pt-checkin-detail">
+          ${p.missed.length ? `<table><thead><tr><th>Date</th><th>Session</th><th>Reason</th></tr></thead><tbody>
+            ${p.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.session || '—')}</td><td>${esc(m.reason)}</td></tr>`).join('')}
+          </tbody></table>` : `<p style="padding:.3rem 0">No missed sessions.</p>`}
+          ${p.excused ? `<p style="font-size:.72rem;color:var(--muted);margin-top:.4rem">${p.excused} excused session${p.excused === 1 ? '' : 's'} (school events, testing, closures) not counted.</p>` : ''}
+        </div>
+      </details>`).join('') + (rows.length > CHECKIN_PAGE ? pagerHtml(M.box, rows.length) : '');
+  }
+  NJTCPartnerNav.tutorPage = function (d) { TP.page += d; drawTutorGrid(); };
+  NJTCPartnerNav.detailBand = function (kind, band) {
+    if (!DETAIL[kind]) return;
+    DETAIL[kind].band = band;
+    const card = document.getElementById(DETAIL_META[kind].id);
+    if (card) card.querySelectorAll('.pt-band-chip').forEach(c => c.classList.toggle('active', c.dataset.band === band));
+    const box = document.getElementById(DETAIL_META[kind].box);
+    if (box) box.innerHTML = detailRowsHtml(kind);
   };
 
+  const CHECKIN_PAGE = 10;
   // Generic 10-per-page pager for any container whose rows carry data-pg.
   const _pages = {};
   function pagerHtml(boxId, total) {
@@ -1742,9 +2034,12 @@
     const share = absent ? Math.round(k.count / absent * 100) : 0;
     return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourKept">
       <div class="pt-card-title">${ICONS.school} Kept in Class During Tutoring<span class="pt-card-title-note">${k.count.toLocaleString()} session${k.count !== 1 ? 's' : ''} · ${share}% of missed sessions</span></div>
-      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">A classroom teacher kept these scholars in class during their tutoring time. Each one counts as a missed tutoring session, so scholars receive less of the tutoring they're scheduled for. A quick word with the teachers about the tutoring schedule usually helps.</p>
-      <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th style="text-align:right">Times kept in class</th></tr></thead><tbody>
-        ${k.scholars.slice(0, 10).map(x => `<tr><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(x.uid || '—')}</td><td>${esc(x.name)}</td><td style="text-align:right;font-weight:700">${x.n}</td></tr>`).join('')}
+      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.8rem">A classroom teacher kept these scholars in class during their tutoring time. Session Name comes from Pearl's Session Details and is usually the classroom teacher's name. Each one counts as a missed tutoring session, so scholars receive less of the tutoring they're scheduled for. A quick word with the teachers about the tutoring schedule usually helps.</p>
+      <table class="pt-table"><thead><tr><th>Pearl ID</th><th>Scholar</th><th>Session Name</th><th style="text-align:right">Times kept in class</th></tr></thead><tbody>
+        ${k.scholars.slice(0, 10).map(x => {
+          const names = Object.entries(x.sessions || {}).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+          return `<tr><td style="font-family:'JetBrains Mono',monospace;font-size:.75rem">${esc(x.uid || '—')}</td><td>${esc(x.name)}</td><td style="font-size:.78rem">${names.length ? names.map(esc).join('<br>') : '—'}</td><td style="text-align:right;font-weight:700">${x.n}</td></tr>`;
+        }).join('')}
       </tbody></table>
       ${k.scholars.length > 10 ? `<p style="font-size:.75rem;color:var(--muted);margin-top:.5rem">Showing the 10 scholars kept in class most often, of ${k.scholars.length}.</p>` : ''}
     </div>`;
