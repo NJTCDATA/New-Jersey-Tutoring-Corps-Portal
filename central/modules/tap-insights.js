@@ -488,7 +488,7 @@
     const c3e = withK.reduce((s, p) => s + num(p.rti['Course 3 (RTI) Estimated Hours']), 0), c3s = withK.reduce((s, p) => s + num(p.rti['Course 3 (RTI) Time Spent Hours']), 0);
     const nearMs = ap.filter(p => p.flags.some(f => f.code === 'milestone')).length;
     return `
-      ${section('TAP participants · SY 26-27', 'Active on the Master Roster as Apprentice, Pre-apprentice or Completed Program (role from the Onsite DB SY 26-27 OJT list). Non-TAP tutors are not included.')}
+      ${section('Current cohort · SY 26-27 (active now)', 'People active on the Master Roster today as Apprentice, Pre-apprentice or Completed Program (role from the Onsite DB SY 26-27 OJT list). Not an all-time count; past cohorts are under SY 25-26 & Returners. Non-TAP tutors are not included.')}
       ${grid([
         kpi(ap.length, 'Apprentices', 'avg ' + pctTxt(avg(ap)) + ' of OJT activities', '#059669'),
         kpi(pre.length, 'Pre-apprentices', 'avg ' + pctTxt(avg(pre)) + ' of OJT activities', '#0891b2'),
@@ -795,7 +795,7 @@
     const trained = all.filter(p => p.rti).length;
     const big = (v, l, sub, c) => `<div style="background:var(--surface,#fff);border:1px solid var(--border);border-radius:14px;padding:1rem 1.1rem"><div style="font-size:2rem;font-weight:800;color:${c}">${v}</div><div style="font-size:.85rem;font-weight:700">${l}</div><div style="font-size:.74rem;color:var(--muted)">${sub}</div></div>`;
     return `
-      <div style="font-size:.85rem;color:var(--text-2);margin-bottom:1rem">Our <strong>${all.length}</strong> apprentices and pre-apprentices this school year, as of today.</div>
+      <div style="font-size:.85rem;color:var(--text-2);margin-bottom:1rem">Current cohort: <strong>${all.length}</strong> apprentices and pre-apprentices active this school year (SY 26-27), as of today. This is not an all-time count.</div>
       ${grid([
         big(observedMonth + ' of ' + all.length, 'Had checklist activity in ' + _model.focus.long, _model.focus.isPrev ? 'Last full month (it’s early in ' + MON_LONG[_model.today.getMonth()] + ')' : 'Activities checked off so far this month', observedMonth === all.length ? '#047857' : '#b45309'),
         big(needs.length, 'Need attention now', 'Not observed in 30+ days, or we can’t open their checklist', needs.length ? '#b91c1c' : '#047857'),
