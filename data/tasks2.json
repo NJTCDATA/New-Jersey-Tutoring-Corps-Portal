@@ -1,7 +1,7 @@
 {
-  "generated": "2026-11-23T02:12:20.308Z",
+  "generated": "2026-11-23T11:00:16.816Z",
   "project": "1213346212277384",
-  "count": 4,
+  "count": 2,
   "tasks": [
     {
       "gid": "1219242249066317",
@@ -32,46 +32,6 @@
       "name": "2027 Community Collaboration Challenge",
       "notes": "The 2027 CCC provides $3,000 to $8,000 awards to help schools, districts, nonprofits, higher education institutions, government agencies, and community partners cross-design, plan, or pilot solutions across five key support areas: high-impact tutoring, mentoring, student success coaching, postsecondary transition coaching, and wraparound/integrated student supports.\n\n",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1219242249066317"
-    },
-    {
-      "gid": "1220145717026033",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-11-19",
-      "followers": [
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Fall Into Literacy Event - Nov. 2026",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1220145717026033"
-    },
-    {
-      "gid": "1220683709136960",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-11-17",
-      "followers": [
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        }
-      ],
-      "name": "South Jersey Chamber of Commerce - State Affairs Committee",
-      "notes": "CCSNJ’s State Affairs Committee: New Jersey's Second Legislative District - mtg 11/17",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1220683709136960"
     },
     {
       "gid": "1213346212293206",
